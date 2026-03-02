@@ -1,0 +1,15 @@
+[package]
+name = "isso51-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "ISSO 51 heat loss calculation engine for residential buildings"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "0.8"
+thiserror = "2"
+
+[dev-dependencies]
+approx = "0.5"

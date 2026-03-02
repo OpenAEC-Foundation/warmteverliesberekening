@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vertrekken - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    .main-content { height: 100vh; }
+    .split-layout { height: calc(100vh - var(--header-height) - 42px); }
+
+    /* Room header detail */
+    .room-header {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-6);
+      margin-bottom: var(--space-5);
+    }
+    .room-header h2 {
+      margin-bottom: var(--space-1);
+    }
+    .room-meta {
+      display: flex;
+      gap: var(--space-4);
+      font-size: var(--text-sm);
+      color: var(--color-gray-500);
+    }
+    .room-meta dt {
+      font-weight: var(--weight-medium);
+      color: var(--color-gray-600);
+    }
+    .room-meta dd {
+      font-family: var(--font-mono);
+      color: var(--color-gray-800);
+    }
+    .room-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Temperature badge in tree */
+    .tree-temp {
+      font-size: var(--text-xs);
+      color: var(--color-gray-400);
+      flex-shrink: 0;
+      margin-right: var(--space-1);
+    }
+
+    /* Ventilation summary card */
+    .vent-summary {
+      display: flex;
+      gap: var(--space-6);
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-gray-50);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      font-size: var(--text-sm);
+    }
+    .vent-summary dt {
+      font-size: var(--text-xs);
+      color: var(--color-gray-500);
+      font-weight: var(--weight-medium);
+    }
+    .vent-summary dd {
+      font-family: var(--font-mono);
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-900);
+    }
+    .vent-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Table footer row */
+    tfoot td {
+      padding: var(--cell-padding);
+      font-weight: var(--weight-semibold);
+      border-top: 2px solid var(--border-color);
+      background: var(--color-gray-50);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item">
+          <span class="nav-icon">&#9638;</span> Dashboard
+        </a>
+        <a href="project-setup.html" class="nav-item">
+          <span class="nav-icon">&#9881;</span> Project Setup
+        </a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item active">
+          <span class="nav-icon">&#9633;</span> Vertrekken
+        </a>
+        <a href="construction-library.html" class="nav-item">
+          <span class="nav-icon">&#9776;</span> Constructies
+        </a>
+        <a href="ventilation.html" class="nav-item">
+          <span class="nav-icon">&#9707;</span> Ventilatie
+        </a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item">
+          <span class="nav-icon">&#9736;</span> Resultaten
+        </a>
+        <a href="report.html" class="nav-item">
+          <span class="nav-icon">&#9112;</span> Rapport
+        </a>
+        <a href="import.html" class="nav-item">
+          <span class="nav-icon">&#8613;</span> Import
+        </a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Vertrekken</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary">+ Vertrek toevoegen</button>
+        </div>
+      </header>
+
+      <!-- Tabs -->
+      <div class="tabs" style="padding: 0 var(--space-6); background: var(--color-white);">
+        <a href="room-editor-tree.html" class="tab active">Boom</a>
+        <a href="room-editor-table.html" class="tab">Tabel</a>
+        <a href="room-editor-cards.html" class="tab">Kaarten</a>
+      </div>
+
+      <!-- Split layout: Tree | Detail -->
+      <div class="split-layout">
+
+        <!-- Tree panel -->
+        <div class="split-left">
+          <div class="tree">
+            <div class="tree-group-header">Portiekwoning</div>
+
+            <div class="tree-item active">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Woonkamer</span>
+              <span class="tree-temp">20&#176;C</span>
+              <span class="tree-value">1781 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Keuken</span>
+              <span class="tree-temp">20&#176;C</span>
+              <span class="tree-value">687 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Badkamer</span>
+              <span class="tree-temp">22&#176;C</span>
+              <span class="tree-value">152 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Slaapkamer 1</span>
+              <span class="tree-temp">20&#176;C</span>
+              <span class="tree-value">807 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Slaapkamer 2</span>
+              <span class="tree-temp">20&#176;C</span>
+              <span class="tree-value">822 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Slaapkamer 3</span>
+              <span class="tree-temp">20&#176;C</span>
+              <span class="tree-value">915 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Entree</span>
+              <span class="tree-temp">15&#176;C</span>
+              <span class="tree-value">160 W</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-icon">&#9632;</span>
+              <span class="tree-label">Toilet</span>
+              <span class="tree-temp">15&#176;C</span>
+              <span class="tree-value">2 W</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div class="split-right" style="padding: var(--space-5);">
+
+          <!-- Room header -->
+          <div class="room-header">
+            <div>
+              <h2>Woonkamer</h2>
+              <div class="room-meta">
+                <div class="room-meta-item">
+                  <dt>Functie</dt>
+                  <dd>Woonkamer</dd>
+                </div>
+                <div class="room-meta-item">
+                  <dt>Vloeroppervlak</dt>
+                  <dd>28.2 m&sup2;</dd>
+                </div>
+                <div class="room-meta-item">
+                  <dt>Hoogte</dt>
+                  <dd>2.6 m</dd>
+                </div>
+                <div class="room-meta-item">
+                  <dt>Temperatuur</dt>
+                  <dd>20 &#176;C</dd>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary bar -->
+          <div class="summary-bar mb-4">
+            <div class="summary-item">
+              <span class="summary-label">Transmissie</span>
+              <span class="summary-value">1247 W</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Ventilatie</span>
+              <span class="summary-value">832 W</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Opwarming</span>
+              <span class="summary-value">187 W</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Totaal</span>
+              <span class="summary-value" style="color: var(--color-primary);">1781 W</span>
+            </div>
+          </div>
+
+          <!-- Constructions table -->
+          <h3 class="mb-3">Grensvlakken</h3>
+          <div class="table-wrap mb-3">
+            <table>
+              <thead>
+                <tr>
+                  <th>Omschrijving</th>
+                  <th>Grenstype</th>
+                  <th class="num">A [m&sup2;]</th>
+                  <th class="num">U [W/m&sup2;K]</th>
+                  <th class="num">&Delta;T [K]</th>
+                  <th class="num">H [W/K]</th>
+                  <th class="num">&Phi; [W]</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Buitenwand</td>
+                  <td><span class="badge badge-exterior">exterior</span></td>
+                  <td class="num">7.29</td>
+                  <td class="num">0.36</td>
+                  <td class="num">30</td>
+                  <td class="num">2.62</td>
+                  <td class="num">78.7</td>
+                </tr>
+                <tr>
+                  <td>Raam</td>
+                  <td><span class="badge badge-exterior">exterior</span></td>
+                  <td class="num">4.32</td>
+                  <td class="num">3.20</td>
+                  <td class="num">30</td>
+                  <td class="num">13.82</td>
+                  <td class="num">414.7</td>
+                </tr>
+                <tr>
+                  <td>Buitenwand bij deur</td>
+                  <td><span class="badge badge-exterior">exterior</span></td>
+                  <td class="num">0.36</td>
+                  <td class="num">0.36</td>
+                  <td class="num">30</td>
+                  <td class="num">0.13</td>
+                  <td class="num">3.9</td>
+                </tr>
+                <tr>
+                  <td>Deur naar balkon</td>
+                  <td><span class="badge badge-exterior">exterior</span></td>
+                  <td class="num">2.16</td>
+                  <td class="num">2.78</td>
+                  <td class="num">30</td>
+                  <td class="num">6.00</td>
+                  <td class="num">180.1</td>
+                </tr>
+                <tr>
+                  <td>Naar keuken</td>
+                  <td><span class="badge badge-adjacent-room">adjacent-room</span></td>
+                  <td class="num">7.36</td>
+                  <td class="num">2.17</td>
+                  <td class="num">0</td>
+                  <td class="num">15.97</td>
+                  <td class="num">0.0</td>
+                </tr>
+                <tr>
+                  <td>Naar slaapkamer 1</td>
+                  <td><span class="badge badge-adjacent-room">adjacent-room</span></td>
+                  <td class="num">11.20</td>
+                  <td class="num">2.17</td>
+                  <td class="num">0</td>
+                  <td class="num">24.30</td>
+                  <td class="num">0.0</td>
+                </tr>
+                <tr>
+                  <td>Naar entree</td>
+                  <td><span class="badge badge-adjacent-room">adjacent-room</span></td>
+                  <td class="num">2.51</td>
+                  <td class="num">2.17</td>
+                  <td class="num">5</td>
+                  <td class="num">5.45</td>
+                  <td class="num">27.2</td>
+                </tr>
+                <tr>
+                  <td>Naar toilet</td>
+                  <td><span class="badge badge-adjacent-room">adjacent-room</span></td>
+                  <td class="num">3.12</td>
+                  <td class="num">2.17</td>
+                  <td class="num">5</td>
+                  <td class="num">6.77</td>
+                  <td class="num">33.9</td>
+                </tr>
+                <tr>
+                  <td>Naar badkamer</td>
+                  <td><span class="badge badge-adjacent-room">adjacent-room</span></td>
+                  <td class="num">3.64</td>
+                  <td class="num">2.17</td>
+                  <td class="num">-2</td>
+                  <td class="num">7.90</td>
+                  <td class="num">-15.8</td>
+                </tr>
+                <tr>
+                  <td>Woningscheidende wand</td>
+                  <td><span class="badge badge-adjacent-building">adjacent-building</span></td>
+                  <td class="num">18.09</td>
+                  <td class="num">2.08</td>
+                  <td class="num">0</td>
+                  <td class="num">37.63</td>
+                  <td class="num">0.0</td>
+                </tr>
+                <tr>
+                  <td>Plafond</td>
+                  <td><span class="badge badge-adjacent-building">adjacent-building</span></td>
+                  <td class="num">28.20</td>
+                  <td class="num">2.50</td>
+                  <td class="num">0</td>
+                  <td class="num">70.50</td>
+                  <td class="num">0.0</td>
+                </tr>
+                <tr>
+                  <td>Vloer</td>
+                  <td><span class="badge badge-adjacent-building">adjacent-building</span></td>
+                  <td class="num">28.20</td>
+                  <td class="num">2.50</td>
+                  <td class="num">0</td>
+                  <td class="num">70.50</td>
+                  <td class="num">0.0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <button class="btn btn-secondary mb-4">+ Grensvlak toevoegen</button>
+
+          <!-- Ventilation summary -->
+          <h3 class="mb-3">Ventilatie</h3>
+          <dl class="vent-summary">
+            <div class="vent-item">
+              <dt>Ventilatievoud</dt>
+              <dd>25.38 dm&sup3;/s</dd>
+            </div>
+            <div class="vent-item">
+              <dt>H<sub>v</sub></dt>
+              <dd>30.46 W/K</dd>
+            </div>
+            <div class="vent-item">
+              <dt>&Phi;<sub>v</sub></dt>
+              <dd>832 W</dd>
+            </div>
+          </dl>
+
+        </div>
+      </div>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

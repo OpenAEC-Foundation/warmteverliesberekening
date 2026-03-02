@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vertrekken (Tabel) - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    /* Page-level table styles */
+    .table-spreadsheet {
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      background: var(--color-white);
+    }
+
+    .table-spreadsheet table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
+      min-width: 1100px;
+    }
+
+    .table-spreadsheet thead th {
+      padding: var(--cell-padding);
+      text-align: left;
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-gray-500);
+      background: var(--color-gray-50);
+      border-bottom: 2px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      white-space: nowrap;
+    }
+
+    .table-spreadsheet thead th.num {
+      text-align: right;
+    }
+
+    .table-spreadsheet tbody td {
+      padding: var(--cell-padding);
+      border-bottom: 1px solid var(--color-gray-100);
+      vertical-align: middle;
+    }
+
+    .table-spreadsheet tbody td.num {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+    }
+
+    /* Sticky first column */
+    .table-spreadsheet th.col-room,
+    .table-spreadsheet td.col-room {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: var(--color-white);
+      min-width: 140px;
+      max-width: 180px;
+      border-right: 1px solid var(--color-gray-200);
+    }
+
+    .table-spreadsheet thead th.col-room {
+      background: var(--color-gray-50);
+      z-index: 3;
+    }
+
+    /* Room name cells */
+    .table-spreadsheet td.room-name {
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-900);
+      background: var(--color-white);
+    }
+
+    /* Minimum column widths */
+    .table-spreadsheet th.col-theta   { min-width: 60px; }
+    .table-spreadsheet th.col-boundary { min-width: 180px; }
+    .table-spreadsheet th.col-type    { min-width: 80px; }
+    .table-spreadsheet th.col-a       { min-width: 70px; }
+    .table-spreadsheet th.col-u       { min-width: 85px; }
+    .table-spreadsheet th.col-dt      { min-width: 60px; }
+    .table-spreadsheet th.col-h       { min-width: 70px; }
+    .table-spreadsheet th.col-phi-t   { min-width: 70px; }
+    .table-spreadsheet th.col-phi-v   { min-width: 70px; }
+    .table-spreadsheet th.col-phi-hu  { min-width: 70px; }
+    .table-spreadsheet th.col-phi-tot { min-width: 80px; }
+
+    /* Ellipsis row for truncated constructions */
+    .row-ellipsis td {
+      color: var(--color-gray-400);
+      font-style: italic;
+      font-size: var(--text-xs);
+    }
+
+    /* Subtotal rows per room */
+    .row-subtotal td {
+      font-weight: var(--weight-semibold);
+      background: var(--color-gray-50);
+      border-bottom: 2px solid var(--color-gray-200);
+    }
+
+    .row-subtotal td.col-room {
+      background: var(--color-gray-50);
+    }
+
+    /* Grand total row */
+    .row-total td {
+      font-weight: var(--weight-bold);
+      background: var(--color-gray-100);
+      border-top: 2px solid var(--color-gray-400);
+      border-bottom: none;
+      color: var(--color-gray-900);
+    }
+
+    .row-total td.col-room {
+      background: var(--color-gray-100);
+    }
+
+    /* Tabs spacing */
+    .tabs-bar {
+      padding: 0 var(--space-6);
+      background: var(--color-white);
+      border-bottom: none;
+    }
+
+    /* Negative values */
+    .num-negative {
+      color: var(--color-info);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9638;</span> Dashboard</a>
+        <a href="project-setup.html" class="nav-item"><span class="nav-icon">&#9881;</span> Project Setup</a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item active"><span class="nav-icon">&#9633;</span> Vertrekken</a>
+        <a href="construction-library.html" class="nav-item"><span class="nav-icon">&#9776;</span> Constructies</a>
+        <a href="ventilation.html" class="nav-item"><span class="nav-icon">&#9707;</span> Ventilatie</a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item"><span class="nav-icon">&#9736;</span> Resultaten</a>
+        <a href="report.html" class="nav-item"><span class="nav-icon">&#9112;</span> Rapport</a>
+        <a href="import.html" class="nav-item"><span class="nav-icon">&#8613;</span> Import</a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Vertrekken</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary">+ Vertrek toevoegen</button>
+        </div>
+      </header>
+
+      <!-- Tabs -->
+      <div class="tabs tabs-bar">
+        <a href="room-editor-tree.html" class="tab">Boom</a>
+        <span class="tab active">Tabel</span>
+        <a href="room-editor-cards.html" class="tab">Kaarten</a>
+      </div>
+
+      <section class="page-body">
+        <div class="table-spreadsheet">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-room">Vertrek</th>
+                <th class="col-theta num">&theta;<sub>i</sub> [&deg;C]</th>
+                <th class="col-boundary">Grensvlak</th>
+                <th class="col-type">Type</th>
+                <th class="col-a num">A [m&sup2;]</th>
+                <th class="col-u num">U [W/m&sup2;K]</th>
+                <th class="col-dt num">&Delta;T [K]</th>
+                <th class="col-h num">H [W/K]</th>
+                <th class="col-phi-t num">&Phi;<sub>t</sub> [W]</th>
+                <th class="col-phi-v num">&Phi;<sub>v</sub> [W]</th>
+                <th class="col-phi-hu num">&Phi;<sub>hu</sub> [W]</th>
+                <th class="col-phi-tot num">&Phi;<sub>tot</sub> [W]</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <!-- ===== 1. Woonkamer (20 °C) — 12 constructions, all shown ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="13">Woonkamer</td>
+                <td class="num" rowspan="13">20</td>
+                <td>Buitengevel Noord</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">8.64</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">3.20</td>
+                <td class="num">96</td>
+                <td class="num" rowspan="13">832</td>
+                <td class="num" rowspan="13">187</td>
+                <td class="num" rowspan="13">1781</td>
+              </tr>
+              <tr>
+                <td>Raam Noord</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">2.16</td>
+                <td class="num">1.65</td>
+                <td class="num">30</td>
+                <td class="num">3.56</td>
+                <td class="num">107</td>
+              </tr>
+              <tr>
+                <td>Buitengevel Oost</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">5.40</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">2.00</td>
+                <td class="num">60</td>
+              </tr>
+              <tr>
+                <td>Raam Oost</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">3.60</td>
+                <td class="num">1.65</td>
+                <td class="num">30</td>
+                <td class="num">5.94</td>
+                <td class="num">178</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Keuken</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">5.40</td>
+                <td class="num">1.82</td>
+                <td class="num">0</td>
+                <td class="num">9.83</td>
+                <td class="num">0</td>
+              </tr>
+              <tr>
+                <td>Binnendeur Keuken</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">1.89</td>
+                <td class="num">2.00</td>
+                <td class="num">0</td>
+                <td class="num">3.78</td>
+                <td class="num">0</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Entree</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">6.75</td>
+                <td class="num">1.82</td>
+                <td class="num">5</td>
+                <td class="num">12.29</td>
+                <td class="num">61</td>
+              </tr>
+              <tr>
+                <td>Binnendeur Entree</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">1.89</td>
+                <td class="num">2.00</td>
+                <td class="num">5</td>
+                <td class="num">3.78</td>
+                <td class="num">19</td>
+              </tr>
+              <tr>
+                <td>Scheidingswand buren</td>
+                <td><span class="badge badge-adjacent-building">Naburig</span></td>
+                <td class="num">10.80</td>
+                <td class="num">1.82</td>
+                <td class="num">5</td>
+                <td class="num">19.66</td>
+                <td class="num">98</td>
+              </tr>
+              <tr>
+                <td>Vloer</td>
+                <td><span class="badge badge-adjacent-building">Naburig</span></td>
+                <td class="num">17.55</td>
+                <td class="num">0.34</td>
+                <td class="num">5</td>
+                <td class="num">5.97</td>
+                <td class="num">30</td>
+              </tr>
+              <tr>
+                <td>Plafond</td>
+                <td><span class="badge badge-adjacent-building">Naburig</span></td>
+                <td class="num">17.55</td>
+                <td class="num">0.34</td>
+                <td class="num">5</td>
+                <td class="num">5.97</td>
+                <td class="num">30</td>
+              </tr>
+              <tr>
+                <td>Lineaire koudebrug ramen</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">&mdash;</td>
+                <td class="num">&mdash;</td>
+                <td class="num">30</td>
+                <td class="num">18.90</td>
+                <td class="num">567</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num">1247</td>
+                <td class="num">832</td>
+                <td class="num">187</td>
+                <td class="num">1781</td>
+              </tr>
+
+              <!-- ===== 2. Keuken (20 °C) — 9 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Keuken</td>
+                <td class="num" rowspan="5">20</td>
+                <td>Buitengevel West</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">4.50</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">1.67</td>
+                <td class="num">50</td>
+                <td class="num" rowspan="5">0</td>
+                <td class="num" rowspan="5">54</td>
+                <td class="num" rowspan="5">687</td>
+              </tr>
+              <tr>
+                <td>Raam West</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">1.44</td>
+                <td class="num">1.65</td>
+                <td class="num">30</td>
+                <td class="num">2.38</td>
+                <td class="num">71</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Woonkamer</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">5.40</td>
+                <td class="num">1.82</td>
+                <td class="num">0</td>
+                <td class="num">9.83</td>
+                <td class="num">0</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +6 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num">619</td>
+                <td class="num">0</td>
+                <td class="num">54</td>
+                <td class="num">687</td>
+              </tr>
+
+              <!-- ===== 3. Badkamer (22 °C) — 7 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Badkamer</td>
+                <td class="num" rowspan="5">22</td>
+                <td>Buitengevel Oost</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">3.15</td>
+                <td class="num">0.37</td>
+                <td class="num">32</td>
+                <td class="num">1.17</td>
+                <td class="num">37</td>
+                <td class="num" rowspan="5">118</td>
+                <td class="num" rowspan="5">34</td>
+                <td class="num" rowspan="5">152</td>
+              </tr>
+              <tr>
+                <td>Raam Oost</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">0.72</td>
+                <td class="num">1.65</td>
+                <td class="num">32</td>
+                <td class="num">1.19</td>
+                <td class="num">38</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Slaapkamer 1</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">4.05</td>
+                <td class="num">1.82</td>
+                <td class="num">2</td>
+                <td class="num">7.37</td>
+                <td class="num">15</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +4 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num">276</td>
+                <td class="num">118</td>
+                <td class="num">34</td>
+                <td class="num">152</td>
+              </tr>
+
+              <!-- ===== 4. Slaapkamer 1 (20 °C) — 8 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Slaapkamer 1</td>
+                <td class="num" rowspan="5">20</td>
+                <td>Buitengevel Oost</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">6.30</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">2.33</td>
+                <td class="num">70</td>
+                <td class="num" rowspan="5">242</td>
+                <td class="num" rowspan="5">85</td>
+                <td class="num" rowspan="5">807</td>
+              </tr>
+              <tr>
+                <td>Raam Oost</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">2.16</td>
+                <td class="num">1.65</td>
+                <td class="num">30</td>
+                <td class="num">3.56</td>
+                <td class="num">107</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Badkamer</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">4.05</td>
+                <td class="num">1.82</td>
+                <td class="num">&minus;2</td>
+                <td class="num">7.37</td>
+                <td class="num num-negative">&minus;15</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +5 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num">694</td>
+                <td class="num">242</td>
+                <td class="num">85</td>
+                <td class="num">807</td>
+              </tr>
+
+              <!-- ===== 5. Slaapkamer 2 (20 °C) — 7 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Slaapkamer 2</td>
+                <td class="num" rowspan="5">20</td>
+                <td>Buitengevel Noord</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">5.40</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">2.00</td>
+                <td class="num">60</td>
+                <td class="num" rowspan="5">361</td>
+                <td class="num" rowspan="5">83</td>
+                <td class="num" rowspan="5">822</td>
+              </tr>
+              <tr>
+                <td>Raam Noord</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">1.44</td>
+                <td class="num">1.65</td>
+                <td class="num">30</td>
+                <td class="num">2.38</td>
+                <td class="num">71</td>
+              </tr>
+              <tr>
+                <td>Buitengevel West</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">6.75</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">2.50</td>
+                <td class="num">75</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +4 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num">537</td>
+                <td class="num">361</td>
+                <td class="num">83</td>
+                <td class="num">822</td>
+              </tr>
+
+              <!-- ===== 6. Slaapkamer 3 (20 °C) — 8 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Slaapkamer 3</td>
+                <td class="num" rowspan="5">20</td>
+                <td>Buitengevel West</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">5.40</td>
+                <td class="num">0.37</td>
+                <td class="num">30</td>
+                <td class="num">2.00</td>
+                <td class="num">60</td>
+                <td class="num" rowspan="5">401</td>
+                <td class="num" rowspan="5">98</td>
+                <td class="num" rowspan="5">915</td>
+              </tr>
+              <tr>
+                <td>Raam West</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">2.16</td>
+                <td class="num">1.65</td>
+                <td class="num">30</td>
+                <td class="num">3.56</td>
+                <td class="num">107</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Entree</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">4.05</td>
+                <td class="num">1.82</td>
+                <td class="num">5</td>
+                <td class="num">7.37</td>
+                <td class="num">37</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +5 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num">695</td>
+                <td class="num">401</td>
+                <td class="num">98</td>
+                <td class="num">915</td>
+              </tr>
+
+              <!-- ===== 7. Entree (15 °C) — 9 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Entree</td>
+                <td class="num" rowspan="5">15</td>
+                <td>Binnenwand Woonkamer</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">6.75</td>
+                <td class="num">1.82</td>
+                <td class="num">&minus;5</td>
+                <td class="num">12.29</td>
+                <td class="num num-negative">&minus;61</td>
+                <td class="num" rowspan="5">132</td>
+                <td class="num" rowspan="5">0</td>
+                <td class="num" rowspan="5">160</td>
+              </tr>
+              <tr>
+                <td>Binnendeur Woonkamer</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">1.89</td>
+                <td class="num">2.00</td>
+                <td class="num">&minus;5</td>
+                <td class="num">3.78</td>
+                <td class="num num-negative">&minus;19</td>
+              </tr>
+              <tr>
+                <td>Voordeur</td>
+                <td><span class="badge badge-exterior">Buiten</span></td>
+                <td class="num">1.89</td>
+                <td class="num">2.00</td>
+                <td class="num">25</td>
+                <td class="num">3.78</td>
+                <td class="num">95</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +6 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num num-negative">&minus;240</td>
+                <td class="num">132</td>
+                <td class="num">0</td>
+                <td class="num">160</td>
+              </tr>
+
+              <!-- ===== 8. Toilet (15 °C) — 5 constructions ===== -->
+              <tr>
+                <td class="col-room room-name" rowspan="5">Toilet</td>
+                <td class="num" rowspan="5">15</td>
+                <td>Binnenwand Entree</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">2.70</td>
+                <td class="num">1.82</td>
+                <td class="num">0</td>
+                <td class="num">4.91</td>
+                <td class="num">0</td>
+                <td class="num" rowspan="5">0</td>
+                <td class="num" rowspan="5">0</td>
+                <td class="num" rowspan="5">2</td>
+              </tr>
+              <tr>
+                <td>Binnenwand Slaapkamer 3</td>
+                <td><span class="badge badge-adjacent-room">Aangrenzend</span></td>
+                <td class="num">2.70</td>
+                <td class="num">1.82</td>
+                <td class="num">&minus;5</td>
+                <td class="num">4.91</td>
+                <td class="num num-negative">&minus;25</td>
+              </tr>
+              <tr>
+                <td>Scheidingswand buren</td>
+                <td><span class="badge badge-adjacent-building">Naburig</span></td>
+                <td class="num">2.70</td>
+                <td class="num">1.82</td>
+                <td class="num">0</td>
+                <td class="num">4.91</td>
+                <td class="num">0</td>
+              </tr>
+              <tr class="row-ellipsis">
+                <td colspan="7">... +2 meer grensvlakken</td>
+              </tr>
+              <tr class="row-subtotal">
+                <td colspan="6"></td>
+                <td class="num">Subtotaal</td>
+                <td class="num num-negative">&minus;78</td>
+                <td class="num">0</td>
+                <td class="num">0</td>
+                <td class="num">2</td>
+              </tr>
+
+              <!-- ===== GRAND TOTAL ===== -->
+              <tr class="row-total">
+                <td class="col-room">TOTAAL</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class="num">6596</td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

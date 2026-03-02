@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Setup - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+    .form-grid .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    .form-textarea {
+      padding: 6px 10px;
+      font-size: var(--text-base);
+      font-family: var(--font-sans);
+      border: 1px solid var(--color-gray-300);
+      border-radius: var(--radius-md);
+      background: var(--color-white);
+      color: var(--color-gray-800);
+      resize: vertical;
+      min-height: 64px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    }
+    .cards-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      max-width: 720px;
+    }
+    .form-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding-top: var(--space-5);
+    }
+    .form-checkbox-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--color-primary);
+      cursor: pointer;
+    }
+    .form-checkbox-row label {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: var(--color-gray-600);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9638;</span> Dashboard</a>
+        <a href="project-setup.html" class="nav-item active"><span class="nav-icon">&#9881;</span> Project Setup</a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item"><span class="nav-icon">&#9633;</span> Vertrekken</a>
+        <a href="construction-library.html" class="nav-item"><span class="nav-icon">&#9776;</span> Constructies</a>
+        <a href="ventilation.html" class="nav-item"><span class="nav-icon">&#9707;</span> Ventilatie</a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item"><span class="nav-icon">&#9736;</span> Resultaten</a>
+        <a href="report.html" class="nav-item"><span class="nav-icon">&#9112;</span> Rapport</a>
+        <a href="import.html" class="nav-item"><span class="nav-icon">&#8613;</span> Import</a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div class="breadcrumb">
+          <a href="dashboard.html">Projecten</a>
+          <span class="separator">/</span>
+          <span>ISSO-51-V1</span>
+        </div>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary">Opslaan</button>
+        </div>
+      </header>
+
+      <section class="page-body">
+        <div class="cards-stack">
+
+          <!-- Card 1: Projectgegevens -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Projectgegevens</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="projectnummer">Projectnummer</label>
+                <input type="text" id="projectnummer" class="form-input" value="ISSO-51-V1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="projectnaam">Projectnaam</label>
+                <input type="text" id="projectnaam" class="form-input" value="ISSO 51 Voorbeeld 1 - Portiekwoning">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="datum">Datum</label>
+                <input type="date" id="datum" class="form-input" value="2024-01-01">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="engineer">Engineer</label>
+                <input type="text" id="engineer" class="form-input" value="OpenAEC Foundation">
+              </div>
+              <div class="form-group full-width">
+                <label class="form-label" for="opmerkingen">Opmerkingen</label>
+                <textarea id="opmerkingen" class="form-textarea" rows="3">Tussenliggende portiekwoning eerste etage</textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Gebouweigenschappen -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Gebouweigenschappen</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="gebouwtype">Gebouwtype</label>
+                <select id="gebouwtype" class="form-select">
+                  <option value="portiekwoning" selected>Portiekwoning</option>
+                  <option value="rijtjeswoning">Rijtjeswoning</option>
+                  <option value="twee-onder-een-kap">Twee-onder-een-kap</option>
+                  <option value="vrijstaand">Vrijstaand</option>
+                  <option value="appartement">Appartement</option>
+                  <option value="hoekwoning">Hoekwoning</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="qv10">qv;10-waarde</label>
+                <div class="input-with-unit">
+                  <input type="number" id="qv10" class="form-input form-input-number" value="100.0" step="0.1">
+                  <span class="unit-suffix">dm&#179;/s</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="gebruiksoppervlak">Gebruiksoppervlak</label>
+                <div class="input-with-unit">
+                  <input type="number" id="gebruiksoppervlak" class="form-input form-input-number" value="85.0" step="0.1">
+                  <span class="unit-suffix">m&#178;</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="veiligheidsklasse">Veiligheidsklasse</label>
+                <select id="veiligheidsklasse" class="form-select">
+                  <option value="A">A</option>
+                  <option value="B" selected>B</option>
+                  <option value="C">C</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="opwarmtijd">Opwarmtijd</label>
+                <div class="input-with-unit">
+                  <input type="number" id="opwarmtijd" class="form-input form-input-number" value="2.0" step="0.5">
+                  <span class="unit-suffix">h</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="bouwlagen">Aantal bouwlagen</label>
+                <input type="number" id="bouwlagen" class="form-input form-input-number" value="1" step="1" min="1">
+              </div>
+              <div class="form-checkbox-row">
+                <input type="checkbox" id="nachtverlaging" checked>
+                <label for="nachtverlaging">Nachtverlaging</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Klimaatcondities -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Klimaatcondities</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="theta-e">Buitentemperatuur (&theta;<sub>e</sub>)</label>
+                <div class="input-with-unit">
+                  <input type="number" id="theta-e" class="form-input form-input-number" value="-10.0" step="0.5">
+                  <span class="unit-suffix">&deg;C</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="theta-b">Aangrenzend verwarmde ruimte (&theta;<sub>b</sub>)</label>
+                <div class="input-with-unit">
+                  <input type="number" id="theta-b" class="form-input form-input-number" value="15.0" step="0.5">
+                  <span class="unit-suffix">&deg;C</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="theta-u">Aangrenzend onverwarmde ruimte</label>
+                <div class="input-with-unit">
+                  <input type="number" id="theta-u" class="form-input form-input-number" value="14.0" step="0.5">
+                  <span class="unit-suffix">&deg;C</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="windfactor">Windfactor</label>
+                <input type="number" id="windfactor" class="form-input form-input-number" value="1.0" step="0.1" min="0">
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

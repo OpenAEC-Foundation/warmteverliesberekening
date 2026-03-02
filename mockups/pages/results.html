@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resultaten - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    /* --- Metrics grid --- */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+
+    /* --- Bar chart --- */
+    .chart-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .chart-label {
+      width: 150px;
+      font-size: var(--text-sm);
+      text-align: right;
+      flex-shrink: 0;
+      color: var(--color-gray-700);
+    }
+    .chart-bar-track {
+      flex: 1;
+      display: flex;
+      height: 24px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--color-gray-100);
+    }
+    .chart-value {
+      width: 80px;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      flex-shrink: 0;
+      color: var(--color-gray-700);
+    }
+
+    /* Bar segment colors */
+    .seg-trans { background: #3b82f6; }
+    .seg-vent  { background: #8b5cf6; }
+    .seg-warm  { background: #f59e0b; }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      flex-direction: row;
+      gap: var(--space-4);
+      align-items: center;
+      margin-top: var(--space-3);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+      color: var(--color-gray-600);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* --- Detail cards --- */
+    .detail-card {
+      background: var(--color-white);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      margin-bottom: var(--space-3);
+      transition: box-shadow 0.15s;
+    }
+    .detail-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-4) var(--space-5);
+    }
+    .detail-header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .detail-header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .detail-header-right .detail-total {
+      font-family: var(--font-mono);
+      font-size: var(--text-lg);
+      font-weight: var(--weight-bold);
+      color: var(--color-gray-900);
+    }
+    .detail-header-right .detail-unit {
+      font-size: var(--text-xs);
+      color: var(--color-gray-400);
+      font-weight: var(--weight-normal);
+    }
+    .detail-collapse-icon {
+      font-size: var(--text-sm);
+      color: var(--color-gray-400);
+      transition: transform 0.2s;
+    }
+    .detail-card.expanded .detail-collapse-icon {
+      transform: rotate(180deg);
+    }
+    .detail-room-name {
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-md);
+      color: var(--color-gray-900);
+    }
+    .detail-body {
+      padding: 0 var(--space-5) var(--space-5);
+      display: none;
+    }
+    .detail-card.expanded .detail-body {
+      display: block;
+    }
+    .detail-tags {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item">
+          <span class="nav-icon">&#9638;</span> Dashboard
+        </a>
+        <a href="project-setup.html" class="nav-item">
+          <span class="nav-icon">&#9881;</span> Project Setup
+        </a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item">
+          <span class="nav-icon">&#9633;</span> Vertrekken
+        </a>
+        <a href="construction-library.html" class="nav-item">
+          <span class="nav-icon">&#9776;</span> Constructies
+        </a>
+        <a href="ventilation.html" class="nav-item">
+          <span class="nav-icon">&#9707;</span> Ventilatie
+        </a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item active">
+          <span class="nav-icon">&#9736;</span> Resultaten
+        </a>
+        <a href="report.html" class="nav-item">
+          <span class="nav-icon">&#9112;</span> Rapport
+        </a>
+        <a href="import.html" class="nav-item">
+          <span class="nav-icon">&#8613;</span> Import
+        </a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Resultaten</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-secondary">Exporteer PDF</button>
+          <a href="report.html" class="btn btn-primary">Rapport bekijken</a>
+        </div>
+      </header>
+
+      <section class="page-body">
+
+        <!-- 1. Metric cards -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Aansluitwaarde</div>
+            <div class="metric-value">6596 <span class="metric-unit">W</span></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Transmissieverlies</div>
+            <div class="metric-value">3748 <span class="metric-unit">W</span></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Ventilatieverlies</div>
+            <div class="metric-value">2085 <span class="metric-unit">W</span></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Opwarmtoeslag</div>
+            <div class="metric-value">540 <span class="metric-unit">W</span></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Specifiek vermogen</div>
+            <div class="metric-value">77.6 <span class="metric-unit">W/m&sup2;</span></div>
+          </div>
+        </div>
+
+        <!-- 2. Bar chart -->
+        <h2 class="mt-6">Warmteverlies per vertrek</h2>
+
+        <div class="mt-4">
+          <!-- Woonkamer: 1247+832+187 = 1781 (100%) -->
+          <div class="chart-row">
+            <div class="chart-label">Woonkamer</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 70.0%;" title="Transmissie: 1247 W"></div>
+              <div class="seg-vent" style="width: 46.7%;" title="Ventilatie: 832 W"></div>
+              <div class="seg-warm" style="width: 10.5%;" title="Opwarming: 187 W"></div>
+            </div>
+            <div class="chart-value">1781 W</div>
+          </div>
+          <!-- Slaapkamer 3: 695+401+98 = 915 (51%) -->
+          <div class="chart-row">
+            <div class="chart-label">Slaapkamer 3</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 38.7%;" title="Transmissie: 695 W"></div>
+              <div class="seg-vent" style="width: 22.5%;" title="Ventilatie: 401 W"></div>
+              <div class="seg-warm" style="width: 5.5%;" title="Opwarming: 98 W"></div>
+            </div>
+            <div class="chart-value">915 W</div>
+          </div>
+          <!-- Slaapkamer 2: 537+361+83 = 822 (46%) -->
+          <div class="chart-row">
+            <div class="chart-label">Slaapkamer 2</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 30.2%;" title="Transmissie: 537 W"></div>
+              <div class="seg-vent" style="width: 20.3%;" title="Ventilatie: 361 W"></div>
+              <div class="seg-warm" style="width: 4.7%;" title="Opwarming: 83 W"></div>
+            </div>
+            <div class="chart-value">822 W</div>
+          </div>
+          <!-- Slaapkamer 1: 694+242+85 = 807 (45%) -->
+          <div class="chart-row">
+            <div class="chart-label">Slaapkamer 1</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 39.0%;" title="Transmissie: 694 W"></div>
+              <div class="seg-vent" style="width: 13.6%;" title="Ventilatie: 242 W"></div>
+              <div class="seg-warm" style="width: 4.8%;" title="Opwarming: 85 W"></div>
+            </div>
+            <div class="chart-value">807 W</div>
+          </div>
+          <!-- Keuken: 619+0+54 = 687 (39%) -->
+          <div class="chart-row">
+            <div class="chart-label">Keuken</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 34.8%;" title="Transmissie: 619 W"></div>
+              <div class="seg-vent" style="width: 0%;" title="Ventilatie: 0 W"></div>
+              <div class="seg-warm" style="width: 3.0%;" title="Opwarming: 54 W"></div>
+            </div>
+            <div class="chart-value">687 W</div>
+          </div>
+          <!-- Entree: 0+132+0 = 160 (9%) -->
+          <div class="chart-row">
+            <div class="chart-label">Entree</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 0%;" title="Transmissie: 0 W"></div>
+              <div class="seg-vent" style="width: 7.4%;" title="Ventilatie: 132 W"></div>
+              <div class="seg-warm" style="width: 0%;" title="Opwarming: 0 W"></div>
+            </div>
+            <div class="chart-value">160 W</div>
+          </div>
+          <!-- Badkamer: 276+118+34 = 152 (9%) -->
+          <div class="chart-row">
+            <div class="chart-label">Badkamer</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 15.5%;" title="Transmissie: 276 W"></div>
+              <div class="seg-vent" style="width: 6.6%;" title="Ventilatie: 118 W"></div>
+              <div class="seg-warm" style="width: 1.9%;" title="Opwarming: 34 W"></div>
+            </div>
+            <div class="chart-value">152 W</div>
+          </div>
+          <!-- Toilet: 0+0+0 = 2 (0.1%) -->
+          <div class="chart-row">
+            <div class="chart-label">Toilet</div>
+            <div class="chart-bar-track">
+              <div class="seg-trans" style="width: 0%;" title="Transmissie: 0 W"></div>
+              <div class="seg-vent" style="width: 0%;" title="Ventilatie: 0 W"></div>
+              <div class="seg-warm" style="width: 0%;" title="Opwarming: 0 W"></div>
+            </div>
+            <div class="chart-value">2 W</div>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #3b82f6;"></div>
+            Transmissie
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #8b5cf6;"></div>
+            Ventilatie
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #f59e0b;"></div>
+            Opwarming
+          </div>
+        </div>
+
+        <!-- 3. Detail cards -->
+        <h2 class="mt-6">Detail per vertrek</h2>
+
+        <div class="mt-4">
+          <!-- Woonkamer (expanded) -->
+          <div class="detail-card expanded">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Woonkamer</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">1781 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body">
+              <div class="detail-tags">
+                <span class="badge badge-neutral">20&deg;C</span>
+                <span class="badge badge-neutral">28.2 m&sup2;</span>
+                <span class="badge badge-info">Woonkamer</span>
+                <span class="badge badge-warning">Radiator LT</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Component</th>
+                      <th class="num">H [W/K]</th>
+                      <th class="num">&Phi; [W]</th>
+                      <th class="num">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Transmissie (buiten)</td>
+                      <td class="num">24.0</td>
+                      <td class="num">1247</td>
+                      <td class="num">70%</td>
+                    </tr>
+                    <tr>
+                      <td>Transmissie (vertrekken)</td>
+                      <td class="num">1.5</td>
+                      <td class="num">45</td>
+                      <td class="num">3%</td>
+                    </tr>
+                    <tr>
+                      <td>Infiltratie</td>
+                      <td class="num">2.7</td>
+                      <td class="num">81</td>
+                      <td class="num">5%</td>
+                    </tr>
+                    <tr>
+                      <td>Ventilatie</td>
+                      <td class="num">30.5</td>
+                      <td class="num">832</td>
+                      <td class="num">47%</td>
+                    </tr>
+                    <tr>
+                      <td>Opwarmtoeslag</td>
+                      <td class="num">&mdash;</td>
+                      <td class="num">187</td>
+                      <td class="num">10%</td>
+                    </tr>
+                    <tr style="font-weight: var(--weight-bold);">
+                      <td><strong>Totaal</strong></td>
+                      <td class="num">&mdash;</td>
+                      <td class="num"><strong>1781</strong></td>
+                      <td class="num">&mdash;</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Keuken (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Keuken</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">687 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+
+          <!-- Slaapkamer 3 (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Slaapkamer 3</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">915 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+
+          <!-- Slaapkamer 2 (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Slaapkamer 2</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">822 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+
+          <!-- Slaapkamer 1 (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Slaapkamer 1</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">807 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+
+          <!-- Badkamer (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Badkamer</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">152 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+
+          <!-- Entree (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Entree</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">160 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+
+          <!-- Toilet (collapsed) -->
+          <div class="detail-card">
+            <div class="detail-header">
+              <div class="detail-header-left">
+                <span class="detail-room-name">Toilet</span>
+              </div>
+              <div class="detail-header-right">
+                <span class="detail-total">2 <span class="detail-unit">W</span></span>
+                <span class="detail-collapse-icon">&#9660;</span>
+              </div>
+            </div>
+            <div class="detail-body"></div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

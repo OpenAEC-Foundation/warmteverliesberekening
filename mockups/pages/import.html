@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Import - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    .step-completed-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-success-light);
+      border: 1px solid #bbf7d0;
+      border-radius: var(--radius-lg);
+      font-size: var(--text-sm);
+      color: var(--color-gray-700);
+      margin-bottom: var(--space-5);
+    }
+    .step-completed-card .check-icon {
+      color: var(--color-success);
+      font-size: var(--text-lg);
+      flex-shrink: 0;
+    }
+    .info-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-info-light);
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius-lg);
+      font-size: var(--text-sm);
+      color: var(--color-gray-700);
+      margin-bottom: var(--space-5);
+    }
+    .info-card .info-icon {
+      color: var(--color-info);
+      font-size: var(--text-lg);
+      flex-shrink: 0;
+    }
+    .mapping-section h2 {
+      margin-bottom: var(--space-2);
+    }
+    .mapping-section > p {
+      color: var(--color-gray-500);
+      margin-bottom: var(--space-4);
+    }
+    .expandable-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3) 0;
+      cursor: pointer;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-700);
+      user-select: none;
+    }
+    .expandable-header .expand-icon {
+      font-size: var(--text-xs);
+      transition: transform 0.15s;
+    }
+    .expandable-header.open .expand-icon {
+      transform: rotate(90deg);
+    }
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: var(--space-6);
+      margin-top: var(--space-6);
+      border-top: 1px solid var(--border-color);
+    }
+    .warning-detail {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+    .more-text {
+      font-style: italic;
+      color: var(--color-gray-400);
+      font-size: var(--text-sm);
+      padding: var(--space-3) var(--space-4);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item">
+          <span class="nav-icon">&#9638;</span> Dashboard
+        </a>
+        <a href="project-setup.html" class="nav-item">
+          <span class="nav-icon">&#9881;</span> Project Setup
+        </a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item">
+          <span class="nav-icon">&#9633;</span> Vertrekken
+        </a>
+        <a href="construction-library.html" class="nav-item">
+          <span class="nav-icon">&#9776;</span> Constructies
+        </a>
+        <a href="ventilation.html" class="nav-item">
+          <span class="nav-icon">&#9707;</span> Ventilatie
+        </a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item">
+          <span class="nav-icon">&#9736;</span> Resultaten
+        </a>
+        <a href="report.html" class="nav-item">
+          <span class="nav-icon">&#9112;</span> Rapport
+        </a>
+        <a href="import.html" class="nav-item active">
+          <span class="nav-icon">&#8613;</span> Import
+        </a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Import</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+        </div>
+      </header>
+
+      <section class="page-body">
+        <div style="max-width: 800px; margin: 0 auto;">
+
+          <!-- Wizard steps indicator -->
+          <div class="wizard-steps">
+            <div class="wizard-step completed">
+              <span class="step-number">&#10003;</span>
+              Upload
+            </div>
+            <div class="wizard-connector completed"></div>
+            <div class="wizard-step active">
+              <span class="step-number">2</span>
+              Mapping
+            </div>
+            <div class="wizard-connector"></div>
+            <div class="wizard-step">
+              <span class="step-number">3</span>
+              Importeren
+            </div>
+          </div>
+
+          <!-- Step 1 completed summary -->
+          <div class="step-completed-card">
+            <span class="check-icon">&#10003;</span>
+            <span><strong>Stap 1: Upload</strong> — portiekwoning.json (2.4 KB)</span>
+          </div>
+
+          <!-- Step 2 content: Mapping -->
+          <div class="mapping-section">
+            <h2>Mapping controleren</h2>
+            <p>Controleer de gevonden vertrekken en grensvlakken uit het ge&iuml;mporteerde bestand.</p>
+
+            <!-- Info card -->
+            <div class="info-card">
+              <span class="info-icon">&#9432;</span>
+              <span>Bestand: <strong>portiekwoning.json</strong> — 8 vertrekken gevonden, 60 grensvlakken</span>
+            </div>
+
+            <!-- Mapping table: rooms -->
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Bron</th>
+                    <th>Type</th>
+                    <th>Mapping</th>
+                    <th>Actie</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Woonkamer</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Woonkamer (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Keuken</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Keuken (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Badkamer</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Badkamer (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Slaapkamer 1</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Slaapkamer 1 (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Slaapkamer 2</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Slaapkamer 2 (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Slaapkamer 3</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Slaapkamer 3 (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="warning-detail">
+                        <span class="badge badge-warning">&#9888;</span>
+                        <span class="badge badge-warning">&theta;<sub>i</sub>=15&deg;C</span>
+                      </span>
+                    </td>
+                    <td>Entree</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Entree (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge badge-success">&#10003;</span></td>
+                    <td>Toilet</td>
+                    <td>Vertrek</td>
+                    <td>&rarr; Toilet (nieuw)</td>
+                    <td>
+                      <select class="form-select" style="min-width: 120px;">
+                        <option selected>Nieuw</option>
+                        <option>Bestaand</option>
+                      </select>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Expandable: Grensvlakken -->
+            <div class="mt-4">
+              <div class="expandable-header open" onclick="this.classList.toggle('open'); this.nextElementSibling.style.display = this.classList.contains('open') ? 'block' : 'none';">
+                <span class="expand-icon">&#9654;</span>
+                Grensvlakken (60)
+              </div>
+              <div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Bron-vertrek</th>
+                        <th>Grensvlak</th>
+                        <th>Type</th>
+                        <th class="num">U [W/m&sup2;K]</th>
+                        <th class="num">A [m&sup2;]</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Woonkamer</td>
+                        <td>Buitenwand</td>
+                        <td><span class="badge badge-exterior">Buiten</span></td>
+                        <td class="num">0.36</td>
+                        <td class="num">7.29</td>
+                      </tr>
+                      <tr>
+                        <td>Woonkamer</td>
+                        <td>Raam</td>
+                        <td><span class="badge badge-exterior">Buiten</span></td>
+                        <td class="num">3.20</td>
+                        <td class="num">4.32</td>
+                      </tr>
+                      <tr>
+                        <td>Woonkamer</td>
+                        <td>Buitenwand bij deur</td>
+                        <td><span class="badge badge-exterior">Buiten</span></td>
+                        <td class="num">0.36</td>
+                        <td class="num">0.36</td>
+                      </tr>
+                      <tr>
+                        <td>Woonkamer</td>
+                        <td>Deur naar balkon</td>
+                        <td><span class="badge badge-exterior">Buiten</span></td>
+                        <td class="num">2.78</td>
+                        <td class="num">2.16</td>
+                      </tr>
+                      <tr>
+                        <td>Woonkamer</td>
+                        <td>Naar keuken</td>
+                        <td><span class="badge badge-adjacent-room">Vertrek</span></td>
+                        <td class="num">2.17</td>
+                        <td class="num">7.36</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="more-text">... en 55 meer grensvlakken</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="action-bar">
+            <button class="btn btn-secondary">Terug</button>
+            <button class="btn btn-primary">Importeren</button>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

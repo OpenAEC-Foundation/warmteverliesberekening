@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Constructies - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    .main-content { height: 100vh; }
+    .two-panel { height: calc(100vh - var(--header-height)); }
+
+    /* Search bar in left panel */
+    .panel-search {
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .panel-search .form-input {
+      width: 100%;
+    }
+
+    /* Active tree-item override for construction list */
+    .tree-item.active {
+      background: var(--color-primary-light);
+      color: var(--color-primary-hover);
+      border-left-color: var(--color-primary);
+    }
+
+    /* Detail header */
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+    .detail-header h2 {
+      margin: 0;
+    }
+    .detail-header .btn {
+      margin-left: auto;
+    }
+
+    /* Summary row */
+    .detail-summary {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      padding: var(--space-3) var(--space-5);
+      background: var(--color-gray-50);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      font-size: var(--text-sm);
+      margin-bottom: var(--space-5);
+    }
+    .detail-summary-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .detail-summary-item dt {
+      font-size: var(--text-xs);
+      color: var(--color-gray-500);
+      font-weight: var(--weight-medium);
+    }
+    .detail-summary-item dd {
+      font-family: var(--font-mono);
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-900);
+    }
+
+    /* Layers table footer */
+    tfoot td {
+      padding: var(--cell-padding);
+      font-weight: var(--weight-semibold);
+      border-top: 2px solid var(--border-color);
+      background: var(--color-gray-50);
+    }
+
+    /* Muted row (Rsi / Rse) */
+    tr.row-muted td {
+      color: var(--color-gray-400);
+      font-style: italic;
+    }
+
+    /* Calculation card */
+    .calc-card dl {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-1) var(--space-4);
+      font-size: var(--text-sm);
+    }
+    .calc-card dt {
+      color: var(--color-gray-600);
+    }
+    .calc-card dd {
+      text-align: right;
+      font-family: var(--font-mono);
+      color: var(--color-gray-900);
+    }
+    .calc-card .calc-divider {
+      grid-column: 1 / -1;
+      border-top: 1px solid var(--border-color);
+      margin: var(--space-1) 0;
+    }
+    .calc-card .calc-result dt,
+    .calc-card .calc-result dd {
+      font-weight: var(--weight-semibold);
+    }
+    .calc-card .calc-result dd {
+      color: var(--color-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item">
+          <span class="nav-icon">&#9638;</span> Dashboard
+        </a>
+        <a href="project-setup.html" class="nav-item">
+          <span class="nav-icon">&#9881;</span> Project Setup
+        </a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item">
+          <span class="nav-icon">&#9633;</span> Vertrekken
+        </a>
+        <a href="construction-library.html" class="nav-item active">
+          <span class="nav-icon">&#9776;</span> Constructies
+        </a>
+        <a href="ventilation.html" class="nav-item">
+          <span class="nav-icon">&#9707;</span> Ventilatie
+        </a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item">
+          <span class="nav-icon">&#9736;</span> Resultaten
+        </a>
+        <a href="report.html" class="nav-item">
+          <span class="nav-icon">&#9112;</span> Rapport
+        </a>
+        <a href="import.html" class="nav-item">
+          <span class="nav-icon">&#8613;</span> Import
+        </a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Constructiebibliotheek</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary">+ Nieuwe constructie</button>
+        </div>
+      </header>
+
+      <!-- Two-panel layout -->
+      <div class="two-panel">
+
+        <!-- Left panel: construction list -->
+        <div class="panel-left">
+          <div class="panel-search">
+            <input type="text" class="form-input" placeholder="Zoek constructie...">
+          </div>
+          <div class="tree">
+
+            <!-- Wanden -->
+            <div class="tree-group-header">Wanden</div>
+            <div class="tree-item active">
+              <span class="tree-label">Buitenwand (metselwerk)</span>
+              <span class="tree-value">U=0.36</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Binnenwand (licht)</span>
+              <span class="tree-value">U=2.17</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Woningscheidende wand</span>
+              <span class="tree-value">U=2.08</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Buitenwand (houtskelet)</span>
+              <span class="tree-value">U=0.28</span>
+            </div>
+
+            <!-- Vloeren / Plafonds -->
+            <div class="tree-group-header">Vloeren / Plafonds</div>
+            <div class="tree-item">
+              <span class="tree-label">Betonvloer (onge&iuml;soleerd)</span>
+              <span class="tree-value">U=2.50</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Betonvloer (ge&iuml;soleerd)</span>
+              <span class="tree-value">U=0.35</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Begane grondvloer</span>
+              <span class="tree-value">U=0.29</span>
+            </div>
+
+            <!-- Kozijnen / Vullingen -->
+            <div class="tree-group-header">Kozijnen / Vullingen</div>
+            <div class="tree-item">
+              <span class="tree-label">Enkel glas</span>
+              <span class="tree-value">U=5.80</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Dubbel glas HR++</span>
+              <span class="tree-value">U=1.10</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Triple glas</span>
+              <span class="tree-value">U=0.70</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Buitendeur (hout)</span>
+              <span class="tree-value">U=2.78</span>
+            </div>
+            <div class="tree-item">
+              <span class="tree-label">Buitendeur (ge&iuml;soleerd)</span>
+              <span class="tree-value">U=1.50</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right panel: detail editor -->
+        <div class="panel-right">
+
+          <!-- Detail header -->
+          <div class="detail-header">
+            <h2>Buitenwand (metselwerk)</h2>
+            <span class="badge badge-neutral">Wand</span>
+            <button class="btn btn-ghost btn-sm" style="color: var(--color-danger);">Verwijderen</button>
+          </div>
+
+          <!-- Summary row -->
+          <dl class="detail-summary">
+            <div class="detail-summary-item">
+              <dt>U-waarde</dt>
+              <dd>0.36 W/m&sup2;K</dd>
+            </div>
+            <div class="detail-summary-item">
+              <dt>R-totaal</dt>
+              <dd>2.78 m&sup2;K/W</dd>
+            </div>
+            <div class="detail-summary-item">
+              <dt>Forfaitaire toeslag</dt>
+              <dd>Ja</dd>
+            </div>
+          </dl>
+
+          <!-- Layers table -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <h3 class="card-title">Lagen (van buiten naar binnen)</h3>
+            </div>
+            <div class="table-wrap" style="border: none; border-radius: 0; box-shadow: none;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Materiaal</th>
+                    <th class="num">d [mm]</th>
+                    <th class="num">&lambda; [W/mK]</th>
+                    <th class="num">R [m&sup2;K/W]</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="row-muted">
+                    <td>&mdash;</td>
+                    <td>Buitenovergang (R<sub>se</sub>)</td>
+                    <td class="num">&mdash;</td>
+                    <td class="num">&mdash;</td>
+                    <td class="num">0.04</td>
+                  </tr>
+                  <tr>
+                    <td>1</td>
+                    <td>Metselwerk (baksteen)</td>
+                    <td class="num">100</td>
+                    <td class="num">0.90</td>
+                    <td class="num">0.11</td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td>Spouw (ongeventileerd)</td>
+                    <td class="num">40</td>
+                    <td class="num">&mdash;</td>
+                    <td class="num">0.18</td>
+                  </tr>
+                  <tr>
+                    <td>3</td>
+                    <td>Minerale wol</td>
+                    <td class="num">120</td>
+                    <td class="num">0.035</td>
+                    <td class="num">3.43</td>
+                  </tr>
+                  <tr>
+                    <td>4</td>
+                    <td>Kalkzandsteen</td>
+                    <td class="num">100</td>
+                    <td class="num">0.90</td>
+                    <td class="num">0.11</td>
+                  </tr>
+                  <tr>
+                    <td>5</td>
+                    <td>Stucwerk</td>
+                    <td class="num">15</td>
+                    <td class="num">0.80</td>
+                    <td class="num">0.02</td>
+                  </tr>
+                  <tr class="row-muted">
+                    <td>&mdash;</td>
+                    <td>Binnenovergang (R<sub>si</sub>)</td>
+                    <td class="num">&mdash;</td>
+                    <td class="num">&mdash;</td>
+                    <td class="num">0.13</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="4" class="text-right">R-totaal = 2.78 m&sup2;K/W</td>
+                    <td class="num">U = 0.36 W/m&sup2;K</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div style="padding-top: var(--space-3);">
+              <button class="btn btn-secondary btn-sm">+ Laag toevoegen</button>
+            </div>
+          </div>
+
+          <!-- Calculation card -->
+          <div class="card calc-card">
+            <div class="card-header">
+              <h3 class="card-title">Berekening</h3>
+            </div>
+            <dl>
+              <dt>R<sub>si</sub> (binnenzijde)</dt>
+              <dd>0.13 m&sup2;K/W</dd>
+
+              <dt>R<sub>se</sub> (buitenzijde)</dt>
+              <dd>0.04 m&sup2;K/W</dd>
+
+              <dt>&Sigma;R-lagen</dt>
+              <dd>2.61 m&sup2;K/W</dd>
+
+              <div class="calc-divider"></div>
+
+              <dt>R-totaal = R<sub>si</sub> + R<sub>se</sub> + &Sigma;R</dt>
+              <dd>2.78 m&sup2;K/W</dd>
+
+              <dt>U = 1 / R-totaal</dt>
+              <dd>0.36 W/m&sup2;K</dd>
+
+              <div class="calc-divider"></div>
+
+              <dt class="calc-result">Met forfaitaire toeslag (0.05 &times; 0.36)</dt>
+              <dd class="calc-result">U<sub>eff</sub> = 0.38 W/m&sup2;K</dd>
+            </dl>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

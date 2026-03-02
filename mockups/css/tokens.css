@@ -1,0 +1,154 @@
+/* ===== Design Tokens — ISSO 51 Warmteverliesberekening ===== */
+/* OpenAEC Foundation huisstijl — zie brandbook/DESIGN-SYSTEM.md   */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* --- Primary / Accent (Construction Amber) --- */
+  --color-primary: #D97706;
+  --color-primary-hover: #EA580C;
+  --color-primary-light: #FFFBEB;
+  --color-primary-border: #F59E0B;
+
+  /* --- Neutrals (zinc/stone — warm, not clinical) --- */
+  --color-white: #ffffff;
+  --color-gray-50: #FAFAF9;
+  --color-gray-100: #F5F5F4;
+  --color-gray-200: #E7E5E4;
+  --color-gray-300: #D6D3D1;
+  --color-gray-400: #A1A1AA;
+  --color-gray-500: #71717A;
+  --color-gray-600: #57534E;
+  --color-gray-700: #3F3F46;
+  --color-gray-800: #27272A;
+  --color-gray-900: #18181B;
+
+  /* --- Semantic --- */
+  --color-success: #16a34a;
+  --color-success-light: #f0fdf4;
+  --color-warning: #F59E0B;
+  --color-warning-light: #FFFBEB;
+  --color-danger: #dc2626;
+  --color-danger-light: #fef2f2;
+  --color-info: #2563eb;
+  --color-info-light: #eff6ff;
+
+  /* --- Boundary type colours (ISSO 51) --- */
+  --boundary-exterior: #3b82f6;       /* blue */
+  --boundary-exterior-bg: #dbeafe;
+  --boundary-unheated: #8b5cf6;       /* purple */
+  --boundary-unheated-bg: #ede9fe;
+  --boundary-adjacent-room: #22c55e;  /* green */
+  --boundary-adjacent-room-bg: #dcfce7;
+  --boundary-adjacent-building: #F59E0B; /* warm gold */
+  --boundary-adjacent-building-bg: #fef3c7;
+  --boundary-ground: #92400e;         /* brown */
+  --boundary-ground-bg: #fef3c7;
+
+  /* --- Typography (OpenAEC: all open-source fonts) --- */
+  --font-heading: "Space Grotesk", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+
+  --text-xs: 0.6875rem;   /* 11px */
+  --text-sm: 0.75rem;     /* 12px */
+  --text-base: 0.8125rem; /* 13px */
+  --text-md: 0.875rem;    /* 14px */
+  --text-lg: 1rem;        /* 16px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* --- Spacing --- */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+
+  /* --- Borders --- */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.5rem;   /* 8px — OpenAEC default */
+  --radius-lg: 0.75rem;  /* 12px */
+  --radius-xl: 1rem;     /* 16px */
+  --border-color: var(--color-gray-200);
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+  /* --- Layout --- */
+  --sidebar-width: 220px;
+  --header-height: 48px;
+  --cell-padding: 6px 8px;
+
+  /* --- OpenAEC extras --- */
+  --gradient-amber: linear-gradient(90deg, #D97706 0%, #F59E0B 40%, #EA580C 100%);
+  --night-build: #0C0A09;
+}
+
+/* ===== Dark Theme ===== */
+[data-theme="dark"] {
+  /* --- Primary / Accent (brighter for dark bg) --- */
+  --color-primary: #F59E0B;
+  --color-primary-hover: #D97706;
+  --color-primary-light: #451a03;
+  --color-primary-border: #92400e;
+
+  /* --- Neutrals (inverted) --- */
+  --color-white: #18181B;
+  --color-gray-50: #0C0A09;
+  --color-gray-100: #18181B;
+  --color-gray-200: #27272A;
+  --color-gray-300: #3F3F46;
+  --color-gray-400: #71717A;
+  --color-gray-500: #A1A1AA;
+  --color-gray-600: #D6D3D1;
+  --color-gray-700: #E7E5E4;
+  --color-gray-800: #F5F5F4;
+  --color-gray-900: #FAFAF9;
+
+  /* --- Semantic (deeper backgrounds for dark) --- */
+  --color-success: #4ade80;
+  --color-success-light: #052e16;
+  --color-warning: #fbbf24;
+  --color-warning-light: #451a03;
+  --color-danger: #f87171;
+  --color-danger-light: #450a0a;
+  --color-info: #60a5fa;
+  --color-info-light: #172554;
+
+  /* --- Boundary type colours (brighter text, dark bg) --- */
+  --boundary-exterior: #60a5fa;
+  --boundary-exterior-bg: #1e3a5f;
+  --boundary-unheated: #a78bfa;
+  --boundary-unheated-bg: #2e1065;
+  --boundary-adjacent-room: #4ade80;
+  --boundary-adjacent-room-bg: #052e16;
+  --boundary-adjacent-building: #fbbf24;
+  --boundary-adjacent-building-bg: #451a03;
+  --boundary-ground: #d97706;
+  --boundary-ground-bg: #451a03;
+
+  /* --- Borders --- */
+  --border-color: var(--color-gray-200);
+
+  /* --- Shadows (stronger for dark) --- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+}

@@ -1,0 +1,325 @@
+{
+  "rooms": [
+    {
+      "room_id": "r1",
+      "room_name": "Woonkamer",
+      "theta_i": 20.0,
+      "transmission": {
+        "h_t_exterior": 23.995800000000003,
+        "h_t_adjacent_rooms": 1.5095966666666665,
+        "h_t_unheated": 0.0,
+        "h_t_adjacent_buildings": 16.0606,
+        "h_t_ground": 0.0,
+        "phi_t": 1246.9799
+      },
+      "infiltration": {
+        "h_i": 2.7129599999999994,
+        "z_i": 1.0,
+        "phi_i": 81.38879999999997
+      },
+      "ventilation": {
+        "h_v": 30.455999999999996,
+        "f_v": 1.0,
+        "q_v": 25.38,
+        "phi_v": 913.6799999999998,
+        "phi_vent": 832.2911999999999
+      },
+      "heating_up": {
+        "phi_hu": 186.94899999999998,
+        "f_rh": 1.7,
+        "accumulating_area": 109.97
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 1780.9602815331718,
+      "basis_heat_loss": 801.2628,
+      "extra_heat_loss": 979.6974815331719
+    },
+    {
+      "room_id": "r2",
+      "room_name": "Keuken",
+      "theta_i": 20.0,
+      "transmission": {
+        "h_t_exterior": 12.0692,
+        "h_t_adjacent_rooms": -0.70308,
+        "h_t_unheated": 0.0,
+        "h_t_adjacent_buildings": 9.258566666666667,
+        "h_t_ground": 0.0,
+        "phi_t": 618.7406000000001
+      },
+      "infiltration": {
+        "h_i": 1.41312,
+        "z_i": 1.0,
+        "phi_i": 42.3936
+      },
+      "ventilation": {
+        "h_v": 0.0,
+        "f_v": 0.0,
+        "q_v": 0.0,
+        "phi_v": 0.0,
+        "phi_vent": 0.0
+      },
+      "heating_up": {
+        "phi_hu": 53.53592966176677,
+        "f_rh": 1.7,
+        "accumulating_area": 69.03999999999999
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 687.3389104840991,
+      "basis_heat_loss": 404.4696,
+      "extra_heat_loss": 282.86931048409906
+    },
+    {
+      "room_id": "r3",
+      "room_name": "Badkamer",
+      "theta_i": 22.0,
+      "transmission": {
+        "h_t_exterior": 0.0,
+        "h_t_adjacent_rooms": 5.82238125,
+        "h_t_unheated": 0.0,
+        "h_t_adjacent_buildings": 2.794921875,
+        "h_t_ground": 0.0,
+        "phi_t": 275.7537
+      },
+      "infiltration": {
+        "h_i": -0.0,
+        "z_i": 1.0,
+        "phi_i": -0.0
+      },
+      "ventilation": {
+        "h_v": 3.6750000000000003,
+        "f_v": 0.21875,
+        "q_v": 14.0,
+        "phi_v": 117.60000000000001,
+        "phi_vent": 117.60000000000001
+      },
+      "heating_up": {
+        "phi_hu": 34.03454697395921,
+        "f_rh": 1.7,
+        "accumulating_area": 32.72
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 151.61522612842234,
+      "basis_heat_loss": 0.0,
+      "extra_heat_loss": 151.61522612842234
+    },
+    {
+      "room_id": "r4",
+      "room_name": "Slaapkamer 1",
+      "theta_i": 20.0,
+      "transmission": {
+        "h_t_exterior": 14.5974,
+        "h_t_adjacent_rooms": 3.0271499999999993,
+        "h_t_unheated": 1.4832,
+        "h_t_adjacent_buildings": 4.015,
+        "h_t_ground": 0.0,
+        "phi_t": 693.6825
+      },
+      "infiltration": {
+        "h_i": 1.38816,
+        "z_i": 1.0,
+        "phi_i": 41.644800000000004
+      },
+      "ventilation": {
+        "h_v": 9.456,
+        "f_v": 1.0,
+        "q_v": 7.88,
+        "phi_v": 283.68,
+        "phi_vent": 242.0352
+      },
+      "heating_up": {
+        "phi_hu": 84.56534136284013,
+        "f_rh": 1.7,
+        "accumulating_area": 48.17999999999999
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 807.3304075707451,
+      "basis_heat_loss": 524.0628,
+      "extra_heat_loss": 283.26760757074516
+    },
+    {
+      "room_id": "r5",
+      "room_name": "Slaapkamer 2",
+      "theta_i": 20.0,
+      "transmission": {
+        "h_t_exterior": 11.8244,
+        "h_t_adjacent_rooms": 0.14756000000000002,
+        "h_t_unheated": 0.0,
+        "h_t_adjacent_buildings": 5.9125,
+        "h_t_ground": 0.0,
+        "phi_t": 536.5338
+      },
+      "infiltration": {
+        "h_i": 1.9008,
+        "z_i": 1.0,
+        "phi_i": 57.024
+      },
+      "ventilation": {
+        "h_v": 13.92,
+        "f_v": 1.0,
+        "q_v": 11.6,
+        "phi_v": 417.6,
+        "phi_vent": 360.576
+      },
+      "heating_up": {
+        "phi_hu": 82.55550064876014,
+        "f_rh": 1.7,
+        "accumulating_area": 52.12
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 821.9905098701076,
+      "basis_heat_loss": 411.75600000000003,
+      "extra_heat_loss": 410.2345098701076
+    },
+    {
+      "room_id": "r6",
+      "room_name": "Slaapkamer 3",
+      "theta_i": 20.0,
+      "transmission": {
+        "h_t_exterior": 11.561,
+        "h_t_adjacent_rooms": 1.66005,
+        "h_t_unheated": 1.3122,
+        "h_t_adjacent_buildings": 8.629683333333332,
+        "h_t_ground": 0.0,
+        "phi_t": 694.888
+      },
+      "infiltration": {
+        "h_i": 1.39968,
+        "z_i": 1.0,
+        "phi_i": 41.9904
+      },
+      "ventilation": {
+        "h_v": 14.76,
+        "f_v": 1.0,
+        "q_v": 12.3,
+        "phi_v": 442.8,
+        "phi_vent": 400.8096
+      },
+      "heating_up": {
+        "phi_hu": 98.43734958565207,
+        "f_rh": 1.7,
+        "accumulating_area": 66.34
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 915.3850640333262,
+      "basis_heat_loss": 428.1864,
+      "extra_heat_loss": 487.19866403332617
+    },
+    {
+      "room_id": "r7",
+      "room_name": "Entree",
+      "theta_i": 15.0,
+      "transmission": {
+        "h_t_exterior": 0.0,
+        "h_t_adjacent_rooms": -11.020996,
+        "h_t_unheated": 1.1142,
+        "h_t_adjacent_buildings": 0.31200000000000006,
+        "h_t_ground": 0.0,
+        "phi_t": -239.8699
+      },
+      "infiltration": {
+        "h_i": -0.0,
+        "z_i": 1.0,
+        "phi_i": -0.0
+      },
+      "ventilation": {
+        "h_v": 5.28,
+        "f_v": 1.0,
+        "q_v": 4.4,
+        "phi_v": 132.0,
+        "phi_vent": 132.0
+      },
+      "heating_up": {
+        "phi_hu": 0.0,
+        "f_rh": 1.7,
+        "accumulating_area": 48.5
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 160.0852537243274,
+      "basis_heat_loss": 27.855,
+      "extra_heat_loss": 132.2302537243274
+    },
+    {
+      "room_id": "r8",
+      "room_name": "Toilet",
+      "theta_i": 15.0,
+      "transmission": {
+        "h_t_exterior": 0.0,
+        "h_t_adjacent_rooms": -3.2011840000000005,
+        "h_t_unheated": 0.0,
+        "h_t_adjacent_buildings": 0.066,
+        "h_t_ground": 0.0,
+        "phi_t": -78.37960000000001
+      },
+      "infiltration": {
+        "h_i": -0.0,
+        "z_i": 1.0,
+        "phi_i": -0.0
+      },
+      "ventilation": {
+        "h_v": 0.0,
+        "f_v": 0.0,
+        "q_v": 0.0,
+        "phi_v": 0.0,
+        "phi_vent": 0.0
+      },
+      "heating_up": {
+        "phi_hu": 0.0,
+        "f_rh": 1.7,
+        "accumulating_area": 15.18
+      },
+      "system_losses": {
+        "phi_floor_loss": 0.0,
+        "phi_wall_loss": 0.0,
+        "phi_ceiling_loss": 0.0,
+        "phi_system_total": 0.0
+      },
+      "total_heat_loss": 1.6500000000000001,
+      "basis_heat_loss": 0.0,
+      "extra_heat_loss": 1.6500000000000001
+    }
+  ],
+  "summary": {
+    "total_envelope_loss": 2333.151,
+    "total_neighbor_loss": 1415.178,
+    "total_ventilation_loss": 2307.36,
+    "total_heating_up": 540.0776682329782,
+    "total_system_losses": 0.0,
+    "connection_capacity": 6595.766668232978,
+    "collective_contribution": 5180.588668232978
+  }
+}

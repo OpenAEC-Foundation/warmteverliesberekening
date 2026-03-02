@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rapport - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    /* --- Report preview container --- */
+    .report-preview {
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+
+    /* --- A4 page --- */
+    .a4-page {
+      width: 210mm;
+      max-width: 794px;
+      min-height: 297mm;
+      background: var(--color-white);
+      padding: 20mm;
+      box-shadow: var(--shadow-lg);
+      border-radius: 2px;
+      position: relative;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--color-gray-800);
+      page-break-after: always;
+    }
+
+    /* --- Page header bar (not cover) --- */
+    .page-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      color: var(--color-gray-400);
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--color-gray-200);
+      margin-bottom: 20px;
+    }
+
+    /* --- Page footer bar --- */
+    .page-footer-bar {
+      position: absolute;
+      bottom: 20mm;
+      left: 20mm;
+      right: 20mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      color: var(--color-gray-400);
+      border-top: 1px solid var(--color-gray-200);
+      padding-top: 8px;
+    }
+
+    /* --- Cover page --- */
+    .cover-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: calc(297mm - 40mm - 60px);
+      /* account for padding + footer */
+    }
+
+    .cover-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--color-primary);
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+    }
+
+    .cover-company {
+      font-size: 12px;
+      color: var(--color-gray-400);
+      margin-bottom: 24px;
+      margin-top: 60px;
+    }
+
+    .cover-title {
+      font-size: 28px;
+      font-weight: var(--weight-bold);
+      color: var(--color-gray-900);
+      margin-bottom: 8px;
+    }
+
+    .cover-subtitle {
+      font-size: 16px;
+      color: var(--color-gray-500);
+      margin-bottom: 32px;
+    }
+
+    .cover-hr {
+      width: 80px;
+      border: none;
+      border-top: 2px solid var(--color-primary);
+      margin: 0 auto 32px;
+    }
+
+    .cover-info {
+      text-align: left;
+      font-size: 11px;
+      line-height: 1.8;
+    }
+
+    .cover-info dt {
+      display: inline;
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-600);
+    }
+
+    .cover-info dd {
+      display: inline;
+      margin-left: 4px;
+      color: var(--color-gray-800);
+    }
+
+    .cover-info dd::after {
+      content: "";
+      display: block;
+    }
+
+    .cover-bottom {
+      margin-top: auto;
+      font-size: 12px;
+      color: var(--color-gray-500);
+      padding-bottom: 20px;
+    }
+
+    /* --- Report headings --- */
+    .a4-page h2 {
+      font-size: 16px;
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-900);
+      margin-bottom: 12px;
+      margin-top: 24px;
+    }
+
+    .a4-page h2:first-of-type,
+    .page-header-bar + h2 {
+      margin-top: 0;
+    }
+
+    .a4-page h3 {
+      font-size: 13px;
+      font-weight: var(--weight-semibold);
+      color: var(--color-gray-800);
+      margin-bottom: 8px;
+      margin-top: 20px;
+    }
+
+    /* --- Report tables --- */
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+      margin-bottom: 16px;
+    }
+
+    .report-table thead th {
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: var(--weight-semibold);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-gray-500);
+      background: var(--color-gray-50);
+      border-bottom: 2px solid var(--color-gray-200);
+      white-space: nowrap;
+    }
+
+    .report-table tbody td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--color-gray-100);
+      vertical-align: middle;
+    }
+
+    .report-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .report-table .num {
+      text-align: right;
+      font-family: var(--font-mono);
+    }
+
+    /* Key-value table (no header) */
+    .kv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-bottom: 16px;
+    }
+
+    .kv-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--color-gray-100);
+      vertical-align: top;
+    }
+
+    .kv-table td:first-child {
+      font-weight: var(--weight-medium);
+      color: var(--color-gray-600);
+      width: 200px;
+      white-space: nowrap;
+    }
+
+    .kv-table td:last-child {
+      color: var(--color-gray-800);
+    }
+
+    /* --- Summary grid --- */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .summary-cell {
+      border: 1px solid var(--color-gray-200);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .summary-cell .summary-cell-label {
+      font-size: 9px;
+      font-weight: var(--weight-medium);
+      color: var(--color-gray-500);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .summary-cell .summary-cell-value {
+      font-size: 18px;
+      font-weight: var(--weight-bold);
+      font-family: var(--font-mono);
+      color: var(--color-gray-900);
+    }
+
+    .summary-cell .summary-cell-unit {
+      font-size: 10px;
+      color: var(--color-gray-400);
+      font-weight: var(--weight-normal);
+    }
+
+    /* --- Room info line --- */
+    .room-info {
+      font-size: 11px;
+      color: var(--color-gray-600);
+      margin-bottom: 12px;
+    }
+
+    .room-info span {
+      margin-right: 16px;
+    }
+
+    /* --- Room summary --- */
+    .room-summary {
+      margin-top: 12px;
+      font-size: 11px;
+      line-height: 1.8;
+    }
+
+    .room-summary .summary-line {
+      display: flex;
+      justify-content: space-between;
+      max-width: 300px;
+      color: var(--color-gray-700);
+    }
+
+    .room-summary .summary-line.total {
+      font-weight: var(--weight-bold);
+      color: var(--color-gray-900);
+      border-top: 2px solid var(--color-gray-300);
+      padding-top: 4px;
+      margin-top: 4px;
+    }
+
+    .room-summary .summary-line .label {
+      flex: 1;
+    }
+
+    .room-summary .summary-line .value {
+      font-family: var(--font-mono);
+      text-align: right;
+      min-width: 80px;
+    }
+
+    /* --- Print CSS --- */
+    @media print {
+      .sidebar,
+      .page-header,
+      .report-preview {
+        /* override padding/bg */
+      }
+
+      body {
+        background: white;
+      }
+
+      .sidebar {
+        display: none !important;
+      }
+
+      .page-header {
+        display: none !important;
+      }
+
+      .main-content {
+        margin-left: 0 !important;
+      }
+
+      .report-preview {
+        padding: 0;
+        gap: 0;
+      }
+
+      .a4-page {
+        box-shadow: none;
+        margin: 0;
+        border: none;
+        border-radius: 0;
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        page-break-after: always;
+      }
+
+      .a4-page:last-child {
+        page-break-after: auto;
+      }
+
+      .page-footer-bar {
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+
+      @page {
+        size: A4;
+        margin: 15mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item">
+          <span class="nav-icon">&#9638;</span> Dashboard
+        </a>
+        <a href="project-setup.html" class="nav-item">
+          <span class="nav-icon">&#9881;</span> Project Setup
+        </a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item">
+          <span class="nav-icon">&#9633;</span> Vertrekken
+        </a>
+        <a href="construction-library.html" class="nav-item">
+          <span class="nav-icon">&#9776;</span> Constructies
+        </a>
+        <a href="ventilation.html" class="nav-item">
+          <span class="nav-icon">&#9707;</span> Ventilatie
+        </a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item">
+          <span class="nav-icon">&#9736;</span> Resultaten
+        </a>
+        <a href="report.html" class="nav-item active">
+          <span class="nav-icon">&#9112;</span> Rapport
+        </a>
+        <a href="import.html" class="nav-item">
+          <span class="nav-icon">&#8613;</span> Import
+        </a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Rapport</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary" onclick="window.print()">Afdrukken</button>
+        </div>
+      </header>
+
+      <section class="page-body">
+        <div class="report-preview">
+
+          <!-- ===== PAGE 1 — Cover ===== -->
+          <div class="a4-page">
+            <div class="cover-bar"></div>
+            <div class="cover-content">
+              <div class="cover-company">OpenAEC Foundation</div>
+              <div class="cover-title">Warmteverliesberekening</div>
+              <div class="cover-subtitle">volgens ISSO 51:2023</div>
+              <hr class="cover-hr">
+              <dl class="cover-info">
+                <dt>Project:</dt>
+                <dd>ISSO 51 Voorbeeld 1 - Portiekwoning</dd>
+                <dt>Projectnummer:</dt>
+                <dd>ISSO-51-V1</dd>
+                <dt>Datum:</dt>
+                <dd>1 januari 2024</dd>
+                <dt>Engineer:</dt>
+                <dd>OpenAEC Foundation</dd>
+              </dl>
+              <div class="cover-bottom">Tussenliggende portiekwoning eerste etage</div>
+            </div>
+            <div class="page-footer-bar">
+              <span>ISSO 51:2023 &mdash; OpenAEC Foundation</span>
+              <span>1 januari 2024</span>
+            </div>
+          </div>
+
+          <!-- ===== PAGE 2 — Projectgegevens + Samenvatting ===== -->
+          <div class="a4-page">
+            <div class="page-header-bar">
+              <span>ISSO-51-V1 | Warmteverliesberekening</span>
+              <span>2</span>
+            </div>
+
+            <h2>1. Projectgegevens</h2>
+            <table class="kv-table">
+              <tbody>
+                <tr>
+                  <td>Gebouwtype</td>
+                  <td>Portiekwoning</td>
+                </tr>
+                <tr>
+                  <td>Gebruiksoppervlak</td>
+                  <td>85.0 m&sup2;</td>
+                </tr>
+                <tr>
+                  <td>q<sub>v;10</sub></td>
+                  <td>100.0 dm&sup3;/s</td>
+                </tr>
+                <tr>
+                  <td>Veiligheidsklasse</td>
+                  <td>B</td>
+                </tr>
+                <tr>
+                  <td>Buitentemperatuur (&theta;<sub>e</sub>)</td>
+                  <td>&minus;10.0 &deg;C</td>
+                </tr>
+                <tr>
+                  <td>Aangrenzend verwarmd (&theta;<sub>b</sub>)</td>
+                  <td>15.0 &deg;C</td>
+                </tr>
+                <tr>
+                  <td>Ventilatiesysteem</td>
+                  <td>C &mdash; Mechanische afvoer</td>
+                </tr>
+                <tr>
+                  <td>WTW</td>
+                  <td>Nee</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h2>2. Samenvatting</h2>
+            <div class="summary-grid">
+              <div class="summary-cell">
+                <div class="summary-cell-label">Aansluitwaarde</div>
+                <div class="summary-cell-value">6596 <span class="summary-cell-unit">W</span></div>
+              </div>
+              <div class="summary-cell">
+                <div class="summary-cell-label">Specifiek vermogen</div>
+                <div class="summary-cell-value">77.6 <span class="summary-cell-unit">W/m&sup2;</span></div>
+              </div>
+              <div class="summary-cell">
+                <div class="summary-cell-label">Transmissie</div>
+                <div class="summary-cell-value">3748 <span class="summary-cell-unit">W</span></div>
+              </div>
+              <div class="summary-cell">
+                <div class="summary-cell-label">Ventilatie</div>
+                <div class="summary-cell-value">2085 <span class="summary-cell-unit">W</span></div>
+              </div>
+              <div class="summary-cell">
+                <div class="summary-cell-label">Opwarming</div>
+                <div class="summary-cell-value">540 <span class="summary-cell-unit">W</span></div>
+              </div>
+              <div class="summary-cell">
+                <div class="summary-cell-label">Systeemverliezen</div>
+                <div class="summary-cell-value">0 <span class="summary-cell-unit">W</span></div>
+              </div>
+            </div>
+
+            <div class="page-footer-bar">
+              <span>ISSO 51:2023 &mdash; OpenAEC Foundation</span>
+              <span>1 januari 2024</span>
+            </div>
+          </div>
+
+          <!-- ===== PAGE 3 — Berekening vertrek 1 (Woonkamer) ===== -->
+          <div class="a4-page">
+            <div class="page-header-bar">
+              <span>ISSO-51-V1 | Warmteverliesberekening</span>
+              <span>3</span>
+            </div>
+
+            <h2>3. Berekening per vertrek</h2>
+            <h3>3.1 Woonkamer</h3>
+
+            <div class="room-info">
+              <span>&theta;<sub>i</sub> = 20.0 &deg;C</span>
+              <span>A<sub>v</sub> = 28.2 m&sup2;</span>
+              <span>h = 2.6 m</span>
+            </div>
+
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Omschrijving</th>
+                  <th>Grens</th>
+                  <th class="num">A [m&sup2;]</th>
+                  <th class="num">U [W/m&sup2;K]</th>
+                  <th class="num">H [W/K]</th>
+                  <th class="num">&Phi; [W]</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Buitenwand</td>
+                  <td>Buiten</td>
+                  <td class="num">7.29</td>
+                  <td class="num">0.36</td>
+                  <td class="num">2.62</td>
+                  <td class="num">78.7</td>
+                </tr>
+                <tr>
+                  <td>Raam</td>
+                  <td>Buiten</td>
+                  <td class="num">4.32</td>
+                  <td class="num">3.20</td>
+                  <td class="num">13.82</td>
+                  <td class="num">414.7</td>
+                </tr>
+                <tr>
+                  <td>Buitenwand bij deur</td>
+                  <td>Buiten</td>
+                  <td class="num">0.36</td>
+                  <td class="num">0.36</td>
+                  <td class="num">0.13</td>
+                  <td class="num">3.9</td>
+                </tr>
+                <tr>
+                  <td>Deur naar balkon</td>
+                  <td>Buiten</td>
+                  <td class="num">2.16</td>
+                  <td class="num">2.78</td>
+                  <td class="num">6.00</td>
+                  <td class="num">180.1</td>
+                </tr>
+                <tr>
+                  <td>Naar keuken</td>
+                  <td>Vertrek</td>
+                  <td class="num">7.36</td>
+                  <td class="num">2.17</td>
+                  <td class="num">&mdash;</td>
+                  <td class="num">0</td>
+                </tr>
+                <tr>
+                  <td>Naar slaapkamer 1</td>
+                  <td>Vertrek</td>
+                  <td class="num">11.20</td>
+                  <td class="num">2.17</td>
+                  <td class="num">&mdash;</td>
+                  <td class="num">0</td>
+                </tr>
+                <tr>
+                  <td>Naar entree</td>
+                  <td>Vertrek</td>
+                  <td class="num">2.51</td>
+                  <td class="num">2.17</td>
+                  <td class="num">5.45</td>
+                  <td class="num">27.2</td>
+                </tr>
+                <tr>
+                  <td>Naar toilet</td>
+                  <td>Vertrek</td>
+                  <td class="num">3.12</td>
+                  <td class="num">2.17</td>
+                  <td class="num">6.77</td>
+                  <td class="num">33.9</td>
+                </tr>
+                <tr>
+                  <td>Naar badkamer</td>
+                  <td>Vertrek</td>
+                  <td class="num">3.64</td>
+                  <td class="num">2.17</td>
+                  <td class="num">&mdash;</td>
+                  <td class="num">&minus;15.8</td>
+                </tr>
+                <tr>
+                  <td>Woning wand</td>
+                  <td>Buren</td>
+                  <td class="num">18.09</td>
+                  <td class="num">2.08</td>
+                  <td class="num">&mdash;</td>
+                  <td class="num">0</td>
+                </tr>
+                <tr>
+                  <td>Plafond</td>
+                  <td>Buren</td>
+                  <td class="num">28.20</td>
+                  <td class="num">2.50</td>
+                  <td class="num">&mdash;</td>
+                  <td class="num">0</td>
+                </tr>
+                <tr>
+                  <td>Vloer</td>
+                  <td>Buren</td>
+                  <td class="num">28.20</td>
+                  <td class="num">2.50</td>
+                  <td class="num">&mdash;</td>
+                  <td class="num">0</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="room-summary">
+              <div class="summary-line">
+                <span class="label">&Phi;-transmissie</span>
+                <span class="value">1247 W</span>
+              </div>
+              <div class="summary-line">
+                <span class="label">&Phi;-ventilatie</span>
+                <span class="value">832 W</span>
+              </div>
+              <div class="summary-line">
+                <span class="label">&Phi;-opwarming</span>
+                <span class="value">187 W</span>
+              </div>
+              <div class="summary-line total">
+                <span class="label">&Phi;-totaal</span>
+                <span class="value">1781 W</span>
+              </div>
+            </div>
+
+            <div class="page-footer-bar">
+              <span>ISSO 51:2023 &mdash; OpenAEC Foundation</span>
+              <span>1 januari 2024</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

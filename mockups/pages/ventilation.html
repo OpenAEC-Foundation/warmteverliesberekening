@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ventilatie - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    .system-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+    .system-letter {
+      font-size: 2rem;
+      font-weight: var(--weight-bold);
+      color: var(--color-gray-900);
+      line-height: 1;
+      margin-bottom: var(--space-1);
+    }
+    .radio-card.selected .system-letter {
+      color: var(--color-primary);
+    }
+    @media (max-width: 900px) {
+      .system-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    @media (max-width: 600px) {
+      .system-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* WTW form grid */
+    .wtw-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+      align-items: start;
+    }
+    .wtw-grid .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    .form-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .form-checkbox-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--color-primary);
+      cursor: pointer;
+    }
+    .form-checkbox-row label {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: var(--color-gray-600);
+      cursor: pointer;
+    }
+    .form-checkbox-row input[type="checkbox"]:disabled,
+    .form-checkbox-row input[type="checkbox"]:disabled + label {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .form-input:disabled,
+    .form-select:disabled {
+      background: var(--color-gray-100);
+      color: var(--color-gray-400);
+      cursor: not-allowed;
+    }
+    .input-with-unit .form-input:disabled + .unit-suffix {
+      color: var(--color-gray-300);
+      background: var(--color-gray-100);
+    }
+
+    /* Table footer */
+    tfoot td {
+      padding: var(--cell-padding);
+      font-weight: var(--weight-semibold);
+      border-top: 2px solid var(--border-color);
+      background: var(--color-gray-50);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div><div class="brand-text">ISSO 51</div><div class="brand-sub">Warmteverlies</div></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon">&#9638;</span> Dashboard</a>
+        <a href="project-setup.html" class="nav-item"><span class="nav-icon">&#9881;</span> Project Setup</a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item"><span class="nav-icon">&#9633;</span> Vertrekken</a>
+        <a href="construction-library.html" class="nav-item"><span class="nav-icon">&#9776;</span> Constructies</a>
+        <a href="ventilation.html" class="nav-item active"><span class="nav-icon">&#9707;</span> Ventilatie</a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item"><span class="nav-icon">&#9736;</span> Resultaten</a>
+        <a href="report.html" class="nav-item"><span class="nav-icon">&#9112;</span> Rapport</a>
+        <a href="import.html" class="nav-item"><span class="nav-icon">&#8613;</span> Import</a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Ventilatie</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary">Opslaan</button>
+        </div>
+      </header>
+
+      <section class="page-body" style="max-width: 960px;">
+
+        <!-- 1. Ventilatiesysteem -->
+        <h2>Ventilatiesysteem</h2>
+
+        <div class="system-grid mt-3">
+          <div class="radio-card">
+            <div class="system-letter">A</div>
+            <div class="radio-card-title">Natuurlijk</div>
+            <div class="radio-card-desc">Toe- en afvoer via roosters</div>
+          </div>
+          <div class="radio-card">
+            <div class="system-letter">B</div>
+            <div class="radio-card-title">Mechanisch toe</div>
+            <div class="radio-card-desc">Toevoer mechanisch, afvoer natuurlijk</div>
+          </div>
+          <div class="radio-card selected">
+            <div class="system-letter">C</div>
+            <div class="radio-card-title">Mechanisch af</div>
+            <div class="radio-card-desc">Toevoer natuurlijk, afvoer mechanisch</div>
+          </div>
+          <div class="radio-card">
+            <div class="system-letter">D</div>
+            <div class="radio-card-title">Gebalanceerd</div>
+            <div class="radio-card-desc">Toe- en afvoer mechanisch (WTW mogelijk)</div>
+          </div>
+          <div class="radio-card">
+            <div class="system-letter">E</div>
+            <div class="radio-card-title">Lokaal</div>
+            <div class="radio-card-desc">Decentrale units per vertrek</div>
+          </div>
+        </div>
+
+        <!-- 2. Warmteterugwinning -->
+        <h2 class="mt-6">Warmteterugwinning (WTW)</h2>
+
+        <div class="card mt-3">
+          <div class="wtw-grid">
+            <div class="form-group full-width">
+              <div class="form-checkbox-row">
+                <input type="checkbox" id="wtw-aanwezig" disabled>
+                <label for="wtw-aanwezig">WTW aanwezig</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="wtw-rendement">Rendement WTW</label>
+              <div class="input-with-unit">
+                <input type="number" id="wtw-rendement" class="form-input form-input-number" value="0" disabled>
+                <span class="unit-suffix">%</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <!-- spacer -->
+            </div>
+            <div class="form-group">
+              <div class="form-checkbox-row">
+                <input type="checkbox" id="vorstbeveiliging" disabled>
+                <label for="vorstbeveiliging">Vorstbeveiliging</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="form-checkbox-row">
+                <input type="checkbox" id="voorverwarming" disabled>
+                <label for="voorverwarming">Voorverwarming</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Luchthoeveelheden per vertrek -->
+        <h2 class="mt-6">Luchthoeveelheden per vertrek</h2>
+
+        <div class="table-wrap mt-3">
+          <table>
+            <thead>
+              <tr>
+                <th>Vertrek</th>
+                <th>Functie</th>
+                <th class="num">A<sub>v</sub> [m&sup2;]</th>
+                <th class="num">q<sub>i,spec</sub> [dm&sup3;/s&middot;m&sup2;]</th>
+                <th class="num">q<sub>v</sub> [dm&sup3;/s]</th>
+                <th>Toevoer</th>
+                <th>Afvoer</th>
+                <th class="num">f<sub>v</sub> [-]</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Woonkamer</td>
+                <td>Woonkamer</td>
+                <td class="num">28.20</td>
+                <td class="num">0.90</td>
+                <td class="num">25.38</td>
+                <td>Natuurlijk</td>
+                <td>&mdash;</td>
+                <td class="num">1.0</td>
+              </tr>
+              <tr>
+                <td>Keuken</td>
+                <td>Keuken</td>
+                <td class="num">14.94</td>
+                <td class="num">&mdash;</td>
+                <td class="num">0.00</td>
+                <td>&mdash;</td>
+                <td>Mechanisch</td>
+                <td class="num">0.0</td>
+              </tr>
+              <tr>
+                <td>Badkamer</td>
+                <td>Badkamer</td>
+                <td class="num">4.77</td>
+                <td class="num">&mdash;</td>
+                <td class="num">14.00</td>
+                <td>&mdash;</td>
+                <td>Mechanisch</td>
+                <td class="num">0.22</td>
+              </tr>
+              <tr>
+                <td>Slaapkamer 1</td>
+                <td>Slaapkamer</td>
+                <td class="num">8.76</td>
+                <td class="num">0.90</td>
+                <td class="num">7.88</td>
+                <td>Natuurlijk</td>
+                <td>&mdash;</td>
+                <td class="num">1.0</td>
+              </tr>
+              <tr>
+                <td>Slaapkamer 2</td>
+                <td>Slaapkamer</td>
+                <td class="num">12.90</td>
+                <td class="num">0.90</td>
+                <td class="num">11.60</td>
+                <td>Natuurlijk</td>
+                <td>&mdash;</td>
+                <td class="num">1.0</td>
+              </tr>
+              <tr>
+                <td>Slaapkamer 3</td>
+                <td>Slaapkamer</td>
+                <td class="num">13.67</td>
+                <td class="num">0.90</td>
+                <td class="num">12.30</td>
+                <td>Natuurlijk</td>
+                <td>&mdash;</td>
+                <td class="num">1.0</td>
+              </tr>
+              <tr>
+                <td>Entree</td>
+                <td>Gang</td>
+                <td class="num">6.24</td>
+                <td class="num">&mdash;</td>
+                <td class="num">4.40</td>
+                <td>Natuurlijk</td>
+                <td>&mdash;</td>
+                <td class="num">1.0</td>
+              </tr>
+              <tr>
+                <td>Toilet</td>
+                <td>Toilet</td>
+                <td class="num">1.32</td>
+                <td class="num">&mdash;</td>
+                <td class="num">0.00</td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+                <td class="num">0.0</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4"><strong>Totaal</strong></td>
+                <td class="num">75.56</td>
+                <td colspan="3"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>

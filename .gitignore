@@ -1,0 +1,26 @@
+# Rust build artifacts
+/target/
+
+# PDF documents (copyrighted norm publications)
+*.pdf
+
+# Excel spreadsheets
+*.xls
+*.xlsx
+
+# Session-specific files
+SESSION_STATUS.md
+STATUS.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Environment
+.env

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inloggen - ISSO 51 Warmteverliesberekening</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ===== OpenAEC Design Tokens ===== */
+    :root {
+      --amber: #D97706;
+      --signal-orange: #EA580C;
+      --warm-gold: #F59E0B;
+      --deep-forge: #18181B;
+      --night-build: #0C0A09;
+      --scaffold-gray: #A1A1AA;
+      --blueprint-white: #FAFAF9;
+      --concrete: #F5F5F4;
+
+      --font-heading: "Space Grotesk", system-ui, sans-serif;
+      --font-body: "Inter", system-ui, sans-serif;
+      --font-code: "JetBrains Mono", monospace;
+
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+
+      --gradient-amber: linear-gradient(90deg, #D97706 0%, #F59E0B 40%, #EA580C 100%);
+    }
+
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--night-build);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      color: var(--deep-forge);
+      line-height: 1.6;
+    }
+
+    a { color: var(--amber); text-decoration: none; }
+    a:hover { color: var(--signal-orange); text-decoration: underline; }
+
+    /* ===== Login Layout ===== */
+    .login-wrapper {
+      max-width: 420px;
+      width: 100%;
+    }
+
+    /* --- Header with brand --- */
+    .login-header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .login-header .brand-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--amber);
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: #fff;
+      margin-bottom: 0.75rem;
+      font-family: var(--font-heading);
+    }
+
+    .login-header h1 {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: var(--blueprint-white);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+    }
+
+    .login-header .brand-wordmark {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 0.875rem;
+      color: var(--scaffold-gray);
+      letter-spacing: -0.01em;
+    }
+
+    .login-header .brand-wordmark .aec {
+      color: var(--amber);
+    }
+
+    .login-header .tagline {
+      font-size: 0.75rem;
+      color: var(--scaffold-gray);
+      margin-top: 0.25rem;
+      font-style: italic;
+    }
+
+    /* --- Card panel --- */
+    .login-card {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Amber gradient strip at top */
+    .login-card::before {
+      content: "";
+      display: block;
+      height: 3px;
+      background: var(--gradient-amber);
+    }
+
+    /* --- Tabs --- */
+    .login-tabs {
+      display: flex;
+      border-bottom: 1px solid #E7E5E4;
+    }
+
+    .login-tab {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      font-family: var(--font-body);
+      color: var(--scaffold-gray);
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .login-tab:hover {
+      color: #57534E;
+    }
+
+    .login-tab.active {
+      color: var(--amber);
+      border-bottom-color: var(--amber);
+    }
+
+    /* --- Tab body --- */
+    .login-body {
+      padding: 1.5rem;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* --- Form elements --- */
+    .login-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .login-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #57534E;
+    }
+
+    .login-input {
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      font-family: var(--font-body);
+      border: 1.5px solid #D6D3D1;
+      border-radius: var(--radius-md);
+      background: #fff;
+      color: var(--deep-forge);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .login-input:focus {
+      outline: none;
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
+    }
+
+    .login-input::placeholder {
+      color: #D6D3D1;
+    }
+
+    .login-input-mono {
+      font-family: var(--font-code);
+      font-size: 0.8125rem;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    /* --- Checkbox row --- */
+    .login-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: #57534E;
+      cursor: pointer;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      accent-color: var(--amber);
+      width: 16px;
+      height: 16px;
+    }
+
+    .forgot-link {
+      font-size: 0.875rem;
+      color: var(--amber);
+      text-decoration: none;
+    }
+
+    .forgot-link:hover {
+      color: var(--signal-orange);
+      text-decoration: underline;
+    }
+
+    /* --- Primary button --- */
+    .login-btn {
+      display: block;
+      width: 100%;
+      padding: 12px 24px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: var(--font-body);
+      color: #fff;
+      background: var(--amber);
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background 0.15s;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .login-btn:hover {
+      background: var(--signal-orange);
+      text-decoration: none;
+      color: #fff;
+    }
+
+    /* --- Tab description --- */
+    .tab-description {
+      font-size: 0.875rem;
+      color: #78716C;
+      margin-bottom: 1.25rem;
+      line-height: 1.6;
+    }
+
+    /* --- Card footer --- */
+    .login-footer {
+      padding: 0 1.5rem 1.5rem;
+      text-align: center;
+    }
+
+    .login-org-logo {
+      width: 48px;
+      height: 48px;
+      background: var(--concrete);
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.75rem;
+      color: #D6D3D1;
+      font-size: 0.6875rem;
+      font-family: var(--font-code);
+    }
+
+    .login-contact {
+      font-size: 0.875rem;
+      color: #78716C;
+    }
+
+    .login-contact a {
+      color: var(--amber);
+    }
+
+    .login-contact a:hover {
+      color: var(--signal-orange);
+    }
+
+    /* --- Page footer --- */
+    .page-footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+    }
+
+    .page-footer .footer-brand {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: var(--scaffold-gray);
+    }
+
+    .page-footer .footer-brand .aec {
+      color: var(--amber);
+    }
+
+    .page-footer .footer-sub {
+      color: #57534E;
+      margin-top: 0.125rem;
+      font-family: var(--font-code);
+      font-size: 0.6875rem;
+      letter-spacing: 0.05em;
+    }
+
+    /* --- Theme toggle --- */
+    .theme-toggle-hub {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      width: 36px;
+      height: 36px;
+      border: 1px solid #27272A;
+      border-radius: var(--radius-md);
+      background: var(--deep-forge);
+      cursor: pointer;
+      font-size: 1rem;
+      color: var(--scaffold-gray);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .theme-toggle-hub:hover {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    /* ===== Dark Theme ===== */
+    [data-theme="dark"] .login-card {
+      background: var(--deep-forge);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="dark"] .login-tabs {
+      border-bottom-color: #27272A;
+    }
+
+    [data-theme="dark"] .login-tab {
+      color: #71717A;
+    }
+
+    [data-theme="dark"] .login-tab:hover {
+      color: #D4D4D8;
+    }
+
+    [data-theme="dark"] .login-label {
+      color: #D4D4D8;
+    }
+
+    [data-theme="dark"] .login-input {
+      background: var(--night-build);
+      border-color: #27272A;
+      color: var(--blueprint-white);
+    }
+
+    [data-theme="dark"] .login-input:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2);
+    }
+
+    [data-theme="dark"] .login-input::placeholder {
+      color: #52525B;
+    }
+
+    [data-theme="dark"] .checkbox-label {
+      color: var(--scaffold-gray);
+    }
+
+    [data-theme="dark"] .tab-description {
+      color: var(--scaffold-gray);
+    }
+
+    [data-theme="dark"] .login-org-logo {
+      background: #27272A;
+      color: #52525B;
+    }
+
+    [data-theme="dark"] .login-contact {
+      color: var(--scaffold-gray);
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle-hub" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+
+  <div class="login-wrapper">
+    <div class="login-header">
+      <div class="brand-icon">W</div>
+      <h1>Warmteverliesberekening</h1>
+      <div class="brand-wordmark">Open<span class="aec">AEC</span> Foundation</div>
+      <div class="tagline">Build free. Build together.</div>
+    </div>
+
+    <div class="login-card">
+      <div class="login-tabs">
+        <button class="login-tab active" onclick="switchTab('login')">Inloggen</button>
+        <button class="login-tab" onclick="switchTab('apikey')">API Key</button>
+      </div>
+
+      <div class="login-body">
+        <!-- Tab 1: Inloggen -->
+        <div id="tab-login" class="tab-panel active">
+          <div class="login-form-group">
+            <label class="login-label" for="email">E-mailadres</label>
+            <input type="email" id="email" class="login-input" placeholder="naam@bedrijf.nl">
+          </div>
+
+          <div class="login-form-group">
+            <label class="login-label" for="password">Wachtwoord</label>
+            <input type="password" id="password" class="login-input" placeholder="Wachtwoord">
+          </div>
+
+          <div class="login-row">
+            <label class="checkbox-label">
+              <input type="checkbox"> Onthoud mij
+            </label>
+            <a href="#" class="forgot-link">Wachtwoord vergeten?</a>
+          </div>
+
+          <a href="dashboard.html" class="login-btn">Inloggen</a>
+        </div>
+
+        <!-- Tab 2: API Key -->
+        <div id="tab-apikey" class="tab-panel">
+          <p class="tab-description">
+            Gebruik een API key voor geautomatiseerde koppelingen of integraties met externe software.
+          </p>
+
+          <div class="login-form-group">
+            <label class="login-label" for="org-name">Organisatie</label>
+            <input type="text" id="org-name" class="login-input" placeholder="Naam of ID van uw organisatie">
+          </div>
+
+          <div class="login-form-group" style="margin-bottom: 1.25rem;">
+            <label class="login-label" for="api-key">API Key / Token</label>
+            <textarea id="api-key" class="login-input login-input-mono" placeholder="sk-isso51-xxxx..."></textarea>
+          </div>
+
+          <a href="dashboard.html" class="login-btn">Verbinden</a>
+        </div>
+      </div>
+
+      <div class="login-footer">
+        <div class="login-org-logo">logo</div>
+        <div class="login-contact">
+          Nog geen account? <a href="#">Neem contact op</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <div class="footer-brand">Open<span class="aec">AEC</span> Foundation</div>
+      <div class="footer-sub">ISSO 51:2023</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+
+function switchTab(tab) {
+  var tabs = document.querySelectorAll('.login-tab');
+  var panels = document.querySelectorAll('.tab-panel');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.remove('active');
+  }
+  for (var i = 0; i < panels.length; i++) {
+    panels[i].classList.remove('active');
+  }
+  if (tab === 'login') {
+    tabs[0].classList.add('active');
+    document.getElementById('tab-login').classList.add('active');
+  } else {
+    tabs[1].classList.add('active');
+    document.getElementById('tab-apikey').classList.add('active');
+  }
+}
+</script>
+</body>
+</html>

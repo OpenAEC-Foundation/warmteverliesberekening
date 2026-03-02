@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vertrekken (Kaarten) - ISSO 51 Warmteverliesberekening</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <style>
+    /* Card grid layout */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-4);
+    }
+
+    /* Room card internals */
+    .room-card .card-header {
+      margin-bottom: var(--space-2);
+    }
+    .room-card .room-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+      flex-wrap: wrap;
+    }
+    .room-card .temp-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
+      font-family: var(--font-mono);
+      border-radius: var(--radius-sm);
+      background: var(--color-info-light);
+      color: var(--color-info);
+    }
+    .room-card .func-label {
+      font-size: var(--text-xs);
+      color: var(--color-gray-500);
+    }
+    .room-card .area-label {
+      font-size: var(--text-xs);
+      font-family: var(--font-mono);
+      color: var(--color-gray-500);
+    }
+    .room-card .room-total {
+      font-family: var(--font-mono);
+      font-weight: var(--weight-bold);
+      font-size: var(--text-md);
+      color: var(--color-gray-900);
+      white-space: nowrap;
+    }
+
+    /* Stacked bar segment colours */
+    .bar-segment-transmission {
+      background: #3b82f6;
+    }
+    .bar-segment-ventilation {
+      background: #8b5cf6;
+    }
+    .bar-segment-heating {
+      background: #f59e0b;
+    }
+
+    /* Legend */
+    .bar-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-top: var(--space-2);
+      font-size: var(--text-xs);
+      color: var(--color-gray-600);
+    }
+    .bar-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .bar-legend-item .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .bar-legend-item .legend-value {
+      font-family: var(--font-mono);
+      font-weight: var(--weight-medium);
+    }
+
+    /* Boundary badges row */
+    .boundary-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      margin-top: var(--space-3);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">W</div>
+        <div>
+          <div class="brand-text">ISSO 51</div>
+          <div class="brand-sub">Warmteverlies</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Project</div>
+        <a href="dashboard.html" class="nav-item">
+          <span class="nav-icon">&#9638;</span> Dashboard
+        </a>
+        <a href="project-setup.html" class="nav-item">
+          <span class="nav-icon">&#9881;</span> Project Setup
+        </a>
+        <div class="nav-section-label">Berekening</div>
+        <a href="room-editor-tree.html" class="nav-item active">
+          <span class="nav-icon">&#9633;</span> Vertrekken
+        </a>
+        <a href="construction-library.html" class="nav-item">
+          <span class="nav-icon">&#9776;</span> Constructies
+        </a>
+        <a href="ventilation.html" class="nav-item">
+          <span class="nav-icon">&#9707;</span> Ventilatie
+        </a>
+        <div class="nav-section-label">Output</div>
+        <a href="results.html" class="nav-item">
+          <span class="nav-icon">&#9736;</span> Resultaten
+        </a>
+        <a href="report.html" class="nav-item">
+          <span class="nav-icon">&#9112;</span> Rapport
+        </a>
+        <a href="import.html" class="nav-item">
+          <span class="nav-icon">&#8613;</span> Import
+        </a>
+      </nav>
+      <div class="sidebar-footer">ISSO 51:2023 &middot; v0.1</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h1 class="page-title">Vertrekken</h1>
+        <div class="header-actions">
+          <button class="theme-toggle" onclick="toggleTheme()" title="Thema wisselen">&#9790;</button>
+          <button class="btn btn-primary">+ Vertrek toevoegen</button>
+        </div>
+      </header>
+
+      <div class="tabs" style="padding: 0 var(--space-6); background: var(--color-white);">
+        <a href="room-editor-tree.html" class="tab">Boom</a>
+        <a href="room-editor-table.html" class="tab">Tabel</a>
+        <a href="room-editor-cards.html" class="tab active">Kaarten</a>
+      </div>
+
+      <section class="page-body">
+        <div class="card-grid">
+
+          <!-- Woonkamer: Φtot=1781, Φt=1247, Φv=832, Φhu=187 -->
+          <!-- Positive sum = 1247+832+187 = 2266; %t=55.0, %v=36.7, %hu=8.3 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Woonkamer</span>
+              <span class="room-total">1781 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Woonkamer</span>
+              <span class="temp-badge">20 &deg;C</span>
+              <span class="area-label">28.2 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-transmission" style="width: 55.0%;" title="Transmissie: 1247 W"></div>
+              <div class="bar-segment bar-segment-ventilation" style="width: 36.7%;" title="Ventilatie: 832 W"></div>
+              <div class="bar-segment bar-segment-heating" style="width: 8.3%;" title="Opwarming: 187 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">1247 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">832 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">187 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-exterior">4x Buiten</span>
+              <span class="badge badge-adjacent-room">5x Vertrek</span>
+              <span class="badge badge-adjacent-building">3x Buren</span>
+            </div>
+          </div>
+
+          <!-- Keuken: Φtot=687, Φt=619, Φv=0, Φhu=54 -->
+          <!-- Positive sum = 619+0+54 = 673; %t=92.0, %v=0, %hu=8.0 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Keuken</span>
+              <span class="room-total">687 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Keuken</span>
+              <span class="temp-badge">20 &deg;C</span>
+              <span class="area-label">14.94 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-transmission" style="width: 92.0%;" title="Transmissie: 619 W"></div>
+              <div class="bar-segment bar-segment-heating" style="width: 8.0%;" title="Opwarming: 54 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">619 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">0 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">54 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-exterior">3x Buiten</span>
+              <span class="badge badge-adjacent-room">3x Vertrek</span>
+              <span class="badge badge-adjacent-building">3x Buren</span>
+            </div>
+          </div>
+
+          <!-- Badkamer: Φtot=152, Φt=276, Φv=118, Φhu=34 -->
+          <!-- Positive sum = 276+118+34 = 428; %t=64.5, %v=27.6, %hu=7.9 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Badkamer</span>
+              <span class="room-total">152 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Badkamer</span>
+              <span class="temp-badge">22 &deg;C</span>
+              <span class="area-label">4.77 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-transmission" style="width: 64.5%;" title="Transmissie: 276 W"></div>
+              <div class="bar-segment bar-segment-ventilation" style="width: 27.6%;" title="Ventilatie: 118 W"></div>
+              <div class="bar-segment bar-segment-heating" style="width: 7.9%;" title="Opwarming: 34 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">276 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">118 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">34 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-adjacent-room">5x Vertrek</span>
+              <span class="badge badge-adjacent-building">2x Buren</span>
+            </div>
+          </div>
+
+          <!-- Slaapkamer 1: Φtot=807, Φt=694, Φv=242, Φhu=85 -->
+          <!-- Positive sum = 694+242+85 = 1021; %t=68.0, %v=23.7, %hu=8.3 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Slaapkamer 1</span>
+              <span class="room-total">807 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Slaapkamer</span>
+              <span class="temp-badge">20 &deg;C</span>
+              <span class="area-label">8.76 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-transmission" style="width: 68.0%;" title="Transmissie: 694 W"></div>
+              <div class="bar-segment bar-segment-ventilation" style="width: 23.7%;" title="Ventilatie: 242 W"></div>
+              <div class="bar-segment bar-segment-heating" style="width: 8.3%;" title="Opwarming: 85 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">694 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">242 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">85 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-exterior">3x Buiten</span>
+              <span class="badge badge-adjacent-room">2x Vertrek</span>
+              <span class="badge badge-unheated">1x Onverwarmd</span>
+              <span class="badge badge-adjacent-building">2x Buren</span>
+            </div>
+          </div>
+
+          <!-- Slaapkamer 2: Φtot=822, Φt=537, Φv=361, Φhu=83 -->
+          <!-- Positive sum = 537+361+83 = 981; %t=54.7, %v=36.8, %hu=8.5 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Slaapkamer 2</span>
+              <span class="room-total">822 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Slaapkamer</span>
+              <span class="temp-badge">20 &deg;C</span>
+              <span class="area-label">12.9 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-transmission" style="width: 54.7%;" title="Transmissie: 537 W"></div>
+              <div class="bar-segment bar-segment-ventilation" style="width: 36.8%;" title="Ventilatie: 361 W"></div>
+              <div class="bar-segment bar-segment-heating" style="width: 8.5%;" title="Opwarming: 83 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">537 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">361 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">83 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-exterior">2x Buiten</span>
+              <span class="badge badge-adjacent-room">3x Vertrek</span>
+              <span class="badge badge-adjacent-building">2x Buren</span>
+            </div>
+          </div>
+
+          <!-- Slaapkamer 3: Φtot=915, Φt=695, Φv=401, Φhu=98 -->
+          <!-- Positive sum = 695+401+98 = 1194; %t=58.2, %v=33.6, %hu=8.2 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Slaapkamer 3</span>
+              <span class="room-total">915 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Slaapkamer</span>
+              <span class="temp-badge">20 &deg;C</span>
+              <span class="area-label">13.67 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-transmission" style="width: 58.2%;" title="Transmissie: 695 W"></div>
+              <div class="bar-segment bar-segment-ventilation" style="width: 33.6%;" title="Ventilatie: 401 W"></div>
+              <div class="bar-segment bar-segment-heating" style="width: 8.2%;" title="Opwarming: 98 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">695 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">401 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">98 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-exterior">2x Buiten</span>
+              <span class="badge badge-adjacent-room">2x Vertrek</span>
+              <span class="badge badge-unheated">1x Onverwarmd</span>
+              <span class="badge badge-adjacent-building">3x Buren</span>
+            </div>
+          </div>
+
+          <!-- Entree: Φtot=160, Φt=0 (clamped), Φv=132, Φhu=0 -->
+          <!-- Positive sum = 0+132+0 = 132; %t=0, %v=100, %hu=0 -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Entree</span>
+              <span class="room-total">160 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Gang</span>
+              <span class="temp-badge">15 &deg;C</span>
+              <span class="area-label">6.24 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <div class="bar-segment bar-segment-ventilation" style="width: 100%;" title="Ventilatie: 132 W"></div>
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">0 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">132 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">0 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-adjacent-room">6x Vertrek</span>
+              <span class="badge badge-unheated">1x Onverwarmd</span>
+              <span class="badge badge-adjacent-building">2x Buren</span>
+            </div>
+          </div>
+
+          <!-- Toilet: Φtot=2, Φt=0 (clamped), Φv=0, Φhu=0 -->
+          <!-- Positive sum = 0; show empty bar -->
+          <div class="card card-interactive room-card">
+            <div class="card-header">
+              <span class="card-title">Toilet</span>
+              <span class="room-total">2 W</span>
+            </div>
+            <div class="room-meta">
+              <span class="func-label">Toilet</span>
+              <span class="temp-badge">15 &deg;C</span>
+              <span class="area-label">1.32 m&sup2;</span>
+            </div>
+            <div class="stacked-bar">
+              <!-- All components clamped to 0: bar remains empty (gray background) -->
+            </div>
+            <div class="bar-legend">
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Transmissie: <span class="legend-value">0 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ventilatie: <span class="legend-value">0 W</span></span>
+              <span class="bar-legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Opwarming: <span class="legend-value">0 W</span></span>
+            </div>
+            <div class="boundary-badges">
+              <span class="badge badge-adjacent-room">3x Vertrek</span>
+              <span class="badge badge-adjacent-building">2x Buren</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+<script>
+(function(){
+  var t = localStorage.getItem('isso51-theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme() {
+  var d = document.documentElement;
+  var current = d.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  d.setAttribute('data-theme', next);
+  localStorage.setItem('isso51-theme', next);
+}
+</script>
+</body>
+</html>
