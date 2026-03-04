@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { AppShell } from "./components/layout/AppShell";
+import { Library } from "./pages/Library";
 import { ProjectSetup } from "./pages/ProjectSetup";
 import { RoomEditor } from "./pages/RoomEditor";
 import { Results } from "./pages/Results";
@@ -13,6 +14,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/project" replace />} />
           <Route path="/project" element={<ProjectSetup />} />
           <Route path="/rooms" element={<RoomEditor />} />
+          <Route path="/library" element={<Library />} />
           <Route path="/results" element={<Results />} />
         </Routes>
       </AppShell>

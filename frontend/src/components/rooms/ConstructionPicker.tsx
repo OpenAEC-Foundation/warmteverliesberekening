@@ -1,22 +1,25 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useClickOutside } from "../../hooks/useClickOutside";
 import {
   CATALOGUE_CATEGORY_LABELS,
-  getCatalogueByCategory,
   type CatalogueCategory,
   type CatalogueEntry,
 } from "../../lib/constructionCatalogue";
+import { useCatalogueStore } from "../../store/catalogueStore";
 
 interface ConstructionPickerProps {
   onSelectCatalogue: (entry: CatalogueEntry) => void;
   onSelectBlank: () => void;
   onClose: () => void;
+  anchorRect: DOMRect | null;
 }
 
 const CATEGORY_ORDER: CatalogueCategory[] = [
   "wanden",
   "vloeren_plafonds",
+  "daken",
   "kozijnen_vullingen",
 ];
 
@@ -24,13 +27,23 @@ export function ConstructionPicker({
   onSelectCatalogue,
   onSelectBlank,
   onClose,
+  anchorRect,
 }: ConstructionPickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
 
   useClickOutside(ref, onClose);
 
-  const byCategory = useMemo(() => getCatalogueByCategory(), []);
+  const catalogueEntries = useCatalogueStore((s) => s.entries);
+  const byCategory = useMemo(() => {
+    const map = new Map<CatalogueCategory, CatalogueEntry[]>();
+    for (const entry of catalogueEntries) {
+      const list = map.get(entry.category) ?? [];
+      list.push(entry);
+      map.set(entry.category, list);
+    }
+    return map;
+  }, [catalogueEntries]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return byCategory;
@@ -50,11 +63,36 @@ export function ConstructionPicker({
     [onSelectCatalogue],
   );
 
-  return (
+  // Position the dropdown below the anchor, flip up if near viewport bottom.
+  const [pos, setPos] = useState({ top: 0, left: 0, flipUp: false });
+
+  useEffect(() => {
+    if (!anchorRect) return;
+    const PICKER_HEIGHT = 360;
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const flipUp = spaceBelow < PICKER_HEIGHT && anchorRect.top > PICKER_HEIGHT;
+
+    setPos({
+      top: flipUp ? anchorRect.top : anchorRect.bottom + 4,
+      left: anchorRect.left,
+      flipUp,
+    });
+  }, [anchorRect]);
+
+  if (!anchorRect) return null;
+
+  const picker = (
     <div
       ref={ref}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-0 z-20 mt-1 w-72 rounded-lg border border-stone-200 bg-white shadow-lg"
+      style={{
+        position: "fixed",
+        top: pos.flipUp ? undefined : pos.top,
+        bottom: pos.flipUp ? window.innerHeight - pos.top + 4 : undefined,
+        left: pos.left,
+        zIndex: 50,
+      }}
+      className="w-80 rounded-lg border border-stone-200 bg-white shadow-xl"
     >
       {/* Search */}
       <div className="border-b border-stone-200 p-2">
@@ -63,7 +101,7 @@ export function ConstructionPicker({
           placeholder="Zoek constructie..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded border border-stone-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+          className="w-full rounded border border-stone-300 px-2 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
           autoFocus
         />
       </div>
@@ -78,13 +116,13 @@ export function ConstructionPicker({
       </button>
 
       {/* Category groups */}
-      <div className="max-h-64 overflow-y-auto">
+      <div className="max-h-72 overflow-y-auto">
         {CATEGORY_ORDER.map((cat) => {
           const entries = filtered.get(cat);
           if (!entries) return null;
           return (
             <div key={cat}>
-              <div className="sticky top-0 bg-stone-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stone-500">
+              <div className="sticky top-0 bg-stone-100 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-stone-500">
                 {CATALOGUE_CATEGORY_LABELS[cat]}
               </div>
               {entries.map((entry) => (
@@ -96,7 +134,7 @@ export function ConstructionPicker({
                 >
                   <span className="text-stone-700">{entry.name}</span>
                   <span className="ml-2 tabular-nums text-stone-400">
-                    {entry.uValue.toFixed(2)}
+                    {entry.uValue.toFixed(2)} W/m²K
                   </span>
                 </button>
               ))}
@@ -111,4 +149,6 @@ export function ConstructionPicker({
       </div>
     </div>
   );
+
+  return createPortal(picker, document.body);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import type { CatalogueEntry } from "../../lib/constructionCatalogue";
 import {
@@ -120,8 +120,17 @@ function RoomGroup({
   onRemoveConstruction,
 }: RoomGroupProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const addBtnRef = useRef<HTMLTableCellElement>(null);
   const { constructions } = room;
   const firstConstruction = constructions[0];
+
+  const handleOpenPicker = useCallback(() => {
+    if (addBtnRef.current) {
+      setAnchorRect(addBtnRef.current.getBoundingClientRect());
+    }
+    setPickerOpen((prev) => !prev);
+  }, []);
 
   const handleSelectCatalogue = useCallback(
     (entry: CatalogueEntry) => {
@@ -175,22 +184,24 @@ function RoomGroup({
 
       {/* Add construction ghost row */}
       <tr
-        onClick={() => setPickerOpen((prev) => !prev)}
+        onClick={handleOpenPicker}
         className="cursor-pointer border-b-2 border-stone-200 text-stone-400 hover:bg-blue-50 hover:text-stone-600"
       >
         {EMPTY_ROOM_CELLS}
-        <td colSpan={5} className="relative px-3 py-1 text-xs font-medium">
+        <td ref={addBtnRef} colSpan={5} className="px-3 py-1 text-xs font-medium">
           + grensvlak toevoegen
-          {pickerOpen && (
-            <ConstructionPicker
-              onSelectCatalogue={handleSelectCatalogue}
-              onSelectBlank={handleSelectBlank}
-              onClose={() => setPickerOpen(false)}
-            />
-          )}
         </td>
         <td />
       </tr>
+
+      {pickerOpen && (
+        <ConstructionPicker
+          anchorRect={anchorRect}
+          onSelectCatalogue={handleSelectCatalogue}
+          onSelectBlank={handleSelectBlank}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </>
   );
 }

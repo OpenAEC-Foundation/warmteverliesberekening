@@ -10,11 +10,16 @@ export interface CatalogueEntry {
   boundaryType: BoundaryType;
 }
 
-export type CatalogueCategory = "wanden" | "vloeren_plafonds" | "kozijnen_vullingen";
+export type CatalogueCategory =
+  | "wanden"
+  | "vloeren_plafonds"
+  | "daken"
+  | "kozijnen_vullingen";
 
 export const CATALOGUE_CATEGORY_LABELS: Record<CatalogueCategory, string> = {
   wanden: "Wanden",
   vloeren_plafonds: "Vloeren / plafonds",
+  daken: "Daken",
   kozijnen_vullingen: "Kozijnen / vullingen",
 };
 
@@ -83,6 +88,43 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "floor",
     boundaryType: "ground",
+  },
+  // -- Daken --
+  {
+    id: "plat-dak-geisoleerd",
+    name: "Plat dak (ge\u00EFsoleerd)",
+    category: "daken",
+    uValue: 0.22,
+    materialType: "masonry",
+    verticalPosition: "ceiling",
+    boundaryType: "exterior",
+  },
+  {
+    id: "plat-dak-ongeisoleerd",
+    name: "Plat dak (onge\u00EFsoleerd)",
+    category: "daken",
+    uValue: 3.5,
+    materialType: "masonry",
+    verticalPosition: "ceiling",
+    boundaryType: "exterior",
+  },
+  {
+    id: "hellend-dak-geisoleerd",
+    name: "Hellend dak (ge\u00EFsoleerd)",
+    category: "daken",
+    uValue: 0.25,
+    materialType: "non_masonry",
+    verticalPosition: "ceiling",
+    boundaryType: "exterior",
+  },
+  {
+    id: "hellend-dak-ongeisoleerd",
+    name: "Hellend dak (onge\u00EFsoleerd)",
+    category: "daken",
+    uValue: 3.0,
+    materialType: "non_masonry",
+    verticalPosition: "ceiling",
+    boundaryType: "exterior",
   },
   // -- Kozijnen / vullingen --
   {
