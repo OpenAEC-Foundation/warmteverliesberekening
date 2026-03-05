@@ -510,14 +510,26 @@
           "has_embedded_heating": false
         },
         {
-          "id": "0.05-adj-22",
-          "description": "Binnenwand + tussenvloer + deur naar 22°C",
-          "area": 12.12,
-          "u_value": 2.72,
+          "id": "0.05-adj-22-wall",
+          "description": "Binnenwand + deur naar 22°C ruimten",
+          "area": 6.50,
+          "u_value": 2.558,
           "boundary_type": "adjacent_room",
           "material_type": "masonry",
           "adjacent_temperature": 22.0,
           "vertical_position": "wall",
+          "use_forfaitaire_thermal_bridge": false,
+          "has_embedded_heating": false
+        },
+        {
+          "id": "0.05-adj-22-ceil",
+          "description": "Tussenvloer plafond naar 22°C (1e verd.)",
+          "area": 5.62,
+          "u_value": 2.91,
+          "boundary_type": "adjacent_room",
+          "material_type": "masonry",
+          "adjacent_temperature": 22.0,
+          "vertical_position": "ceiling",
           "use_forfaitaire_thermal_bridge": false,
           "has_embedded_heating": false
         },
