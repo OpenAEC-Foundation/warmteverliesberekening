@@ -78,11 +78,12 @@ function AuthSection() {
       .then(({ getOidc }) => getOidc())
       .then((oidc) => {
         if (oidc.isUserLoggedIn) {
+          const token = oidc.getDecodedIdToken();
           setOidcState({
             isLoggedIn: true,
             name:
-              oidc.decodedIdToken.name ??
-              oidc.decodedIdToken.preferred_username ??
+              token.name ??
+              token.preferred_username ??
               "Gebruiker",
             logout: () => oidc.logout({ redirectTo: "current page" }),
           });
