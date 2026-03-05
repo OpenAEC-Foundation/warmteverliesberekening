@@ -64,40 +64,77 @@ pub fn calculate_from_json(input_json: &str) -> Result<String> {
 pub fn calculate(project: &Project) -> Result<ProjectResult> {
     validate::validate_project(project)?;
 
-    let mut room_results = Vec::with_capacity(project.rooms.len());
+    // Two-pass approach for correct main room selection (ISSO 51 §4.3):
+    // Pass 1: Calculate all rooms as main room (each gets f_RH × A_accumulating).
+    // Pass 2: Identify the room with highest Φ_T + Φ_v as main room,
+    //         then recalculate heating-up for non-main rooms using the percentage method.
 
-    // First pass: calculate the main room (first room with highest heat loss)
-    // to determine the heating-up percentage for other rooms.
-    // For simplicity, we use the first room as the main room.
-    let mut main_room_hu_pct: Option<f64> = None;
+    // Calculate Ū (average U-value of exterior envelope) across all rooms.
+    // Determines Δθ_v selection: delta_v_high (Ū > 0.5) or delta_v_low (Ū ≤ 0.5).
+    let (total_a_ext, total_au_ext) = project.rooms.iter().fold((0.0, 0.0), |(a, au), room| {
+        room.constructions
+            .iter()
+            .filter(|c| c.boundary_type == model::enums::BoundaryType::Exterior)
+            .fold((a, au), |(a, au), c| (a + c.area, au + c.area * c.u_value))
+    });
+    let u_bar = if total_a_ext > 0.0 { total_au_ext / total_a_ext } else { 1.0 };
+    let use_high_delta_v = u_bar > 0.5;
 
-    for (i, room) in project.rooms.iter().enumerate() {
-        let hu_pct = if i == 0 { None } else { main_room_hu_pct };
+    let mut room_results: Vec<result::RoomResult> = Vec::with_capacity(project.rooms.len());
 
+    // Pass 1: calculate all rooms without heating-up percentage
+    for room in &project.rooms {
         let room_result = calc::room_load::calculate_room(
             room,
             &project.building,
             &project.climate,
             &project.ventilation,
-            hu_pct,
+            None, // all rooms calculated as potential main room
+            use_high_delta_v,
         )?;
-
-        // After calculating the first room, determine the heating-up percentage
-        if i == 0 && project.building.has_night_setback {
-            let phi_t = room_result.transmission.phi_t;
-            let phi_v = room_result.ventilation.phi_v;
-            main_room_hu_pct = Some(calc::heating_up::main_room_percentage(
-                room_result.heating_up.phi_hu,
-                phi_t,
-                phi_v,
-            ));
-        }
-
         room_results.push(room_result);
     }
 
+    // Pass 2: if night setback is active, find the main room and fix heating-up
+    if project.building.has_night_setback && project.building.warmup_time > 0.0 {
+        // Find the room with the highest Φ_T + Φ_v
+        let main_idx = room_results
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| {
+                let sum_a = a.transmission.phi_t + a.ventilation.phi_v;
+                let sum_b = b.transmission.phi_t + b.ventilation.phi_v;
+                sum_a.partial_cmp(&sum_b).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+
+        // Compute the main room's heating-up percentage
+        let main = &room_results[main_idx];
+        let hu_pct = calc::heating_up::main_room_percentage(
+            main.heating_up.phi_hu,
+            main.transmission.phi_t,
+            main.ventilation.phi_v,
+        );
+
+        // Recalculate non-main rooms with the percentage method
+        for (i, room) in project.rooms.iter().enumerate() {
+            if i == main_idx {
+                continue;
+            }
+            room_results[i] = calc::room_load::calculate_room(
+                room,
+                &project.building,
+                &project.climate,
+                &project.ventilation,
+                Some(hu_pct),
+                use_high_delta_v,
+            )?;
+        }
+    }
+
     // Build summary
-    let summary = build_summary(&room_results);
+    let summary = build_summary(&room_results, project.climate.theta_e);
 
     Ok(ProjectResult {
         rooms: room_results,
@@ -106,7 +143,7 @@ pub fn calculate(project: &Project) -> Result<ProjectResult> {
 }
 
 /// Build the building-level summary from per-room results.
-fn build_summary(rooms: &[result::RoomResult]) -> BuildingSummary {
+fn build_summary(rooms: &[result::RoomResult], theta_e: f64) -> BuildingSummary {
     let mut total_envelope_loss = 0.0;
     let mut total_neighbor_loss = 0.0;
     let mut total_ventilation_loss = 0.0;
@@ -114,7 +151,7 @@ fn build_summary(rooms: &[result::RoomResult]) -> BuildingSummary {
     let mut total_system_losses = 0.0;
 
     for r in rooms {
-        let theta_diff = r.theta_i - (-10.0); // TODO: use actual theta_e
+        let theta_diff = r.theta_i - theta_e;
 
         total_envelope_loss += r.transmission.h_t_exterior * theta_diff
             + r.transmission.h_t_unheated * theta_diff

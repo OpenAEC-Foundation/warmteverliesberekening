@@ -4,7 +4,7 @@
 use crate::error::Result;
 use crate::model::building::Building;
 use crate::model::climate::DesignConditions;
-use crate::model::enums::{BoundaryType, InfiltrationMethod};
+use crate::model::enums::{BoundaryType, InfiltrationMethod, VerticalPosition};
 use crate::model::room::Room;
 use crate::model::ventilation::VentilationConfig;
 use crate::result::{
@@ -14,7 +14,7 @@ use crate::result::{
 use crate::formulas;
 use crate::tables;
 
-use super::{heating_up, infiltration, quadratic_sum, transmission, ventilation};
+use super::{heating_up, infiltration, quadratic_sum, system_losses, transmission, ventilation};
 
 /// Calculate the complete heat loss for a single room.
 ///
@@ -24,6 +24,7 @@ use super::{heating_up, infiltration, quadratic_sum, transmission, ventilation};
 /// * `climate` - Design conditions (temperatures)
 /// * `vent_config` - Ventilation system configuration
 /// * `main_room_hu_pct` - Heating-up percentage from main room (None for main room)
+/// * `use_high_delta_v` - Whether Ū > 0.5 (true) or Ū ≤ 0.5 (false) for Δθ_v selection
 ///
 /// # Returns
 /// Complete RoomResult with all heat loss components.
@@ -33,6 +34,7 @@ pub fn calculate_room(
     climate: &DesignConditions,
     vent_config: &VentilationConfig,
     main_room_hu_pct: Option<f64>,
+    use_high_delta_v: bool,
 ) -> Result<RoomResult> {
     let theta_i = room.design_temperature();
     let theta_e = climate.theta_e;
@@ -87,9 +89,8 @@ pub fn calculate_room(
         vent_config.effective_supply_temperature(theta_e)
     };
 
-    // Determine Δθ_v (ventilation temperature correction)
-    // For simplicity, use delta_v_high (Ū > 0.5) as default
-    let delta_v = dt.delta_v_high;
+    // Determine Δθ_v (ventilation temperature correction) based on Ū
+    let delta_v = if use_high_delta_v { dt.delta_v_high } else { dt.delta_v_low };
 
     let (h_v, fv, vent_norm_refs) =
         if room.fraction_outside_air < 1.0 && room.fraction_outside_air > 0.0 {
@@ -180,25 +181,76 @@ pub fn calculate_room(
         main_room_hu_pct,
     );
 
-    // --- System losses ---
-    // For now, assume no embedded heating (will be expanded later)
-    let phi_system = 0.0;
+    // --- System losses (ISSO 51 §2.9) ---
+    // Scan for embedded heating elements facing exterior/ground/adjacent building.
+    // R_c estimated from U-value: R_c = 1/U - R_si - R_se.
+    let mut has_floor_heat = false;
+    let mut rc_floor = f64::MAX;
+    let mut has_wall_heat = false;
+    let mut rc_wall = f64::MAX;
+    let mut has_ceil_heat = false;
+    let mut rc_ceil = f64::MAX;
 
-    // --- Basis heat loss ---
-    // Φ_basis = Φ_T,ie + Φ_T,ia + Φ_T,iae + Φ_T,ig + Φ_i + Φ_system
+    for c in &room.constructions {
+        if !c.has_embedded_heating {
+            continue;
+        }
+        let exterior_facing = matches!(
+            c.boundary_type,
+            BoundaryType::Exterior | BoundaryType::Ground | BoundaryType::AdjacentBuilding
+        );
+        if !exterior_facing {
+            continue;
+        }
+        match c.vertical_position {
+            VerticalPosition::Floor => {
+                has_floor_heat = true;
+                let r_se = if c.boundary_type == BoundaryType::Ground { 0.0 } else { 0.04 };
+                rc_floor = rc_floor.min((1.0 / c.u_value - 0.17 - r_se).max(0.0));
+            }
+            VerticalPosition::Wall => {
+                has_wall_heat = true;
+                rc_wall = rc_wall.min((1.0 / c.u_value - 0.17).max(0.0));
+            }
+            VerticalPosition::Ceiling => {
+                has_ceil_heat = true;
+                rc_ceil = rc_ceil.min((1.0 / c.u_value - 0.14).max(0.0));
+            }
+        }
+    }
+
+    let f_floor = if has_floor_heat { system_losses::floor_heating_loss_fraction(rc_floor) } else { 0.0 };
+    let f_wall = if has_wall_heat { system_losses::wall_heating_loss_fraction(rc_wall) } else { 0.0 };
+    let f_ceil = if has_ceil_heat { system_losses::ceiling_heating_loss_fraction(rc_ceil) } else { 0.0 };
+    let f_sys_total = f_floor + f_wall + f_ceil;
+
+    // --- Basis & extra heat loss (without system losses) ---
     let phi_t_exterior = h_t_ie * (theta_i - theta_e);
     let phi_t_adjacent = h_t_ia * (theta_i - theta_e);
     let phi_t_unheated = h_t_io * (theta_i - theta_e);
     let phi_t_ground = h_t_ig * (theta_i - theta_e);
-    let phi_basis =
-        phi_t_exterior + phi_t_adjacent + phi_t_unheated + phi_t_ground + phi_i + phi_system;
+    let phi_basis_no_sys =
+        phi_t_exterior + phi_t_adjacent + phi_t_unheated + phi_t_ground + phi_i;
 
-    // --- Non-simultaneous losses (quadratic sum) ---
     let phi_t_adj_building = h_t_ib * (theta_i - theta_e);
     let phi_extra = quadratic_sum::quadratic_sum(phi_vent, phi_t_adj_building, phi_hu);
 
+    // Algebraic solution for circular dependency:
+    // Φ_system = f × Φ_HL,i and Φ_HL,i = Φ_basis_no_sys + Φ_system + Φ_extra
+    // → Φ_HL,i = (Φ_basis_no_sys + Φ_extra) / (1 - f)
+    let (phi_system, phi_floor_loss, phi_wall_loss, phi_ceiling_loss, phi_basis, total) =
+        if f_sys_total > 0.0 && f_sys_total < 1.0 {
+            let total = (phi_basis_no_sys + phi_extra) / (1.0 - f_sys_total);
+            let fl = f_floor * total;
+            let wl = f_wall * total;
+            let cl = f_ceil * total;
+            let phi_sys = fl + wl + cl;
+            (phi_sys, fl, wl, cl, phi_basis_no_sys + phi_sys, total)
+        } else {
+            (0.0, 0.0, 0.0, 0.0, phi_basis_no_sys, phi_basis_no_sys + phi_extra)
+        };
+
     // --- Total ---
-    let total = quadratic_sum::total_heat_loss(phi_basis, phi_extra);
     let total = if room.clamp_positive { total.max(0.0) } else { total };
 
     Ok(RoomResult {
@@ -247,11 +299,19 @@ pub fn calculate_room(
             ],
         },
         system_losses: SystemLossResult {
-            phi_floor_loss: 0.0,
-            phi_wall_loss: 0.0,
-            phi_ceiling_loss: 0.0,
+            phi_floor_loss,
+            phi_wall_loss,
+            phi_ceiling_loss,
             phi_system_total: phi_system,
-            norm_refs: vec![],
+            norm_refs: if phi_system > 0.0 {
+                vec![
+                    formulas::ISSO_51_2023_TABEL2_17,
+                    formulas::ISSO_51_2023_TABEL2_18_ERRATUM,
+                    formulas::ISSO_51_2023_PARAG2_9_1_ERRATUM,
+                ]
+            } else {
+                vec![]
+            },
         },
         total_heat_loss: total,
         basis_heat_loss: phi_basis,
