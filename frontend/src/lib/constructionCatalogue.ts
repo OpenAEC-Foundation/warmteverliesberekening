@@ -8,6 +8,7 @@ export interface CatalogueEntry {
   materialType: MaterialType;
   verticalPosition: VerticalPosition;
   boundaryType: BoundaryType;
+  isBuiltIn?: boolean;
 }
 
 export type CatalogueCategory =
@@ -33,6 +34,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "binnenwand-licht",
@@ -42,6 +44,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "adjacent_room",
+    isBuiltIn: true,
   },
   {
     id: "woningscheidende-wand",
@@ -51,6 +54,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "wall",
     boundaryType: "adjacent_building",
+    isBuiltIn: true,
   },
   {
     id: "buitenwand-houtskelet",
@@ -60,6 +64,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   // -- Vloeren / plafonds --
   {
@@ -70,6 +75,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "floor",
     boundaryType: "unheated_space",
+    isBuiltIn: true,
   },
   {
     id: "betonvloer-geisoleerd",
@@ -79,6 +85,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "floor",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "begane-grondvloer",
@@ -88,6 +95,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "floor",
     boundaryType: "ground",
+    isBuiltIn: true,
   },
   // -- Daken --
   {
@@ -98,6 +106,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "ceiling",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "plat-dak-ongeisoleerd",
@@ -107,6 +116,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "masonry",
     verticalPosition: "ceiling",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "hellend-dak-geisoleerd",
@@ -116,6 +126,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "ceiling",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "hellend-dak-ongeisoleerd",
@@ -125,6 +136,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "ceiling",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   // -- Kozijnen / vullingen --
   {
@@ -135,6 +147,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "dubbel-glas-hr",
@@ -144,6 +157,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "triple-glas",
@@ -153,6 +167,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "buitendeur-hout",
@@ -162,6 +177,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
   {
     id: "buitendeur-geisoleerd",
@@ -171,6 +187,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     materialType: "non_masonry",
     verticalPosition: "wall",
     boundaryType: "exterior",
+    isBuiltIn: true,
   },
 ];
 

@@ -48,6 +48,9 @@ export function Library() {
   const updateEntry = useCatalogueStore((s) => s.updateEntry);
   const removeEntry = useCatalogueStore((s) => s.removeEntry);
   const duplicateEntry = useCatalogueStore((s) => s.duplicateEntry);
+  const resetEntry = useCatalogueStore((s) => s.resetEntry);
+  const resetAll = useCatalogueStore((s) => s.resetAll);
+  const isModified = useCatalogueStore((s) => s.isModified);
 
   const [activeTab, setActiveTab] = useState<CatalogueCategory>("wanden");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -91,7 +94,22 @@ export function Library() {
         title="Bibliotheek"
         subtitle={`${entries.length} constructies`}
         actions={
-          <Button onClick={handleStartAdd}>+ Constructie toevoegen</Button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Alle aanpassingen ongedaan maken en standaardwaarden herstellen?")) {
+                  resetAll();
+                  setEditingId(null);
+                  setShowAddForm(false);
+                }
+              }}
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100"
+            >
+              Standaardwaarden herstellen
+            </button>
+            <Button onClick={handleStartAdd}>+ Constructie toevoegen</Button>
+          </div>
         }
       />
 
@@ -160,6 +178,7 @@ export function Library() {
                   key={entry.id}
                   entry={entry}
                   isEditing={editingId === entry.id}
+                  modified={isModified(entry.id)}
                   onEdit={() => {
                     setEditingId(entry.id);
                     setShowAddForm(false);
@@ -174,6 +193,7 @@ export function Library() {
                     removeEntry(entry.id);
                     if (editingId === entry.id) setEditingId(null);
                   }}
+                  onReset={entry.isBuiltIn ? () => resetEntry(entry.id) : undefined}
                 />
               ))}
               {filtered.length === 0 && (
@@ -196,21 +216,25 @@ export function Library() {
 interface EntryRowProps {
   entry: CatalogueEntry;
   isEditing: boolean;
+  modified: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
   onUpdate: (partial: Partial<CatalogueEntry>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  onReset?: () => void;
 }
 
 function EntryRow({
   entry,
   isEditing,
+  modified,
   onEdit,
   onCancelEdit,
   onUpdate,
   onDuplicate,
   onRemove,
+  onReset,
 }: EntryRowProps) {
   const [draft, setDraft] = useState<Partial<CatalogueEntry>>({});
 
@@ -262,7 +286,19 @@ function EntryRow({
 
   return (
     <tr className="group border-b border-stone-100 hover:bg-stone-50/50">
-      <td className="px-3 py-2.5 font-medium text-stone-800">{entry.name}</td>
+      <td className="px-3 py-2.5 font-medium text-stone-800">
+        {entry.name}
+        {!entry.isBuiltIn && (
+          <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-blue-600">
+            Aangepast
+          </span>
+        )}
+        {modified && (
+          <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600">
+            Gewijzigd
+          </span>
+        )}
+      </td>
       <td className="px-3 py-2.5 text-right tabular-nums text-stone-700">
         {entry.uValue.toFixed(2)}
         <span className="ml-1 text-xs text-stone-400">W/m²K</span>
@@ -294,6 +330,16 @@ function EntryRow({
           >
             Kopieer
           </button>
+          {modified && onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="rounded px-2 py-0.5 text-xs text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+              title="Herstel naar standaardwaarden"
+            >
+              Herstel
+            </button>
+          )}
           <button
             type="button"
             onClick={onRemove}
