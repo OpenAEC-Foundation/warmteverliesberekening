@@ -12,6 +12,9 @@ pub struct Config {
     pub oidc_issuer: Option<String>,
     pub oidc_audience: Option<String>,
     pub cors_origins: Vec<String>,
+    /// Directory containing static frontend files (SPA). When set, the server
+    /// serves these files as a fallback for non-API routes.
+    pub static_dir: Option<String>,
 }
 
 impl Config {
@@ -33,6 +36,7 @@ impl Config {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
+            static_dir: env::var("STATIC_DIR").ok(),
         }
     }
 }

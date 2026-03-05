@@ -1,0 +1,25 @@
+services:
+  warmteverlies:
+    build: .
+    container_name: warmteverlies
+    env_file: .env.production
+    volumes:
+      - warmteverlies-data:/data
+    expose:
+      - "3001"
+    networks:
+      - platform
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  warmteverlies-data:
+
+networks:
+  platform:
+    name: 3bm_platform
+    external: true

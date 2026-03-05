@@ -1,0 +1,16 @@
+target/
+node_modules/
+frontend/dist/
+.git/
+.github/
+.vscode/
+.idea/
+src-tauri/
+*.pdf
+*.xls
+*.xlsx
+STATUS.md
+SESSION_STATUS.md
+TODO.md
+.env
+.env.production

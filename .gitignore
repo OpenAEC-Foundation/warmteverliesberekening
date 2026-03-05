@@ -27,6 +27,7 @@ Thumbs.db
 
 # Environment
 .env
+/.env.production
 
 # Frontend
 node_modules/

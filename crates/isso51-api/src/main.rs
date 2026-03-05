@@ -14,6 +14,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use sqlx::sqlite::SqlitePoolOptions;
 use tower_http::cors::CorsLayer;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -95,11 +96,19 @@ async fn main() {
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     // --- App ---
-    let app = Router::new()
+    let mut app = Router::new()
         .nest(config::API_PREFIX, public.merge(protected))
         .with_state(app_state)
         .layer(cors)
         .layer(TraceLayer::new_for_http());
+
+    // --- Static file serving (SPA fallback) ---
+    if let Some(ref static_dir) = config.static_dir {
+        let index = format!("{static_dir}/index.html");
+        let serve_dir = ServeDir::new(static_dir).not_found_service(ServeFile::new(&index));
+        app = app.fallback_service(serve_dir);
+        tracing::info!("Serving static files from {static_dir}");
+    }
 
     let addr = format!("0.0.0.0:{}", config.port);
     tracing::info!("ISSO 51 API listening on {addr}");
