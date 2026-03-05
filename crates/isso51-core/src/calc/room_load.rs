@@ -4,7 +4,7 @@
 use crate::error::Result;
 use crate::model::building::Building;
 use crate::model::climate::DesignConditions;
-use crate::model::enums::BoundaryType;
+use crate::model::enums::{BoundaryType, InfiltrationMethod};
 use crate::model::room::Room;
 use crate::model::ventilation::VentilationConfig;
 use crate::result::{
@@ -60,14 +60,22 @@ pub fn calculate_room(
 
     // --- Infiltration ---
     let qi_spec = tables::infiltration::qi_spec_per_exterior_area(building.qv10);
-    let total_exterior_area: f64 = room
-        .constructions
-        .iter()
-        .filter(|c| c.boundary_type == BoundaryType::Exterior)
-        .map(|c| c.area)
-        .sum();
-
-    let q_i = infiltration::infiltration_flow_rate(qi_spec, total_exterior_area);
+    let q_i = match building.infiltration_method {
+        InfiltrationMethod::PerExteriorArea => {
+            // ISSO 51:2023 Table 4.3: q_i = qi_spec × ΣA_exterior
+            let total_exterior_area: f64 = room
+                .constructions
+                .iter()
+                .filter(|c| c.boundary_type == BoundaryType::Exterior)
+                .map(|c| c.area)
+                .sum();
+            infiltration::infiltration_flow_rate(qi_spec, total_exterior_area)
+        }
+        InfiltrationMethod::PerFloorArea => {
+            // ISSO 51:2024: q_i = qi_spec × A_floor
+            qi_spec * room.floor_area
+        }
+    };
     let h_i = infiltration::h_infiltration(q_i);
     let z_i = 1.0; // Erratum: z_i tables removed, default to 1.0
     let phi_i = infiltration::phi_infiltration(h_i, z_i, theta_i, theta_e);
@@ -143,9 +151,10 @@ pub fn calculate_room(
 
     let phi_v = ventilation::phi_ventilation(h_v, theta_i, theta_e);
 
-    // ISSO_51_2023_FORMULE3_3_ERRATUM: Φ_vent = Φ_v - Φ_i
-    // Φ_vent is used in the quadratic sum (non-simultaneous)
-    let phi_vent = (phi_v - phi_i).max(0.0);
+    // ISSO 51:2024 / Vabi: Φ_vent = Φ_v (ventilation loss, independent of infiltration)
+    // Both Φ_i (in basis) and Φ_vent (in extra/quadratic) are counted separately,
+    // because mechanical ventilation and infiltration are non-simultaneous events.
+    let phi_vent = phi_v.max(0.0);
 
     // --- Heating-up allowance ---
     let is_main_room = main_room_hu_pct.is_none();
@@ -176,11 +185,13 @@ pub fn calculate_room(
     let phi_system = 0.0;
 
     // --- Basis heat loss ---
-    // Φ_basis = Φ_T,ie + Φ_T,io + Φ_T,ig + Φ_i + Φ_system
+    // Φ_basis = Φ_T,ie + Φ_T,ia + Φ_T,iae + Φ_T,ig + Φ_i + Φ_system
     let phi_t_exterior = h_t_ie * (theta_i - theta_e);
+    let phi_t_adjacent = h_t_ia * (theta_i - theta_e);
     let phi_t_unheated = h_t_io * (theta_i - theta_e);
     let phi_t_ground = h_t_ig * (theta_i - theta_e);
-    let phi_basis = phi_t_exterior + phi_t_unheated + phi_t_ground + phi_i + phi_system;
+    let phi_basis =
+        phi_t_exterior + phi_t_adjacent + phi_t_unheated + phi_t_ground + phi_i + phi_system;
 
     // --- Non-simultaneous losses (quadratic sum) ---
     let phi_t_adj_building = h_t_ib * (theta_i - theta_e);

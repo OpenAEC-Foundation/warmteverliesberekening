@@ -185,6 +185,7 @@ mod tests {
                 warmup_time: 2.0,
                 building_height: None,
                 num_floors: 1,
+                infiltration_method: InfiltrationMethod::PerExteriorArea,
             },
             // Old ISSO 51 example used θ_b = 15°C (erratum 2023 changed to 17°C)
             climate: DesignConditions {
@@ -593,5 +594,130 @@ mod tests {
             r1.transmission.norm_refs.is_empty(),
             "norm_refs should be empty after deserialization"
         );
+    }
+
+    // ================================================================
+    // DR Engineering Woningbouw ISSO 51:2024 validation test
+    // ================================================================
+
+    /// Expected values per room from DR Engineering / Vabi 3.12.0.127.
+    struct ExpectedRoom {
+        id: &'static str,
+        phi_basis: f64,
+        phi_extra: f64,
+        phi_hl_i: f64,
+    }
+
+    const DR_EXPECTED: &[ExpectedRoom] = &[
+        ExpectedRoom { id: "0.01", phi_basis: 567.0,  phi_extra: 0.0,   phi_hl_i: 567.0  },
+        ExpectedRoom { id: "0.02", phi_basis: -36.0,  phi_extra: 0.0,   phi_hl_i: 0.0    },
+        ExpectedRoom { id: "0.03", phi_basis: 2101.0, phi_extra: 221.0, phi_hl_i: 2322.0 },
+        ExpectedRoom { id: "0.04", phi_basis: 1823.0, phi_extra: 197.0, phi_hl_i: 2020.0 },
+        ExpectedRoom { id: "0.05", phi_basis: 321.0,  phi_extra: 0.0,   phi_hl_i: 321.0  },
+        ExpectedRoom { id: "1.02", phi_basis: 262.0,  phi_extra: 45.0,  phi_hl_i: 307.0  },
+        ExpectedRoom { id: "1.03", phi_basis: 241.0,  phi_extra: 40.0,  phi_hl_i: 281.0  },
+        ExpectedRoom { id: "1.04", phi_basis: 556.0,  phi_extra: 119.0, phi_hl_i: 675.0  },
+        ExpectedRoom { id: "1.05", phi_basis: 230.0,  phi_extra: 34.0,  phi_hl_i: 263.0  },
+        ExpectedRoom { id: "1.08", phi_basis: 1252.0, phi_extra: 115.0, phi_hl_i: 1367.0 },
+    ];
+
+    #[test]
+    fn test_dr_engineering_woningbouw() {
+        let input = include_str!("../../../tests/fixtures/dr_engineering_woningbouw.json");
+        let result = calculate_from_json(input);
+
+        match result {
+            Ok(result_json) => {
+                let result: result::ProjectResult =
+                    serde_json::from_str(&result_json).unwrap();
+
+                assert_eq!(
+                    result.rooms.len(),
+                    DR_EXPECTED.len(),
+                    "Expected {} rooms, got {}",
+                    DR_EXPECTED.len(),
+                    result.rooms.len()
+                );
+
+                println!("\n{}", "=".repeat(100));
+                println!(
+                    "DR Engineering Woningbouw — Engine vs Vabi 3.12.0.127 (ISSO 51:2024)"
+                );
+                println!("{}", "=".repeat(100));
+                println!(
+                    "{:<12} {:>8} {:>8} {:>8} | {:>8} {:>8} {:>8} | {:>8} {:>8} {:>8}",
+                    "Room", "Φ_bas_E", "Φ_ext_E", "Φ_HL_E",
+                    "Φ_bas_V", "Φ_ext_V", "Φ_HL_V",
+                    "Δ_bas", "Δ_ext", "Δ_HL"
+                );
+                println!("{}", "-".repeat(100));
+
+                for (room, expected) in result.rooms.iter().zip(DR_EXPECTED.iter()) {
+                    assert_eq!(
+                        room.room_id, expected.id,
+                        "Room order mismatch: got {}, expected {}",
+                        room.room_id, expected.id
+                    );
+
+                    let d_basis = room.basis_heat_loss - expected.phi_basis;
+                    let d_extra = room.extra_heat_loss - expected.phi_extra;
+                    let d_total = room.total_heat_loss - expected.phi_hl_i;
+
+                    println!(
+                        "{:<12} {:>8.0} {:>8.0} {:>8.0} | {:>8.0} {:>8.0} {:>8.0} | {:>+8.0} {:>+8.0} {:>+8.0}",
+                        room.room_id,
+                        room.basis_heat_loss,
+                        room.extra_heat_loss,
+                        room.total_heat_loss,
+                        expected.phi_basis,
+                        expected.phi_extra,
+                        expected.phi_hl_i,
+                        d_basis,
+                        d_extra,
+                        d_total,
+                    );
+                }
+
+                // Building-level totals
+                let engine_basis: f64 =
+                    result.rooms.iter().map(|r| r.basis_heat_loss).sum();
+                let engine_total: f64 =
+                    result.rooms.iter().map(|r| r.total_heat_loss).sum();
+
+                println!("{}", "-".repeat(100));
+                println!(
+                    "{:<12} {:>8.0} {:>8} {:>8.0} | {:>8} {:>8} {:>8} | {:>+8.0} {:>8} {:>+8.0}",
+                    "SUM",
+                    engine_basis, "", engine_total,
+                    "5931", "770", "6700",
+                    engine_basis - 5931.0, "", engine_total - 6700.0,
+                );
+                println!("{}", "=".repeat(100));
+
+                // Sub-component detail per room
+                println!("\nDetail per ruimte:");
+                println!(
+                    "{:<12} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
+                    "Room", "H_T,ie", "H_T,ia", "H_T,io", "H_T,ig", "Φ_i", "Φ_vent"
+                );
+                println!("{}", "-".repeat(70));
+                for room in &result.rooms {
+                    println!(
+                        "{:<12} {:>8.2} {:>8.2} {:>8.2} {:>8.2} {:>8.0} {:>8.0}",
+                        room.room_id,
+                        room.transmission.h_t_exterior,
+                        room.transmission.h_t_adjacent_rooms,
+                        room.transmission.h_t_unheated,
+                        room.transmission.h_t_ground,
+                        room.infiltration.phi_i,
+                        room.ventilation.phi_vent,
+                    );
+                }
+                println!();
+            }
+            Err(e) => {
+                panic!("calculate_from_json failed: {e}");
+            }
+        }
     }
 }

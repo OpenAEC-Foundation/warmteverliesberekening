@@ -39,6 +39,11 @@ pub fn heating_up_factor(delta_t: f64, warmup_time: f64) -> f64 {
         (4.0, [9.0, 4.5, 3.0]),
     ];
 
+    // No heating-up allowance when warmup_time is zero (no night setback)
+    if warmup_time < 0.01 {
+        return 0.0;
+    }
+
     // Determine column index (warmup time)
     let col = if warmup_time <= 1.5 {
         0 // 1 hour

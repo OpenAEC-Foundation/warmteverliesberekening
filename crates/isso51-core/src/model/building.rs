@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::climate::DesignConditions;
-use super::enums::{BuildingType, SecurityClass};
+use super::enums::{BuildingType, InfiltrationMethod, SecurityClass};
 use super::room::Room;
 use super::ventilation::VentilationConfig;
 
@@ -92,6 +92,12 @@ pub struct Building {
     /// Number of floors above ground.
     #[serde(default = "default_floors")]
     pub num_floors: u32,
+
+    /// Infiltration calculation method.
+    /// PerExteriorArea (default): q_i = qi_spec × ΣA_exterior (ISSO 51:2023)
+    /// PerFloorArea: q_i = qi_spec × A_floor (ISSO 51:2024)
+    #[serde(default)]
+    pub infiltration_method: InfiltrationMethod,
 }
 
 fn default_warmup_time() -> f64 {

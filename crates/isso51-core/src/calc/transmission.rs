@@ -34,13 +34,26 @@ pub fn h_t_exterior_element(element: &ConstructionElement) -> f64 {
 /// [`ISSO_51_2023_FORMULE4_6`](crate::formulas::ISSO_51_2023_FORMULE4_6):
 /// H_T,ia = Σ(A_k × U_k × f_ia,k)
 ///
-/// The temperature factor f_ia,k = (θ_i - θ_a) / (θ_i - θ_e)
+/// The temperature factor f_ia,k depends on element position.
+/// For horizontal constructions between heated rooms, temperature stratification
+/// applies on BOTH sides of the tussenvloer:
+/// - Wall: f_ia = (θ_i - θ_a) / (θ_i - θ_e)
+/// - Ceiling: f_ia = ((θ_i + Δθ₁) - (θ_a + Δθ₂)) / (θ_i - θ_e)
+/// - Floor: f_ia = ((θ_i + Δθ₂) - (θ_a + Δθ₁)) / (θ_i - θ_e)
+///
+/// The ceiling surface (this room) is at θ_i + Δθ₁ (warm air rises),
+/// while the floor surface (adjacent room above) is at θ_a + Δθ₂ (floor cooler).
+/// Vice versa for floor elements.
+///
+/// Note: assumes the adjacent heated room has the same heating system (same Δθ values).
 ///
 /// # Arguments
 /// * `element` - The construction element facing the adjacent room
 /// * `theta_i` - Design indoor temperature of this room in °C
 /// * `theta_a` - Design temperature of the adjacent room in °C
 /// * `theta_e` - Design outdoor temperature in °C
+/// * `delta_1` - Δθ₁ from Table 2.12 (ceiling correction)
+/// * `delta_2` - Δθ₂ from Table 2.12 (floor correction)
 ///
 /// # Returns
 /// Contribution to H_T,ia in W/K for this element.
@@ -49,11 +62,21 @@ pub fn h_t_adjacent_room_element(
     theta_i: f64,
     theta_a: f64,
     theta_e: f64,
+    delta_1: f64,
+    delta_2: f64,
 ) -> f64 {
     let f_ia = if let Some(f) = element.temperature_factor {
         f
     } else {
-        (theta_i - theta_a) / (theta_i - theta_e)
+        match element.vertical_position {
+            VerticalPosition::Wall => (theta_i - theta_a) / (theta_i - theta_e),
+            VerticalPosition::Ceiling => {
+                ((theta_i + delta_1) - (theta_a + delta_2)) / (theta_i - theta_e)
+            }
+            VerticalPosition::Floor => {
+                ((theta_i + delta_2) - (theta_a + delta_1)) / (theta_i - theta_e)
+            }
+        }
     };
     element.area * element.u_value * f_ia
 }
@@ -168,7 +191,9 @@ pub fn calculate_all_h_t(
             }
             BoundaryType::AdjacentRoom => {
                 let theta_a = element.adjacent_temperature.unwrap_or(theta_i);
-                h_t_ia += h_t_adjacent_room_element(element, theta_i, theta_a, theta_e);
+                h_t_ia += h_t_adjacent_room_element(
+                    element, theta_i, theta_a, theta_e, delta_1, delta_2,
+                );
             }
             BoundaryType::UnheatedSpace => {
                 h_t_io += h_t_unheated_element(element);
@@ -282,7 +307,7 @@ mod tests {
                 ground_params: None,
                 has_embedded_heating: false,
             };
-            let h = h_t_adjacent_room_element(&element, theta_i, *theta_a, theta_e);
+            let h = h_t_adjacent_room_element(&element, theta_i, *theta_a, theta_e, 2.0, -1.0);
             assert!(
                 (h - expected).abs() < 0.02,
                 "Element with A={area}, θ_a={theta_a}: got {h}, expected {expected}"
