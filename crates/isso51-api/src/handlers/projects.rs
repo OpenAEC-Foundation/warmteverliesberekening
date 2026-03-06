@@ -27,6 +27,9 @@ pub struct CreateProjectRequest {
 pub struct UpdateProjectRequest {
     pub name: Option<String>,
     pub project_data: Option<serde_json::Value>,
+    /// Optional: if provided, the server checks this matches the current `updated_at`.
+    /// Returns 409 Conflict if they differ (optimistic concurrency control).
+    pub expected_updated_at: Option<String>,
 }
 
 /// Summary returned in project list.
@@ -154,20 +157,33 @@ pub async fn update_project(
     AuthClaims(claims): AuthClaims,
     Path(project_id): Path<String>,
     Json(body): Json<UpdateProjectRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Verify ownership.
-    let owner = sqlx::query_scalar::<_, String>(
-        "SELECT user_id FROM projects WHERE id = ?1 AND is_archived = 0",
+) -> Result<impl IntoResponse, ApiError> {
+    // Verify ownership and get current updated_at for conflict check.
+    let row = sqlx::query_as::<_, OwnershipRow>(
+        "SELECT user_id, updated_at FROM projects WHERE id = ?1 AND is_archived = 0",
     )
     .bind(&project_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| ApiError::NotFound("Project niet gevonden".to_string()))?;
 
-    if owner != claims.sub {
+    if row.user_id != claims.sub {
         return Err(ApiError::Forbidden(
             "Geen toegang tot dit project".to_string(),
         ));
+    }
+
+    // Optimistic concurrency: if client sent expected_updated_at, verify it matches.
+    if let Some(expected) = &body.expected_updated_at {
+        if *expected != row.updated_at {
+            return Ok((
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "detail": "Project is elders gewijzigd",
+                    "server_updated_at": row.updated_at
+                })),
+            ));
+        }
     }
 
     if let Some(name) = &body.name {
@@ -190,7 +206,18 @@ pub async fn update_project(
         .await?;
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    // Fetch the new updated_at to return to the client.
+    let new_updated_at = sqlx::query_scalar::<_, String>(
+        "SELECT updated_at FROM projects WHERE id = ?1",
+    )
+    .bind(&project_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "ok": true, "updated_at": new_updated_at })),
+    ))
 }
 
 /// DELETE /projects/:id — Soft-delete a project (set is_archived = 1).
@@ -296,4 +323,10 @@ struct ProjectRow {
 struct ProjectDataRow {
     user_id: String,
     project_data: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct OwnershipRow {
+    user_id: String,
+    updated_at: String,
 }

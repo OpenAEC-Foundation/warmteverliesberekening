@@ -2,6 +2,7 @@ import { Component, useEffect, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 import { isTauri } from "../../lib/backend";
+import { useProjectStore } from "../../store/projectStore";
 
 const NAV_ITEMS = [
   { to: "/project", label: "Project", icon: "\u2302" },
@@ -128,6 +129,24 @@ function AuthSection() {
   );
 }
 
+function SaveStatus() {
+  const isDirty = useProjectStore((s) => s.isDirty);
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+
+  if (!activeProjectId) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 text-xs">
+      <span
+        className={`inline-block h-2 w-2 rounded-full ${isDirty ? "bg-amber-500" : "bg-green-500"}`}
+      />
+      <span className="text-stone-400">
+        {isDirty ? "Niet opgeslagen" : "Opgeslagen"}
+      </span>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const isWeb = !isTauri();
 
@@ -155,6 +174,9 @@ export function Sidebar() {
           )}
         </ul>
       </nav>
+
+      {/* Save status */}
+      <SaveStatus />
 
       {/* Footer */}
       <div className="space-y-3 border-t border-zinc-800 px-4 py-3">

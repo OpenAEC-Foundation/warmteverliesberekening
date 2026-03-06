@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Sidebar } from "./Sidebar";
+import { ToastContainer } from "../ui/Toast";
 import { useAutoSave } from "../../hooks/useAutoSave";
 
 interface AppShellProps {
@@ -14,6 +15,7 @@ export function AppShell({ children }: AppShellProps) {
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="ml-sidebar flex-1">{children}</main>
+      <ToastContainer />
     </div>
   );
 }

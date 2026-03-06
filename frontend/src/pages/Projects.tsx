@@ -46,6 +46,7 @@ export function Projects() {
           id,
           response.project_data as Project,
           response.result_data as import("../types").ProjectResult | null,
+          response.updated_at,
         );
         navigate("/project");
       } catch (err) {

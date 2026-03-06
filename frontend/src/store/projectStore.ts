@@ -43,6 +43,8 @@ interface ProjectStore {
   isDirty: boolean;
   /** Server-side project ID (null for local-only projects). */
   activeProjectId: string | null;
+  /** Server-side updated_at timestamp for conflict detection. */
+  serverUpdatedAt: string | null;
 
   /** Update project data (partial merge). */
   updateProject: (partial: Partial<Project>) => void;
@@ -61,7 +63,10 @@ interface ProjectStore {
     id: string,
     project: Project,
     result: ProjectResult | null,
+    updatedAt?: string,
   ) => void;
+  /** Update the server timestamp after a successful save. */
+  setServerUpdatedAt: (updatedAt: string | null) => void;
   /** Reset to default state. */
   reset: () => void;
 
@@ -92,8 +97,10 @@ export const useProjectStore = create<ProjectStore>()(
       isCalculating: false,
       isDirty: true,
       activeProjectId: null,
+      serverUpdatedAt: null,
 
       setActiveProjectId: (id) => set({ activeProjectId: id }),
+      setServerUpdatedAt: (updatedAt) => set({ serverUpdatedAt: updatedAt }),
 
       updateProject: (partial) =>
         set((state) => ({
@@ -103,9 +110,9 @@ export const useProjectStore = create<ProjectStore>()(
         })),
 
       setProject: (project) =>
-        set({ project, isDirty: true, result: null, error: null, activeProjectId: null }),
+        set({ project, isDirty: true, result: null, error: null, activeProjectId: null, serverUpdatedAt: null }),
 
-      loadServerProject: (id, project, result) =>
+      loadServerProject: (id, project, result, updatedAt) =>
         set({
           project,
           activeProjectId: id,
@@ -113,6 +120,7 @@ export const useProjectStore = create<ProjectStore>()(
           isDirty: false,
           error: null,
           isCalculating: false,
+          serverUpdatedAt: updatedAt ?? null,
         }),
 
       setResult: (result) =>
@@ -132,6 +140,7 @@ export const useProjectStore = create<ProjectStore>()(
           isCalculating: false,
           isDirty: true,
           activeProjectId: null,
+          serverUpdatedAt: null,
         }),
 
       addRoom: (room) =>

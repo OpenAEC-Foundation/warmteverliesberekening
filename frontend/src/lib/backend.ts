@@ -137,16 +137,33 @@ export async function fetchProject(id: string): Promise<ProjectResponse> {
   return parseResponse<ProjectResponse>(res);
 }
 
+/** Response from PUT /projects/:id. */
+interface UpdateProjectResponse {
+  ok: boolean;
+  updated_at: string;
+}
+
 /** PUT /projects/:id — Update a project. */
 export async function updateProject(
   id: string,
-  data: { name?: string; project_data?: Project },
-): Promise<void> {
+  data: { name?: string; project_data?: Project; expected_updated_at?: string },
+): Promise<UpdateProjectResponse> {
   const res = await authFetch(`${API_PREFIX}/projects/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
   });
-  await parseResponse<unknown>(res);
+  if (res.status === 409) {
+    throw new ConflictError("Project is elders gewijzigd");
+  }
+  return parseResponse<UpdateProjectResponse>(res);
+}
+
+/** Thrown when the server detects a conflict (409). */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConflictError";
+  }
 }
 
 /** DELETE /projects/:id — Soft-delete a project. */
