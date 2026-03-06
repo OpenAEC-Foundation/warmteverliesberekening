@@ -25,12 +25,13 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         // Report generation → OpenAEC Reports API
-        // Bearer token van de gebruiker wordt doorgegeven.
-        // REPORTS_API_KEY is optionele fallback totdat OIDC volledig werkt.
-        "/api/report": {
+        // Pad matcht /api/v1/report/* zodat het consistent is met de Rust backend.
+        // In dev: Vite proxy stuurt direct naar Reports API.
+        // In prod: Rust backend proxied met X-API-Key.
+        "/api/v1/report": {
           target: env.REPORTS_API_URL || "https://report.open-aec.com",
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/report\/generate/, "/api/generate/v2"),
+          rewrite: (path) => path.replace(/^\/api\/v1\/report\/generate/, "/api/generate/v2"),
           configure: (proxy) => {
             const apiKey = env.REPORTS_API_KEY || "";
             if (apiKey) {

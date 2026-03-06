@@ -6,7 +6,7 @@
  * Geen API keys in de frontend — per-user access control via SSO.
  */
 
-const REPORTS_URL = "/api/report/generate";
+const REPORTS_URL = "/api/v1/report/generate";
 
 /**
  * Haal het Bearer token op als de gebruiker is ingelogd.
@@ -62,6 +62,12 @@ export async function generateReportDirect(
     throw new Error(
       (err as { detail?: string }).detail ?? `Rapport generatie mislukt (${res.status})`,
     );
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/pdf")) {
+    console.error("[report] Onverwacht content-type:", contentType);
+    throw new Error("Server retourneerde geen PDF — controleer de backend configuratie.");
   }
 
   return res.blob();
