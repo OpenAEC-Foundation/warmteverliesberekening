@@ -15,6 +15,10 @@ pub struct Config {
     /// Directory containing static frontend files (SPA). When set, the server
     /// serves these files as a fallback for non-API routes.
     pub static_dir: Option<String>,
+    /// Base URL for the OpenAEC Reports API (e.g. `https://reports.openaec.org`).
+    pub reports_api_url: Option<String>,
+    /// API key for the OpenAEC Reports API.
+    pub reports_api_key: Option<String>,
 }
 
 impl Config {
@@ -37,6 +41,12 @@ impl Config {
                 .map(|s| s.trim().to_string())
                 .collect(),
             static_dir: env::var("STATIC_DIR").ok().filter(|s| !s.is_empty()),
+            reports_api_url: env::var("REPORTS_API_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            reports_api_key: env::var("REPORTS_API_KEY")
+                .ok()
+                .filter(|s| !s.is_empty()),
         }
     }
 }

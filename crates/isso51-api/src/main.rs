@@ -67,14 +67,20 @@ async fn main() {
         });
     }
 
-    let app_state = AppState::new(db, jwks);
+    let app_state = AppState::new(
+        db,
+        jwks,
+        config.reports_api_url.clone(),
+        config.reports_api_key.clone(),
+    );
 
     // --- Routes ---
     let public = Router::new()
         .route("/health", get(handlers::health))
         .route("/calculate", post(handlers::calculate))
         .route("/schemas", get(handlers::list_schemas))
-        .route("/schemas/{name}", get(handlers::get_schema));
+        .route("/schemas/{name}", get(handlers::get_schema))
+        .route("/report/generate", post(handlers::generate_report));
 
     let protected = Router::new()
         .route("/me", get(handlers::get_profile))

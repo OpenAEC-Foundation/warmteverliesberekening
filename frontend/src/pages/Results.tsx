@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "../components/ui/Button";
@@ -6,7 +6,10 @@ import { Card } from "../components/ui/Card";
 import { Table, Th, Td } from "../components/ui/Table";
 import { PageHeader } from "../components/layout/PageHeader";
 import { useProjectStore } from "../store/projectStore";
+import { useToastStore } from "../store/toastStore";
 import { exportProject } from "../lib/importExport";
+import { buildReportData } from "../lib/reportBuilder";
+import { generateReport } from "../lib/backend";
 
 /** Format a number as W (watts) with locale formatting. */
 function fmtW(value: number): string {
@@ -21,10 +24,37 @@ function fmt2(value: number): string {
 export function Results() {
   const navigate = useNavigate();
   const { project, result, error } = useProjectStore();
+  const addToast = useToastStore((s) => s.addToast);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleExport = useCallback(() => {
     exportProject(project, result);
   }, [project, result]);
+
+  const handleGenerateReport = useCallback(async () => {
+    if (!result) return;
+    setIsGenerating(true);
+    try {
+      const reportData = buildReportData(project, result);
+      const blob = await generateReport(reportData);
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.info.name || "rapport"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addToast("Rapport gegenereerd", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Onbekende fout";
+      addToast(`Rapport mislukt: ${message}`, "error", 5000);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [project, result, addToast]);
 
   if (error) {
     return (
@@ -77,6 +107,13 @@ export function Results() {
         subtitle={`${rooms.length} vertrekken`}
         actions={
           <div className="flex gap-2">
+            <Button
+              variant="primary"
+              onClick={handleGenerateReport}
+              disabled={isGenerating}
+            >
+              {isGenerating ? "Genereren..." : "Genereer rapport"}
+            </Button>
             <Button variant="ghost" onClick={handleExport}>
               Export JSON
             </Button>

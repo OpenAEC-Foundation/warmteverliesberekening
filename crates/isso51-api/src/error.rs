@@ -24,6 +24,10 @@ pub enum ApiError {
     Forbidden(String),
     /// Internal server error.
     Internal(String),
+    /// External report service error.
+    ReportService(String),
+    /// Service not configured / unavailable.
+    ServiceUnavailable(String),
 }
 
 impl From<sqlx::Error> for ApiError {
@@ -52,6 +56,12 @@ impl IntoResponse for ApiError {
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg),
             ApiError::Internal(msg) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", msg)
+            }
+            ApiError::ReportService(msg) => {
+                (StatusCode::BAD_GATEWAY, "report_service_error", msg)
+            }
+            ApiError::ServiceUnavailable(msg) => {
+                (StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", msg)
             }
         };
 

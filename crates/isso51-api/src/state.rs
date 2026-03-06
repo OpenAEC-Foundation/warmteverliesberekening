@@ -9,11 +9,25 @@ use crate::auth::JwksCache;
 pub struct AppState {
     pub db: SqlitePool,
     pub jwks: Option<JwksCache>,
+    pub http_client: reqwest::Client,
+    pub reports_api_url: Option<String>,
+    pub reports_api_key: Option<String>,
 }
 
 impl AppState {
-    pub fn new(db: SqlitePool, jwks: Option<JwksCache>) -> Self {
-        Self { db, jwks }
+    pub fn new(
+        db: SqlitePool,
+        jwks: Option<JwksCache>,
+        reports_api_url: Option<String>,
+        reports_api_key: Option<String>,
+    ) -> Self {
+        Self {
+            db,
+            jwks,
+            http_client: reqwest::Client::new(),
+            reports_api_url,
+            reports_api_key,
+        }
     }
 }
 
