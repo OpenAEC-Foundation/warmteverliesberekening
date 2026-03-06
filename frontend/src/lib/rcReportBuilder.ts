@@ -54,6 +54,7 @@ export function buildRcReportData(input: RcReportInput): Record<string, unknown>
 
   return {
     template: "blank",
+    brand: "3bm_cooperatie",
     format: "A4",
     orientation: "portrait",
     project: title,

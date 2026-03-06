@@ -36,6 +36,7 @@ export function buildReportData(
 
   return {
     template: "blank",
+    brand: "3bm_cooperatie",
     format: "A4",
     orientation: "portrait",
     project: projectName,
