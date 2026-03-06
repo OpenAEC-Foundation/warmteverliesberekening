@@ -11,6 +11,7 @@ import type { ConstructionElement, Room } from "../../types";
 import { ConstructionCells } from "./ConstructionRow";
 import { ConstructionPicker } from "./ConstructionPicker";
 import { RoomHeaderCells } from "./RoomHeaderRow";
+import { VentilationRow } from "./VentilationRow";
 
 const EMPTY_ROOM_CELLS = (
   <>
@@ -120,6 +121,7 @@ function RoomGroup({
   onRemoveConstruction,
 }: RoomGroupProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [ventOpen, setVentOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const addBtnRef = useRef<HTMLTableCellElement>(null);
   const { constructions } = room;
@@ -153,6 +155,8 @@ function RoomGroup({
           room={room}
           onUpdate={onUpdateRoom}
           onRemove={onRemoveRoom}
+          ventOpen={ventOpen}
+          onToggleVent={() => setVentOpen((v) => !v)}
         />
         {firstConstruction ? (
           <ConstructionCells
@@ -181,6 +185,11 @@ function RoomGroup({
           />
         </tr>
       ))}
+
+      {/* Ventilation settings (uitklapbaar) */}
+      {ventOpen && (
+        <VentilationRow room={room} onUpdate={onUpdateRoom} />
+      )}
 
       {/* Add construction ghost row */}
       <tr

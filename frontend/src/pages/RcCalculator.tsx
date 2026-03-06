@@ -14,13 +14,16 @@ import {
   GLASER_DEFAULTS,
 } from "../lib/glaserCalculation";
 import { getMaterialById, type Material } from "../lib/materialsDatabase";
+import { buildRcReportData } from "../lib/rcReportBuilder";
 import {
   calculateRc,
   RC_MIN_BOUWBESLUIT,
   type LayerInput,
 } from "../lib/rcCalculation";
+import { generateReportDirect } from "../lib/reportClient";
 import { calculateYearlyMoisture } from "../lib/yearlyMoistureCalculation";
 import { useCatalogueStore } from "../store/catalogueStore";
+import { useToastStore } from "../store/toastStore";
 import type { MaterialType, VerticalPosition } from "../types";
 
 // ---------- Constanten ----------
@@ -69,8 +72,10 @@ export function RcCalculator() {
 
   // Opslaan feedback
   const [saved, setSaved] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const addEntry = useCatalogueStore((s) => s.addEntry);
+  const addToast = useToastStore((s) => s.addToast);
 
   // Afgeleide waarden
   const position = CATEGORY_POSITION[category] ?? "wall";
@@ -193,6 +198,43 @@ export function RcCalculator() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }, [name, category, materialType, position, layers, rcResult.uValue, addEntry]);
+
+  const handleGenerateReport = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const reportData = buildRcReportData({
+        name,
+        category,
+        materialType,
+        position,
+        layers,
+        rcResult,
+        glaserResult,
+        moistureResult,
+        thetaI,
+        thetaE,
+        rhI,
+        rhE,
+      });
+      const blob = await generateReportDirect(reportData);
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name.trim() || "constructie"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addToast("Rapport gegenereerd", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Onbekende fout";
+      addToast(`Rapport mislukt: ${message}`, "error", 5000);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [name, category, materialType, position, layers, rcResult, glaserResult, moistureResult, thetaI, thetaE, rhI, rhE, addToast]);
 
   const canSave =
     name.trim().length > 0 && layers.some((l) => l.materialId);
@@ -619,6 +661,14 @@ export function RcCalculator() {
                     Opgeslagen!
                   </span>
                 )}
+                <Button
+                  variant="secondary"
+                  onClick={handleGenerateReport}
+                  disabled={isGenerating || !layers.some((l) => l.materialId)}
+                  size="md"
+                >
+                  {isGenerating ? "Genereren..." : "Genereer rapport"}
+                </Button>
                 <Button
                   onClick={handleSave}
                   disabled={!canSave}

@@ -182,24 +182,3 @@ export async function calculateAndSave(id: string): Promise<ProjectResult> {
   return parseResponse<ProjectResult>(res);
 }
 
-// ---------------------------------------------------------------------------
-// Report generation (public endpoint — API key added server-side)
-// ---------------------------------------------------------------------------
-
-/** POST /report/generate — Generate a PDF report via the proxy. */
-export async function generateReport(
-  reportData: Record<string, unknown>,
-): Promise<Blob> {
-  const res = await fetch(`${API_PREFIX}/report/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(reportData),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(
-      (err as { detail?: string }).detail ?? "Rapport generatie mislukt",
-    );
-  }
-  return res.blob();
-}

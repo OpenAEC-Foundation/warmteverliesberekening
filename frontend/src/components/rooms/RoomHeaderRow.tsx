@@ -12,6 +12,8 @@ interface RoomHeaderRowProps {
   room: Room;
   onUpdate: (partial: Partial<Room>) => void;
   onRemove: () => void;
+  ventOpen?: boolean;
+  onToggleVent?: () => void;
 }
 
 /**
@@ -22,6 +24,8 @@ export function RoomHeaderCells({
   room,
   onUpdate,
   onRemove,
+  ventOpen,
+  onToggleVent,
 }: RoomHeaderRowProps) {
   const thetaI =
     room.custom_temperature ?? ROOM_FUNCTION_TEMPERATURES[room.function] ?? 20;
@@ -57,19 +61,36 @@ export function RoomHeaderCells({
             onChange={(v) => onUpdate({ name: v })}
             placeholder="Vertreknaam..."
           />
-          <button
-            onClick={onRemove}
-            className="shrink-0 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-600"
-            title="Verwijder vertrek"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {onToggleVent && (
+              <button
+                onClick={onToggleVent}
+                className={`rounded p-0.5 ${ventOpen ? "text-blue-600 bg-blue-50" : "text-stone-400 hover:text-stone-600"}`}
+                title="Ventilatie-instellingen"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M5.05 3.636a1 1 0 011.414 0l2.122 2.121a1 1 0 010 1.414L6.464 9.293a1 1 0 01-1.414 0L2.929 7.172a1 1 0 010-1.414L5.05 3.636zm9.9 0a1 1 0 011.414 0l2.122 2.121a1 1 0 010 1.414l-2.122 2.122a1 1 0 01-1.414 0l-2.121-2.122a1 1 0 010-1.414L14.95 3.636zM10 9a1 1 0 011 1v7a1 1 0 11-2 0v-7a1 1 0 011-1zm-4 4a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1zm8 0a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={onRemove}
+              className="shrink-0 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-600"
+              title="Verwijder vertrek"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </td>
       <td className="border-r border-stone-200 px-2 py-1">

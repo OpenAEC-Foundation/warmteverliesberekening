@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { StackedBarChart } from "../components/charts/StackedBarChart";
+import { SummaryDonut } from "../components/charts/SummaryDonut";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Table, Th, Td } from "../components/ui/Table";
@@ -9,7 +11,7 @@ import { useProjectStore } from "../store/projectStore";
 import { useToastStore } from "../store/toastStore";
 import { exportProject } from "../lib/importExport";
 import { buildReportData } from "../lib/reportBuilder";
-import { generateReport } from "../lib/backend";
+import { generateReportDirect } from "../lib/reportClient";
 
 /** Format a number as W (watts) with locale formatting. */
 function fmtW(value: number): string {
@@ -36,7 +38,7 @@ export function Results() {
     setIsGenerating(true);
     try {
       const reportData = buildReportData(project, result);
-      const blob = await generateReport(reportData);
+      const blob = await generateReportDirect(reportData);
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -159,6 +161,16 @@ export function Results() {
             <div className="metric-card-value">{fmtW(summary.total_system_losses)}</div>
             <div className="metric-card-label">Systeemverliezen</div>
           </div>
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-2 gap-6">
+          <Card title="Verliezen per vertrek">
+            <StackedBarChart rooms={rooms} />
+          </Card>
+          <Card title="Gebouwtotaal">
+            <SummaryDonut summary={summary} />
+          </Card>
         </div>
 
         {/* Room results table */}
