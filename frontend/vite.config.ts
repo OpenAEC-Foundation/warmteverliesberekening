@@ -11,7 +11,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
 
   return {
-    plugins: [react(), oidcSpa()],
+    plugins: [
+      react(),
+      oidcSpa({ sessionRestorationMethod: "full page redirect" }),
+    ],
     resolve: {
       alias: {
         "@": resolve(__dirname, "src"),
