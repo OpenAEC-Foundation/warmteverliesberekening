@@ -1,10 +1,14 @@
 /**
  * API-client voor OpenAEC Reports.
  *
- * In development gaat het verzoek via de Vite dev proxy die de API key
- * server-side toevoegt. In productie handelt de reverse proxy (nginx/caddy)
- * hetzelfde af. De key komt NOOIT in de client bundle.
+ * Stuurt het OIDC Bearer token van de ingelogde gebruiker mee.
+ * De Reports API (of reverse proxy ervoor) valideert de autorisatie.
+ * Geen API keys in de frontend — per-user access control via SSO.
  */
+
+import { authFetch } from "./backend";
+
+const REPORTS_URL = "/api/report/generate";
 
 /**
  * Genereer een PDF rapport via de OpenAEC Reports API (v2).
@@ -15,9 +19,8 @@
 export async function generateReportDirect(
   reportData: Record<string, unknown>,
 ): Promise<Blob> {
-  const res = await fetch("/api/report/generate", {
+  const res = await authFetch(REPORTS_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(reportData),
   });
 

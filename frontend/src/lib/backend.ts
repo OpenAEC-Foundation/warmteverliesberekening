@@ -72,7 +72,7 @@ function createTauriBackend(): Backend {
 // ---------------------------------------------------------------------------
 
 /** Fetch with Bearer token from OIDC session (if logged in). */
-async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
 

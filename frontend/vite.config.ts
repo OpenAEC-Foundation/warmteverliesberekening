@@ -20,18 +20,20 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        // Report generation → OpenAEC Reports API (key added server-side)
+        // Report generation → OpenAEC Reports API
+        // Bearer token van de gebruiker wordt doorgegeven.
+        // REPORTS_API_KEY is optionele fallback totdat OIDC volledig werkt.
         "/api/report": {
           target: env.REPORTS_API_URL || "https://reports.open-aec.com",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/report\/generate/, "/api/generate/v2"),
           configure: (proxy) => {
             const apiKey = env.REPORTS_API_KEY || "";
-            proxy.on("proxyReq", (proxyReq) => {
-              if (apiKey) {
+            if (apiKey) {
+              proxy.on("proxyReq", (proxyReq) => {
                 proxyReq.setHeader("X-API-Key", apiKey);
-              }
-            });
+              });
+            }
           },
         },
         // Other API calls → backend
