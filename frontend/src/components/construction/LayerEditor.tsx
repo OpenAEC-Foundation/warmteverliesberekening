@@ -249,17 +249,27 @@ export function LayerEditor({
 
                     {/* Dikte */}
                     <td className="py-1 text-right">
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={layer.thickness || ""}
-                        onChange={(e) =>
-                          handleThicknessChange(index, e.target.value)
-                        }
-                        className="w-20 rounded border border-stone-200 px-2 py-1 text-right text-sm focus:border-blue-400 focus:outline-none"
-                        placeholder="0"
-                      />
+                      {material?.sdFixed !== null &&
+                      material?.sdFixed !== undefined ? (
+                        <span
+                          className="text-xs tabular-nums text-stone-500"
+                          title="Vaste sd-waarde (productspecificatie)"
+                        >
+                          {"sd=" + material.sdFixed + " m"}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={layer.thickness || ""}
+                          onChange={(e) =>
+                            handleThicknessChange(index, e.target.value)
+                          }
+                          className="w-20 rounded border border-stone-200 px-2 py-1 text-right text-sm focus:border-blue-400 focus:outline-none"
+                          placeholder="0"
+                        />
+                      )}
                     </td>
 
                     {/* R-waarde */}

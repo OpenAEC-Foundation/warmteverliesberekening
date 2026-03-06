@@ -118,7 +118,8 @@ export function calculateGlaser(input: GlaserInput): GlaserResult {
       r = 0;
     }
 
-    const sd = mat.mu * (li.thickness / 1000);
+    // sdFixed: vaste sd-waarde (folies/membranen), anders sd = mu × d
+    const sd = mat.sdFixed !== null ? mat.sdFixed : mat.mu * (li.thickness / 1000);
 
     layerData.push({ name: mat.name, thickness: li.thickness, r, sd, category: mat.category });
   }
