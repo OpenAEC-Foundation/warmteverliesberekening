@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { GlaserDiagram } from "../components/construction/GlaserDiagram";
+import { MoistureYearTable } from "../components/construction/MoistureYearTable";
 import { PageHeader } from "../components/layout/PageHeader";
 import { MaterialPicker } from "../components/construction/MaterialPicker";
 import { Button } from "../components/ui/Button";
@@ -18,6 +19,7 @@ import {
   RC_MIN_BOUWBESLUIT,
   type LayerInput,
 } from "../lib/rcCalculation";
+import { calculateYearlyMoisture } from "../lib/yearlyMoistureCalculation";
 import { useCatalogueStore } from "../store/catalogueStore";
 import type { MaterialType, VerticalPosition } from "../types";
 
@@ -89,6 +91,11 @@ export function RcCalculator() {
         rhE,
       }),
     [layers, position, thetaI, thetaE, rhI, rhE],
+  );
+
+  const moistureResult = useMemo(
+    () => calculateYearlyMoisture(layers, position, thetaI, rhI),
+    [layers, position, thetaI, rhI],
   );
 
   const rcMin = RC_MIN_BOUWBESLUIT[position];
@@ -535,6 +542,36 @@ export function RcCalculator() {
               />
             </div>
           </div>
+
+          {/* Jaarlijkse vochtbalans */}
+          {moistureResult && (
+            <div className="rounded-lg border border-stone-200 bg-white">
+              <div className="flex items-center justify-between border-b border-stone-200 px-4 py-2.5">
+                <h3 className="text-sm font-semibold text-stone-700">
+                  Jaarlijkse vochtbalans (NEN-EN-ISO 13788)
+                </h3>
+                {moistureResult.hasRisk ? (
+                  <span className="flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+                    Schimmelrisico
+                  </span>
+                ) : moistureResult.maxMa > 0.1 ? (
+                  <span className="flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Tijdelijk vocht
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                    Geen vocht
+                  </span>
+                )}
+              </div>
+              <div className="px-4 py-3">
+                <MoistureYearTable result={moistureResult} />
+              </div>
+            </div>
+          )}
 
           {/* Resultaten */}
           <div className="rounded-lg border border-stone-200 bg-white px-4 py-3">
