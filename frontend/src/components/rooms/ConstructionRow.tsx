@@ -1,7 +1,13 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 
 import { BOUNDARY_TYPE_LABELS, VERTICAL_POSITION_LABELS } from "../../lib/constants";
-import type { BoundaryType, ConstructionElement, VerticalPosition } from "../../types";
+import type {
+  BoundaryType,
+  ConstructionElement,
+  ConstructionElementLayer,
+  VerticalPosition,
+} from "../../types";
+import { LayerEditor } from "../construction/LayerEditor";
 import { BoundaryBadge } from "./BoundaryBadge";
 import { EditableCell } from "./EditableCell";
 import { EditableSelect } from "./EditableSelect";
@@ -21,6 +27,8 @@ export const ConstructionCells = memo(function ConstructionCells({
   onUpdate,
   onRemove,
 }: ConstructionCellsProps) {
+  const [layerEditorOpen, setLayerEditorOpen] = useState(false);
+
   const handleArea = useCallback(
     (v: string) => onUpdate({ area: Number(v) || 0 }),
     [onUpdate],
@@ -29,6 +37,19 @@ export const ConstructionCells = memo(function ConstructionCells({
     (v: string) => onUpdate({ u_value: Number(v) || 0 }),
     [onUpdate],
   );
+
+  const handleApplyLayers = useCallback(
+    (layers: ConstructionElementLayer[], uValue: number) => {
+      onUpdate({
+        layers: layers.length > 0 ? layers : undefined,
+        u_value: Math.round(uValue * 1000) / 1000,
+      });
+      setLayerEditorOpen(false);
+    },
+    [onUpdate],
+  );
+
+  const layerCount = construction.layers?.length ?? 0;
 
   return (
     <>
@@ -58,12 +79,25 @@ export const ConstructionCells = memo(function ConstructionCells({
         />
       </td>
       <td className="px-2 py-1 text-right">
-        <EditableCell
-          value={construction.u_value}
-          onChange={handleUValue}
-          type="number"
-          unit="W/m\u00B2K"
-        />
+        <div className="flex items-center justify-end gap-1">
+          <EditableCell
+            value={construction.u_value}
+            onChange={handleUValue}
+            type="number"
+            unit="W/m\u00B2K"
+          />
+          <button
+            onClick={() => setLayerEditorOpen(true)}
+            className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
+              layerCount > 0
+                ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                : "text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+            }`}
+            title="Constructie-opbouw bewerken"
+          >
+            {layerCount > 0 ? `${layerCount} lagen` : "Lagen"}
+          </button>
+        </div>
       </td>
       <td className="px-2 py-1">
         <EditableSelect
@@ -87,6 +121,15 @@ export const ConstructionCells = memo(function ConstructionCells({
           </svg>
         </button>
       </td>
+
+      {layerEditorOpen && (
+        <LayerEditor
+          layers={construction.layers ?? []}
+          position={construction.vertical_position ?? "wall"}
+          onApply={handleApplyLayers}
+          onClose={() => setLayerEditorOpen(false)}
+        />
+      )}
     </>
   );
 });

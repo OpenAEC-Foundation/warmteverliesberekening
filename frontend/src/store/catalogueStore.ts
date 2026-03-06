@@ -56,6 +56,21 @@ function mergeWithDefaults(delta: PersistedDelta): CatalogueEntry[] {
   return [...builtIns, ...delta.customEntries];
 }
 
+/** Check if layers arrays differ. */
+function layersDiffer(
+  a: CatalogueEntry["layers"],
+  b: CatalogueEntry["layers"],
+): boolean {
+  if (!a && !b) return false;
+  if (!a || !b) return true;
+  if (a.length !== b.length) return true;
+  return a.some(
+    (layer, i) =>
+      layer.materialId !== b[i]?.materialId ||
+      layer.thickness !== b[i]?.thickness,
+  );
+}
+
 /** Check if a built-in entry differs from its default. */
 function entryDiffersFromDefault(entry: CatalogueEntry): boolean {
   const def = BUILT_IN_MAP.get(entry.id);
@@ -66,7 +81,8 @@ function entryDiffersFromDefault(entry: CatalogueEntry): boolean {
     entry.materialType !== def.materialType ||
     entry.verticalPosition !== def.verticalPosition ||
     entry.boundaryType !== def.boundaryType ||
-    entry.category !== def.category
+    entry.category !== def.category ||
+    layersDiffer(entry.layers, def.layers)
   );
 }
 

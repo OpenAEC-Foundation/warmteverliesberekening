@@ -74,6 +74,12 @@ export interface GroundParameters {
   fg2?: number;
 }
 
+export interface ConstructionElementLayer {
+  materialId: string;
+  /** Laagdikte in mm. */
+  thickness: number;
+}
+
 export interface ConstructionElement {
   id: string;
   description: string;
@@ -89,6 +95,8 @@ export interface ConstructionElement {
   custom_delta_u_tb?: number | null;
   ground_params?: GroundParameters | null;
   has_embedded_heating?: boolean;
+  /** Optioneel: laag-opbouw voor Rc/U berekening. Niet naar Rust core gestuurd. */
+  layers?: ConstructionElementLayer[];
 }
 
 export interface Room {

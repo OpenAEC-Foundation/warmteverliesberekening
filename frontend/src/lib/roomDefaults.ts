@@ -43,5 +43,6 @@ export function createConstructionFromCatalogue(
     material_type: entry.materialType,
     vertical_position: entry.verticalPosition,
     use_forfaitaire_thermal_bridge: true,
+    layers: entry.layers?.map((l) => ({ ...l })),
   };
 }

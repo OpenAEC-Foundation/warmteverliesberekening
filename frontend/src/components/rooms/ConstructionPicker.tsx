@@ -132,7 +132,14 @@ export function ConstructionPicker({
                   onClick={() => handleSelect(entry)}
                   className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-blue-50"
                 >
-                  <span className="text-stone-700">{entry.name}</span>
+                  <span className="flex items-center gap-1.5 text-stone-700">
+                    {entry.name}
+                    {entry.layers && entry.layers.length > 0 && (
+                      <span className="rounded bg-blue-50 px-1 py-0.5 text-[10px] text-blue-500">
+                        {entry.layers.length} lagen
+                      </span>
+                    )}
+                  </span>
                   <span className="ml-2 tabular-nums text-stone-400">
                     {entry.uValue.toFixed(2)} W/m²K
                   </span>
