@@ -29,6 +29,9 @@ Thumbs.db
 .env
 /.env.production
 
+# SQLite database
+*.db
+
 # Frontend
 node_modules/
 frontend/dist/

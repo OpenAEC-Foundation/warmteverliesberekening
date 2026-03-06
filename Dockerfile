@@ -49,6 +49,12 @@ RUN npm ci
 COPY frontend/ .
 COPY schemas/ /build/schemas/
 
+# OIDC config passed at build time for Vite
+ARG VITE_OIDC_ISSUER
+ARG VITE_OIDC_CLIENT_ID
+ENV VITE_OIDC_ISSUER=${VITE_OIDC_ISSUER}
+ENV VITE_OIDC_CLIENT_ID=${VITE_OIDC_CLIENT_ID}
+
 # Build for production
 RUN npm run build
 
@@ -75,10 +81,12 @@ COPY --from=node-builder /build/frontend/dist /app/static
 
 # Create data directory for SQLite
 RUN mkdir -p /data && chown app:app /data
+VOLUME /data
 
 USER app
 
 ENV PORT=3001
+ENV DATABASE_URL=sqlite:///data/isso51.db?mode=rwc
 ENV STATIC_DIR=/app/static
 EXPOSE 3001
 
