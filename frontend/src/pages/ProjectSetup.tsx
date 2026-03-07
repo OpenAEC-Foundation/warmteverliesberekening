@@ -227,7 +227,7 @@ export function ProjectSetup() {
               id="qv10"
               label="Luchtdichtheid qv10"
               type="number"
-              unit="dm\u00B3/s"
+              unit="dm³/s"
               value={building.qv10}
               onChange={(e) => updateBuilding({ qv10: numVal(e.target.value) })}
             />
@@ -235,7 +235,7 @@ export function ProjectSetup() {
               id="total_floor_area"
               label="Gebruiksoppervlak"
               type="number"
-              unit="m\u00B2"
+              unit="m²"
               value={building.total_floor_area}
               onChange={(e) => updateBuilding({ total_floor_area: numVal(e.target.value) })}
             />
@@ -282,25 +282,25 @@ export function ProjectSetup() {
           <div className="grid grid-cols-4 gap-4">
             <Input
               id="theta_e"
-              label="Buitentemperatuur \u03B8_e"
+              label="Buitentemperatuur θ_e"
               type="number"
-              unit="\u00B0C"
+              unit="°C"
               value={climate.theta_e ?? -10}
               onChange={(e) => updateClimate({ theta_e: numVal(e.target.value) })}
             />
             <Input
               id="theta_b_res"
-              label="Buurwoning \u03B8_b (wonen)"
+              label="Buurwoning θ_b (wonen)"
               type="number"
-              unit="\u00B0C"
+              unit="°C"
               value={climate.theta_b_residential ?? 17}
               onChange={(e) => updateClimate({ theta_b_residential: numVal(e.target.value) })}
             />
             <Input
               id="theta_b_nonres"
-              label="Buurwoning \u03B8_b (overig)"
+              label="Buurwoning θ_b (overig)"
               type="number"
-              unit="\u00B0C"
+              unit="°C"
               value={climate.theta_b_non_residential ?? 14}
               onChange={(e) => updateClimate({ theta_b_non_residential: numVal(e.target.value) })}
             />
@@ -385,7 +385,7 @@ export function ProjectSetup() {
                 >
                   <span className="font-medium">{room.name}</span>
                   <span className="font-mono text-xs text-stone-400">
-                    {room.floor_area} m\u00B2
+                    {room.floor_area} m²
                   </span>
                 </li>
               ))}

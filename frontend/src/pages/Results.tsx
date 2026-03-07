@@ -214,7 +214,7 @@ export function Results() {
                   Ventilatie &amp; infiltratie
                 </h4>
                 <dl className="space-y-1 text-sm">
-                  <DetailRow label="q_v" value={`${fmt2(room.ventilation.q_v)} dm\u00B3/s`} />
+                  <DetailRow label="q_v" value={`${fmt2(room.ventilation.q_v)} dm³/s`} />
                   <DetailRow label="H_v" value={`${fmt2(room.ventilation.h_v)} W/K`} />
                   <DetailRow label="f_v" value={fmt2(room.ventilation.f_v)} />
                   <DetailRow label={<strong>&Phi;_v</strong>} value={<strong>{fmtW(room.ventilation.phi_v)}</strong>} />

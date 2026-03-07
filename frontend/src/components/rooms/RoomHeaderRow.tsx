@@ -105,7 +105,7 @@ export function RoomHeaderCells({
           value={thetaI}
           onChange={handleThetaChange}
           type="number"
-          unit={"\u00B0C"}
+          unit={"°C"}
         />
       </td>
       <td className="border-r border-stone-200 px-2 py-1 text-right">
@@ -113,7 +113,7 @@ export function RoomHeaderCells({
           value={room.floor_area}
           onChange={(v) => onUpdate({ floor_area: Number(v) || 0 })}
           type="number"
-          unit="m\u00B2"
+          unit="m²"
         />
       </td>
       <td className="border-r border-stone-200 px-2 py-1 text-right">

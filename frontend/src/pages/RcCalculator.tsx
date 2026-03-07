@@ -323,7 +323,7 @@ export function RcCalculator() {
                     <th className="pb-2">Materiaal</th>
                     <th className="w-24 pb-2 text-right">Dikte [mm]</th>
                     <th className="w-24 pb-2 text-right">
-                      R [m{"\u00B2"}K/W]
+                      R [m{"²"}K/W]
                     </th>
                     <th className="w-16 pb-2" />
                   </tr>
@@ -625,21 +625,21 @@ export function RcCalculator() {
                     <strong className="text-stone-800">
                       {rcResult.rc.toFixed(2)}
                     </strong>{" "}
-                    m{"\u00B2"}K/W
+                    m{"²"}K/W
                   </span>
                   <span className="text-stone-500">
                     R<sub>totaal</sub> ={" "}
                     <strong className="text-stone-800">
                       {rcResult.rTotal.toFixed(2)}
                     </strong>{" "}
-                    m{"\u00B2"}K/W
+                    m{"²"}K/W
                   </span>
                   <span className="text-stone-500">
                     U ={" "}
                     <strong className="text-stone-800">
                       {rcResult.uValue.toFixed(3)}
                     </strong>{" "}
-                    W/m{"\u00B2"}K
+                    W/m{"²"}K
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -649,7 +649,7 @@ export function RcCalculator() {
                     }`}
                   />
                   <span className="text-xs text-stone-500">
-                    Bouwbesluit 2024: Rc {"\u2265"} {rcMin} m{"\u00B2"}K/W
+                    Bouwbesluit 2024: Rc {"≥"} {rcMin} m{"²"}K/W
                     {meetsRequirement ? " \u2714" : " \u2718"}
                   </span>
                 </div>

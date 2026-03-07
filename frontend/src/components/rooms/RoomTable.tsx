@@ -51,10 +51,10 @@ export function RoomTable() {
             <th className="w-[140px] border-r border-stone-200 px-2 py-2">Vertrek</th>
             <th className="w-[120px] border-r border-stone-200 px-2 py-2">Functie</th>
             <th className="w-[70px] border-r border-stone-200 px-2 py-2 text-right">
-              {"\u03B8"}i
+              {"θ"}i
             </th>
             <th className="w-[80px] border-r border-stone-200 px-2 py-2 text-right">
-              A<sub>v</sub> [m{"\u00B2"}]
+              A<sub>v</sub> [m{"²"}]
             </th>
             <th className="w-[70px] border-r border-stone-200 px-2 py-2 text-right">
               h [m]
@@ -62,10 +62,10 @@ export function RoomTable() {
             <th className="w-[160px] px-2 py-2">Grensvlak</th>
             <th className="w-[160px] px-2 py-2">Type</th>
             <th className="w-[80px] px-2 py-2 text-right">
-              A [m{"\u00B2"}]
+              A [m{"²"}]
             </th>
             <th className="w-[90px] px-2 py-2 text-right">
-              U [W/m{"\u00B2"}K]
+              U [W/m{"²"}K]
             </th>
             <th className="w-[80px] px-2 py-2">Pos.</th>
             <th className="w-[36px] px-1 py-2" />

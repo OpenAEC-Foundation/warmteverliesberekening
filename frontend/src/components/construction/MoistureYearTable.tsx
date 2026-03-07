@@ -118,17 +118,17 @@ export function MoistureYearTable({ result }: MoistureYearTableProps) {
           <thead>
             <tr className="border-b border-stone-200 text-left text-[10px] font-semibold uppercase tracking-wider text-stone-500">
               <th className="pb-1.5 pr-2">Maand</th>
-              <th className="pb-1.5 pr-2 text-right">{"\u03B8"}e [°C]</th>
+              <th className="pb-1.5 pr-2 text-right">{"θ"}e [°C]</th>
               <th className="pb-1.5 pr-2 text-right">RV [%]</th>
-              <th className="pb-1.5 pr-2 text-right">{"\u03B8"}c [°C]</th>
+              <th className="pb-1.5 pr-2 text-right">{"θ"}c [°C]</th>
               <th className="pb-1.5 pr-2 text-right">
                 p<sub>sat</sub> [Pa]
               </th>
               <th className="pb-1.5 pr-2 text-right">
-                g<sub>c</sub> [g/m{"\u00B2"}]
+                g<sub>c</sub> [g/m{"²"}]
               </th>
               <th className="pb-1.5 pr-2 text-right">
-                M<sub>a</sub> [g/m{"\u00B2"}]
+                M<sub>a</sub> [g/m{"²"}]
               </th>
               <th className="pb-1.5 pl-2">Status</th>
             </tr>
@@ -204,7 +204,7 @@ export function MoistureYearTable({ result }: MoistureYearTableProps) {
           <span>
             Max. vocht:{" "}
             <strong className="text-stone-800">
-              {maxMa.toFixed(1)} g/m{"\u00B2"}
+              {maxMa.toFixed(1)} g/m{"²"}
             </strong>
           </span>
           <span>

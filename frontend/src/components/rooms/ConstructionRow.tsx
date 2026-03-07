@@ -75,7 +75,7 @@ export const ConstructionCells = memo(function ConstructionCells({
           value={construction.area}
           onChange={handleArea}
           type="number"
-          unit="m\u00B2"
+          unit="m²"
         />
       </td>
       <td className="px-2 py-1 text-right">
@@ -84,7 +84,7 @@ export const ConstructionCells = memo(function ConstructionCells({
             value={construction.u_value}
             onChange={handleUValue}
             type="number"
-            unit="W/m\u00B2K"
+            unit="W/m²K"
           />
           <button
             onClick={() => setLayerEditorOpen(true)}
