@@ -5,6 +5,7 @@ services:
       args:
         VITE_OIDC_ISSUER: https://auth.open-aec.com/application/o/warmteverlies/
         VITE_OIDC_CLIENT_ID: warmteverlies
+        SOURCE_HASH: ${SOURCE_HASH:-dev}
     container_name: warmteverlies
     env_file: .env.production
     volumes:

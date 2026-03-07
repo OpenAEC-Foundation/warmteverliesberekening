@@ -28,8 +28,9 @@ else
 fi
 
 # Build and restart (SOURCE_HASH busts cache when code changes)
-SOURCE_HASH=\$(git rev-parse --short HEAD)
-docker compose build --build-arg SOURCE_HASH="\${SOURCE_HASH}"
+export SOURCE_HASH=\$(git rev-parse --short HEAD)
+echo "Building with SOURCE_HASH=\${SOURCE_HASH}"
+docker compose build
 docker compose up -d
 
 # Health check
