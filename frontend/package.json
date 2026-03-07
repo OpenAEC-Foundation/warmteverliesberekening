@@ -10,17 +10,21 @@
     "generate-types": "json2ts -i ../schemas/v1/project.schema.json -o src/types/project.ts && json2ts -i ../schemas/v1/result.schema.json -o src/types/result.ts"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@tauri-apps/api": "^2.10.1",
     "oidc-spa": "^10.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0",
+    "three": "^0.183.2",
     "zod": "^4.3.6",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",

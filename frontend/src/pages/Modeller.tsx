@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import {
   FloorCanvas,
+  FloorCanvas3D,
   PropertiesPanel,
   EXAMPLE_ROOMS,
   EXAMPLE_WINDOWS,
@@ -88,13 +89,13 @@ export function Modeller() {
             />
           </div>
         ) : (
-          <div className="flex min-w-0 flex-1 items-center justify-center bg-stone-50">
-            <div className="text-center">
-              <p className="text-lg font-medium text-stone-400">3D weergave</p>
-              <p className="mt-1 text-sm text-stone-400">
-                Wordt binnenkort toegevoegd (Three.js)
-              </p>
-            </div>
+          <div className="min-w-0 flex-1">
+            <FloorCanvas3D
+              rooms={rooms}
+              windows={windows}
+              selectedRoomId={selectedRoomId}
+              onSelectRoom={setSelectedRoomId}
+            />
           </div>
         )}
 
