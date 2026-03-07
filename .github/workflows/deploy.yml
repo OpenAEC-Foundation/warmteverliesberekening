@@ -32,7 +32,8 @@ jobs:
                 cd "${REMOTE_DIR}"
             fi
 
-            docker compose build
+            SOURCE_HASH=$(git rev-parse --short HEAD)
+            docker compose build --build-arg SOURCE_HASH="${SOURCE_HASH}"
             docker compose up -d
 
             echo "Waiting for container..."

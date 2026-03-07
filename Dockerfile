@@ -20,7 +20,9 @@ RUN mkdir -p crates/isso51-core/src && echo "pub fn dummy() {}" > crates/isso51-
 # Pre-build dependencies (cached unless Cargo.toml/Cargo.lock change)
 RUN cargo build --release -p isso51-api 2>/dev/null || true
 
-# Copy actual source code (invalidates cache — triggers real build below)
+# Cache-bust: changes when source code changes (git commit hash)
+ARG SOURCE_HASH
+# Copy actual source code
 COPY crates/ crates/
 COPY schemas/ schemas/
 
@@ -45,6 +47,8 @@ COPY frontend/package.json frontend/package-lock.json* ./
 
 RUN npm ci
 
+# Cache-bust: changes when source code changes (git commit hash)
+ARG SOURCE_HASH
 # Copy frontend source and schemas (needed for type generation)
 COPY frontend/ .
 COPY schemas/ /build/schemas/

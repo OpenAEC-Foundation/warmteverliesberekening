@@ -27,8 +27,9 @@ else
     cd "${REMOTE_DIR}"
 fi
 
-# Build and restart
-docker compose build
+# Build and restart (SOURCE_HASH busts cache when code changes)
+SOURCE_HASH=\$(git rev-parse --short HEAD)
+docker compose build --build-arg SOURCE_HASH="\${SOURCE_HASH}"
 docker compose up -d
 
 # Health check
