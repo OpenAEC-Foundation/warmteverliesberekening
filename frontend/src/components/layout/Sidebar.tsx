@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: "/project", label: "Project", icon: "\u2302" },
   { to: "/rooms", label: "Vertrekken", icon: "\u25A6" },
   { to: "/rc", label: "Rc-waarde", icon: "\u229E" },
+  { to: "/modeller", label: "Modeller", icon: "\u2316" },
   { to: "/library", label: "Bibliotheek", icon: "\u25E8" },
   { to: "/results", label: "Resultaten", icon: "\u2261" },
 ] as const;
