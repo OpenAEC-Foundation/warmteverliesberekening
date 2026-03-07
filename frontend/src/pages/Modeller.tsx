@@ -1,14 +1,13 @@
 import { useCallback, useState } from "react";
 
 import {
-  DrawingToolsPanel,
   FloorCanvas,
-  ModellerToolbar,
   PropertiesPanel,
   EXAMPLE_ROOMS,
   EXAMPLE_WINDOWS,
   DEFAULT_SNAP_SETTINGS,
 } from "../components/modeller";
+import { Ribbon } from "../components/modeller/Ribbon";
 import type { ModellerTool, SnapSettings, ViewMode } from "../components/modeller";
 import { useToastStore } from "../store/toastStore";
 
@@ -55,29 +54,25 @@ export function Modeller() {
 
   return (
     <div className="flex h-screen flex-col">
-      <ModellerToolbar
+      <Ribbon
+        tool={tool}
         viewMode={viewMode}
         activeFloor={activeFloor}
+        snap={snap}
+        onToolChange={setTool}
         onViewModeChange={setViewMode}
         onFloorChange={setActiveFloor}
+        onSnapChange={setSnap}
         onFitView={handleFitView}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onImportDwg={handleImportDwg}
+        onImportPdf={handleImportPdf}
+        onImportIfc={handleImportIfc}
+        onExportIfc={handleExportIfc}
       />
 
       <div className="flex min-h-0 flex-1">
-        {/* Left: Drawing tools panel */}
-        <DrawingToolsPanel
-          tool={tool}
-          snap={snap}
-          onToolChange={setTool}
-          onSnapChange={setSnap}
-          onImportDwg={handleImportDwg}
-          onImportPdf={handleImportPdf}
-          onImportIfc={handleImportIfc}
-          onExportIfc={handleExportIfc}
-        />
-
         {/* Center: Canvas or 3D view */}
         {viewMode === "2d" ? (
           <div className="min-w-0 flex-1">

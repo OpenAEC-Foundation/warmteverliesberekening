@@ -10,6 +10,7 @@ export { DrawingToolsPanel } from "./DrawingToolsPanel";
 export { FloorCanvas } from "./FloorCanvas";
 export { ModellerToolbar } from "./ModellerToolbar";
 export { PropertiesPanel } from "./PropertiesPanel";
+export { Ribbon } from "./Ribbon";
 
 // Geometry helpers
 export { polygonArea, polygonCenter, pointInPolygon, segmentsShareEdge } from "./geometry";
