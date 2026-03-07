@@ -9,12 +9,13 @@ mod error;
 mod handlers;
 mod state;
 
-use axum::http::{header, HeaderValue, Method};
+use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 use sqlx::sqlite::SqlitePoolOptions;
 use tower_http::cors::CorsLayer;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -126,8 +127,20 @@ async fn main() {
 
     // --- Static file serving (SPA fallback) ---
     if let Some(ref static_dir) = config.static_dir {
-        let index = format!("{static_dir}/index.html");
-        let serve_dir = ServeDir::new(static_dir).not_found_service(ServeFile::new(&index));
+        let index_html = std::fs::read_to_string(format!("{static_dir}/index.html"))
+            .expect("index.html not found in static_dir");
+
+        let fallback = tower::service_fn(move |_req: axum::extract::Request| {
+            let html = index_html.clone();
+            async move {
+                Ok::<_, std::convert::Infallible>(
+                    (StatusCode::OK, [("content-type", "text/html; charset=utf-8")], html)
+                        .into_response(),
+                )
+            }
+        });
+
+        let serve_dir = ServeDir::new(static_dir).not_found_service(fallback);
         app = app.fallback_service(serve_dir);
         tracing::info!("Serving static files from {static_dir}");
     }
