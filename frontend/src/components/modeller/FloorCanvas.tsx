@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ModelRoom, ModelWindow, ModellerTool, Point2D } from "./types";
+import type { ModelRoom, ModelWindow, ModellerTool, Point2D, SnapSettings } from "./types";
 import { pointInPolygon, polygonArea, polygonCenter } from "./geometry";
 
 interface FloorCanvasProps {
@@ -9,6 +9,7 @@ interface FloorCanvasProps {
   selectedRoomId: string | null;
   hoveredRoomId: string | null;
   tool: ModellerTool;
+  snap: SnapSettings;
   onSelectRoom: (id: string | null) => void;
   onHoverRoom: (id: string | null) => void;
 }
@@ -21,6 +22,7 @@ export function FloorCanvas({
   selectedRoomId,
   hoveredRoomId,
   tool,
+  snap,
   onSelectRoom,
   onHoverRoom,
 }: FloorCanvasProps) {
@@ -115,7 +117,15 @@ export function FloorCanvas({
       const sel = rooms.find((r) => r.id === selectedRoomId);
       if (sel) drawDimensions(ctx, sel, w2s);
     }
-  }, [rooms, windows, selectedRoomId, hoveredRoomId, viewCenter, zoom, size, worldToScreen]);
+
+    // Scale bar
+    drawScaleBar(ctx, width, height, zoom);
+
+    // Snap indicator
+    if (snap.enabled) {
+      drawSnapIndicator(ctx, width, height, snap);
+    }
+  }, [rooms, windows, selectedRoomId, hoveredRoomId, viewCenter, zoom, size, worldToScreen, snap]);
 
   // --- Wheel zoom (needs passive: false) ---
   useEffect(() => {
@@ -236,8 +246,9 @@ export function FloorCanvas({
         onClick={handleClick}
         onContextMenu={(e) => e.preventDefault()}
       />
-      <div className="absolute bottom-3 right-3 rounded bg-black/60 px-2 py-1 font-mono text-xs text-white">
-        {Math.round(zoom * 1000)} px/m
+      {/* Cursor world position */}
+      <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white">
+        1:{Math.round(1000 / (zoom * 1000))}
       </div>
     </div>
   );
@@ -450,4 +461,106 @@ function drawDimensions(
     ctx.textBaseline = "middle";
     ctx.fillText(label, mx + nx, my + ny);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Scale bar
+// ---------------------------------------------------------------------------
+
+function drawScaleBar(
+  ctx: CanvasRenderingContext2D,
+  _width: number,
+  height: number,
+  zoom: number,
+) {
+  const pxPerMm = zoom;
+  const maxBarPx = 200;
+
+  // Find a nice round length that fits within maxBarPx
+  const niceSteps = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000];
+  let barMm = 1000;
+  for (const step of niceSteps) {
+    if (step * pxPerMm <= maxBarPx && step * pxPerMm >= 40) {
+      barMm = step;
+    }
+  }
+  const barPx = barMm * pxPerMm;
+
+  const x = 20;
+  const y = height - 24;
+  const h = 8;
+
+  // Background
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillRect(x - 6, y - 16, barPx + 12, h + 28);
+
+  // Bar segments (alternating black/white like an architectural scale bar)
+  const segments = 4;
+  const segPx = barPx / segments;
+  for (let i = 0; i < segments; i++) {
+    ctx.fillStyle = i % 2 === 0 ? "#1c1917" : "#ffffff";
+    ctx.fillRect(x + i * segPx, y, segPx, h);
+  }
+
+  // Border
+  ctx.strokeStyle = "#1c1917";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, barPx, h);
+
+  // Ticks at ends
+  ctx.beginPath();
+  ctx.moveTo(x, y - 3);
+  ctx.lineTo(x, y + h + 3);
+  ctx.moveTo(x + barPx, y - 3);
+  ctx.lineTo(x + barPx, y + h + 3);
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = "#1c1917";
+  ctx.font = "bold 10px Inter, system-ui, sans-serif";
+  ctx.textBaseline = "top";
+
+  ctx.textAlign = "left";
+  ctx.fillText("0", x, y + h + 4);
+
+  ctx.textAlign = "right";
+  const label = barMm >= 1000 ? `${barMm / 1000} m` : `${barMm} mm`;
+  ctx.fillText(label, x + barPx, y + h + 4);
+
+  // Scale ratio
+  ctx.textAlign = "center";
+  ctx.font = "9px Inter, system-ui, sans-serif";
+  ctx.fillStyle = "#78716c";
+  ctx.fillText(`1:${Math.round(1000 / (zoom * 1000))}`, x + barPx / 2, y - 13);
+}
+
+// ---------------------------------------------------------------------------
+// Snap indicator (small badge in corner)
+// ---------------------------------------------------------------------------
+
+function drawSnapIndicator(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  _height: number,
+  snap: SnapSettings,
+) {
+  const activeCount = snap.modes.length;
+  const label = `SNAP: ${activeCount}`;
+
+  ctx.font = "bold 9px Inter, system-ui, sans-serif";
+  const tw = ctx.measureText(label).width;
+
+  const px = 6;
+  const x = width - tw - px * 2 - 12;
+  const y = 8;
+
+  ctx.fillStyle = "rgba(217, 119, 6, 0.15)";
+  ctx.beginPath();
+  ctx.roundRect(x, y, tw + px * 2, 16, 3);
+  ctx.fill();
+
+  ctx.fillStyle = "#92400e";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x + px, y + 8);
 }

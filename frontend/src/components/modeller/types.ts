@@ -25,6 +25,56 @@ export interface ModelWindow {
   width: number;
 }
 
-export type ModellerTool = "select" | "draw_room" | "draw_wall" | "measure" | "pan";
+export interface ModelDoor {
+  roomId: string;
+  wallIndex: number;
+  offset: number;
+  width: number;
+  swing: "left" | "right";
+}
+
+// ---------------------------------------------------------------------------
+// Tools
+// ---------------------------------------------------------------------------
+
+export type ModellerTool =
+  | "select"
+  | "pan"
+  | "draw_rect"
+  | "draw_polygon"
+  | "draw_circle"
+  | "draw_wall"
+  | "draw_window"
+  | "draw_door"
+  | "draw_floor"
+  | "draw_roof"
+  | "annotate_text"
+  | "annotate_dimension"
+  | "annotate_leader"
+  | "measure";
 
 export type ViewMode = "2d" | "3d";
+
+// ---------------------------------------------------------------------------
+// Snap
+// ---------------------------------------------------------------------------
+
+export type SnapMode =
+  | "grid"
+  | "endpoint"
+  | "midpoint"
+  | "perpendicular"
+  | "nearest"
+  | "underlay";
+
+export interface SnapSettings {
+  enabled: boolean;
+  modes: SnapMode[];
+  gridSize: number; // mm
+}
+
+export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
+  enabled: true,
+  modes: ["grid", "endpoint", "midpoint", "perpendicular"],
+  gridSize: 100,
+};

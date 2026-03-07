@@ -1,36 +1,24 @@
-import type { ModellerTool, ViewMode } from "./types";
+import type { ViewMode } from "./types";
 import { FLOOR_LABELS } from "./exampleData";
 
 interface ModellerToolbarProps {
-  tool: ModellerTool;
   viewMode: ViewMode;
   activeFloor: number;
-  onToolChange: (tool: ModellerTool) => void;
   onViewModeChange: (mode: ViewMode) => void;
   onFloorChange: (floor: number) => void;
-  onImportDwg: () => void;
-  onImportPdf: () => void;
   onFitView: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
-const TOOLS: { id: ModellerTool; label: string; shortcut: string }[] = [
-  { id: "select", label: "Selecteer", shortcut: "V" },
-  { id: "draw_room", label: "Ruimte", shortcut: "R" },
-  { id: "draw_wall", label: "Wand", shortcut: "W" },
-  { id: "measure", label: "Meet", shortcut: "M" },
-  { id: "pan", label: "Verschuif", shortcut: "H" },
-];
-
 export function ModellerToolbar({
-  tool,
   viewMode,
   activeFloor,
-  onToolChange,
   onViewModeChange,
   onFloorChange,
-  onImportDwg,
-  onImportPdf,
   onFitView,
+  onUndo,
+  onRedo,
 }: ModellerToolbarProps) {
   return (
     <div className="flex h-10 items-center gap-1 border-b border-stone-200 bg-white px-2">
@@ -60,21 +48,21 @@ export function ModellerToolbar({
 
       <div className="mx-1.5 h-5 w-px bg-stone-200" />
 
-      {/* Drawing tools */}
-      {TOOLS.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => onToolChange(t.id)}
-          title={`${t.label} (${t.shortcut})`}
-          className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-            tool === t.id
-              ? "bg-amber-100 text-amber-800"
-              : "text-stone-500 hover:bg-stone-100 hover:text-stone-700"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
+      {/* Undo / Redo */}
+      <button
+        onClick={onUndo}
+        title="Ongedaan maken (Ctrl+Z)"
+        className="rounded px-2 py-1 text-xs text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
+      >
+        &#x21B6;
+      </button>
+      <button
+        onClick={onRedo}
+        title="Opnieuw (Ctrl+Y)"
+        className="rounded px-2 py-1 text-xs text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
+      >
+        &#x21B7;
+      </button>
 
       <div className="mx-1.5 h-5 w-px bg-stone-200" />
 
@@ -92,22 +80,7 @@ export function ModellerToolbar({
 
       <div className="flex-1" />
 
-      {/* Import */}
-      <button
-        onClick={onImportDwg}
-        className="rounded border border-stone-200 px-2 py-1 text-xs text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
-      >
-        Import DWG
-      </button>
-      <button
-        onClick={onImportPdf}
-        className="rounded border border-stone-200 px-2 py-1 text-xs text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
-      >
-        Import PDF
-      </button>
-
-      <div className="mx-1.5 h-5 w-px bg-stone-200" />
-
+      {/* Fit view */}
       <button
         onClick={onFitView}
         title="Passend (F)"
