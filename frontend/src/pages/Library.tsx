@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { PageHeader } from "../components/layout/PageHeader";
 import { Button } from "../components/ui/Button";
@@ -232,8 +233,13 @@ function EntryRow({
   onReset,
 }: EntryRowProps) {
   const [draft, setDraft] = useState<Partial<CatalogueEntry>>({});
+  const navigate = useNavigate();
 
   const handleStartEdit = useCallback(() => {
+    if (entry.layers?.length) {
+      navigate(`/rc?edit=${entry.id}`);
+      return;
+    }
     setDraft({
       name: entry.name,
       uValue: entry.uValue,
@@ -241,7 +247,7 @@ function EntryRow({
       verticalPosition: entry.verticalPosition,
     });
     onEdit();
-  }, [entry, onEdit]);
+  }, [entry, onEdit, navigate]);
 
   const handleSave = useCallback(() => {
     if (!draft.name?.trim()) return;

@@ -33,6 +33,53 @@ export const CATALOGUE_CATEGORY_LABELS: Record<CatalogueCategory, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Korte laagnamen voor weergave in constructienamen
+// ---------------------------------------------------------------------------
+
+const SHORT_NAMES: Record<string, string> = {
+  "afwerking-stucwerk-gips": "Stuc",
+  "metselwerk-kalkzandsteen": "KZS",
+  "isolatie-kunststof-pir": "PIR",
+  "spouw-spouw-niet-gevent-rd-0-17": "Spouw",
+  "spouw-spouw-gevent-rd-0-09": "Spouw(v)",
+  "metselwerk-b4-gevelklinkers": "Klinker",
+  "plaatmateriaal-gipskartonplaat": "Gips",
+  "folie-dampremmend-pe-folie-0-15mm": "PE-folie",
+  "hout-osb": "OSB",
+  "isolatie-mineraal-minerale-wol-platen": "MW",
+  "isolatie-mineraal-minerale-wol-dekens": "MWd",
+  "plaatmateriaal-vezelcementplaat": "VCement",
+  "beton-cellenbeton-600": "CB600",
+  "isolatie-kunststof-eps": "EPS",
+  "afwerking-sierpleister-mineraal": "Sierpl",
+  "beton-cementdekvloer": "Dekvloer",
+  "beton-beton-gewapend": "Beton",
+  "beton-breedplaatvloer": "Breedpl",
+  "beton-kanaalplaatvloer": "Kanaalpl",
+  "hout-naaldhout": "Nhout",
+  "vloer-parket-massief": "Parket",
+  "folie-overig-bitumen-sbs": "Bitumen",
+  "isolatie-kunststof-pir-alu-bekleed": "PIRalu",
+  "metselwerk-baksteen-1000-kg-m": "Bak1000",
+  "metselwerk-b1-rood": "B1",
+};
+
+/** Get short display name for a material id. */
+export function getShortMaterialName(materialId: string): string {
+  return SHORT_NAMES[materialId] ?? materialId;
+}
+
+/** Build a human-readable name from layer composition. */
+export function buildLayerName(layers: CatalogueLayer[]): string {
+  return layers
+    .map((l) => {
+      const short = SHORT_NAMES[l.materialId] ?? l.materialId;
+      return l.thickness > 0 ? `${short} ${l.thickness}` : short;
+    })
+    .join(" | ");
+}
+
+// ---------------------------------------------------------------------------
 // Constructiebibliotheek
 //
 // Alle opbouwen met laagdetail.  Lagen-volgorde:
@@ -56,7 +103,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "spouwmuur-nieuwbouw",
-    name: "Spouwmuur nieuwbouw (Rc\u22484.7)",
+    name: "Stuc 10 | KZS 100 | PIR 110 | Spouw 40 | Klinker 100",
     category: "wanden",
     uValue: 0.19,
     materialType: "masonry",
@@ -73,7 +120,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "spouwmuur-standaard",
-    name: "Spouwmuur standaard (Rc\u22483.5)",
+    name: "Stuc 10 | KZS 100 | MW 100 | Spouw 30 | Klinker 100",
     category: "wanden",
     uValue: 0.30,
     materialType: "masonry",
@@ -90,7 +137,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "buitenwand-metselwerk",
-    name: "Spouwmuur bestaande bouw (Rc\u22482.5)",
+    name: "Stuc 10 | KZS 100 | MW 80 | Spouw 30 | Klinker 100",
     category: "wanden",
     uValue: 0.36,
     materialType: "masonry",
@@ -107,7 +154,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "spouwmuur-bestaand-na-isolatie",
-    name: "Spouwmuur na-ge\u00EFsoleerd (Rc\u22481.3)",
+    name: "Stuc 10 | KZS 100 | MWd 50 | Klinker 100",
     category: "wanden",
     uValue: 0.62,
     materialType: "masonry",
@@ -123,7 +170,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "spouwmuur-ongeisoleerd",
-    name: "Spouwmuur onge\u00EFsoleerd (jaren \u201960)",
+    name: "Stuc 15 | Bak1000 100 | Spouw 60 | B1 100",
     category: "wanden",
     uValue: 1.46,
     materialType: "masonry",
@@ -142,7 +189,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "houtskeletwand-nieuwbouw",
-    name: "Houtskeletwand nieuwbouw (Rc\u22485.0)",
+    name: "Gips 12.5 | PE-folie | OSB 12 | MW 140 | OSB 12 | Spouw(v) 25 | VCement 8",
     category: "wanden",
     uValue: 0.19,
     materialType: "non_masonry",
@@ -161,7 +208,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "buitenwand-houtskelet",
-    name: "Houtskeletwand standaard (Rc\u22483.5)",
+    name: "Gips 12.5 | PE-folie | MW 110 | OSB 12 | Spouw(v) 25 | VCement 8",
     category: "wanden",
     uValue: 0.28,
     materialType: "non_masonry",
@@ -182,7 +229,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "buitenwand-etics-cellenbeton",
-    name: "Buitenwand ETICS cellenbeton (Rc\u22483.5)",
+    name: "Stuc 10 | CB600 200 | EPS 100 | Sierpl 8",
     category: "wanden",
     uValue: 0.27,
     materialType: "masonry",
@@ -201,7 +248,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "binnenwand-kalkzandsteen",
-    name: "Binnenwand kalkzandsteen 100mm",
+    name: "Stuc 10 | KZS 100 | Stuc 10",
     category: "wanden",
     uValue: 2.87,
     materialType: "masonry",
@@ -216,7 +263,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "binnenwand-licht",
-    name: "Binnenwand metalstud/gips",
+    name: "Gips 12.5 | Spouw(v) 48 | Gips 12.5",
     category: "wanden",
     uValue: 2.22,
     materialType: "non_masonry",
@@ -231,7 +278,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "binnenwand-cellenbeton",
-    name: "Binnenwand cellenbeton 100mm",
+    name: "Stuc 10 | CB600 100 | Stuc 10",
     category: "wanden",
     uValue: 1.52,
     materialType: "masonry",
@@ -249,7 +296,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "woningscheidende-wand",
-    name: "Woningscheidende wand (dubbel KZS)",
+    name: "Stuc 10 | KZS 100 | Spouw 40 | KZS 100 | Stuc 10",
     category: "wanden",
     uValue: 1.64,
     materialType: "masonry",
@@ -269,7 +316,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "begane-grondvloer-nieuwbouw",
-    name: "Begane grondvloer nieuwbouw (Rc\u22483.7)",
+    name: "Dekvloer 60 | EPS 120 | Beton 200",
     category: "vloeren_plafonds",
     uValue: 0.26,
     materialType: "masonry",
@@ -284,7 +331,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "betonvloer-geisoleerd",
-    name: "Breedplaatvloer ge\u00EFsoleerd (Rc\u22483.0)",
+    name: "Dekvloer 60 | EPS 100 | Breedpl 200 | Stuc 10",
     category: "vloeren_plafonds",
     uValue: 0.31,
     materialType: "masonry",
@@ -300,7 +347,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "houten-vloer-geisoleerd",
-    name: "Houten vloer ge\u00EFsoleerd (Rc\u22483.2)",
+    name: "Parket 15 | OSB 18 | MW 100 | Nhout 22",
     category: "vloeren_plafonds",
     uValue: 0.29,
     materialType: "non_masonry",
@@ -316,7 +363,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "verdiepingsvloer-geisoleerd",
-    name: "Verdiepingsvloer ge\u00EFsoleerd (Rc\u22482.5)",
+    name: "Dekvloer 50 | MW 80 | Kanaalpl 200 | Stuc 10",
     category: "vloeren_plafonds",
     uValue: 0.37,
     materialType: "masonry",
@@ -335,7 +382,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "tussenvloer-beton",
-    name: "Tussenvloer beton (onge\u00EFsoleerd)",
+    name: "Dekvloer 60 | Kanaalpl 200 | Stuc 10",
     category: "vloeren_plafonds",
     uValue: 1.79,
     materialType: "masonry",
@@ -350,7 +397,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "begane-grondvloer",
-    name: "Begane grondvloer (onge\u00EFsoleerd)",
+    name: "Dekvloer 50 | Beton 200",
     category: "vloeren_plafonds",
     uValue: 2.75,
     materialType: "masonry",
@@ -364,7 +411,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "betonvloer-ongeisoleerd",
-    name: "Breedplaatvloer onge\u00EFsoleerd",
+    name: "Dekvloer 50 | Breedpl 200 | Stuc 15",
     category: "vloeren_plafonds",
     uValue: 2.54,
     materialType: "masonry",
@@ -382,7 +429,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "plat-dak-nieuwbouw",
-    name: "Plat dak nieuwbouw (Rc\u22486.3)",
+    name: "Bitumen 5 | PIRalu 140 | PE-folie | Beton 200 | Stuc 10",
     category: "daken",
     uValue: 0.15,
     materialType: "masonry",
@@ -399,7 +446,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "plat-dak-geisoleerd",
-    name: "Plat dak ge\u00EFsoleerd (Rc\u22484.5)",
+    name: "Bitumen 5 | PIRalu 95 | PE-folie | Beton 200 | Stuc 10",
     category: "daken",
     uValue: 0.22,
     materialType: "masonry",
@@ -416,7 +463,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "hellend-dak-nieuwbouw",
-    name: "Hellend dak nieuwbouw (Rc\u22486.3)",
+    name: "Gips 12.5 | PE-folie | PIRalu 140 | Nhout 18",
     category: "daken",
     uValue: 0.15,
     materialType: "non_masonry",
@@ -432,7 +479,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "hellend-dak-geisoleerd",
-    name: "Hellend dak ge\u00EFsoleerd (Rc\u22483.8)",
+    name: "Gips 12.5 | PE-folie | MW 130 | Nhout 18",
     category: "daken",
     uValue: 0.25,
     materialType: "non_masonry",
@@ -451,7 +498,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
 
   {
     id: "plat-dak-ongeisoleerd",
-    name: "Plat dak onge\u00EFsoleerd",
+    name: "Bitumen 5 | Beton 150 | Stuc 15",
     category: "daken",
     uValue: 3.58,
     materialType: "masonry",
@@ -466,7 +513,7 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
   },
   {
     id: "hellend-dak-ongeisoleerd",
-    name: "Hellend dak onge\u00EFsoleerd",
+    name: "Gips 12.5 | Nhout 18",
     category: "daken",
     uValue: 3.38,
     materialType: "non_masonry",

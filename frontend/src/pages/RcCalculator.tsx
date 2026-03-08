@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { GlaserDiagram } from "../components/construction/GlaserDiagram";
 import { MoistureYearTable } from "../components/construction/MoistureYearTable";
@@ -6,6 +7,7 @@ import { PageHeader } from "../components/layout/PageHeader";
 import { MaterialPicker } from "../components/construction/MaterialPicker";
 import { Button } from "../components/ui/Button";
 import {
+  buildLayerName,
   CATALOGUE_CATEGORY_LABELS,
   type CatalogueCategory,
 } from "../lib/constructionCatalogue";
@@ -49,6 +51,10 @@ const MATERIAL_TYPE_LABELS: Record<MaterialType, string> = {
 // ---------- Component ----------
 
 export function RcCalculator() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const editId = searchParams.get("edit");
+
   // Metadata
   const [name, setName] = useState("");
   const [category, setCategory] = useState<CatalogueCategory>("wanden");
@@ -75,7 +81,23 @@ export function RcCalculator() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const addEntry = useCatalogueStore((s) => s.addEntry);
+  const updateEntry = useCatalogueStore((s) => s.updateEntry);
+  const allEntries = useCatalogueStore((s) => s.entries);
   const addToast = useToastStore((s) => s.addToast);
+
+  // Load entry when editing
+  useEffect(() => {
+    if (!editId) return;
+    const entry = allEntries.find((e) => e.id === editId);
+    if (!entry) return;
+    setName(entry.name);
+    setCategory(entry.category);
+    setMaterialType(entry.materialType);
+    if (entry.layers?.length) {
+      setLayers(entry.layers.map((l) => ({ materialId: l.materialId, thickness: l.thickness })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   // Afgeleide waarden
   const position = CATEGORY_POSITION[category] ?? "wall";
@@ -181,10 +203,11 @@ export function RcCalculator() {
 
   const handleSave = useCallback(() => {
     const validLayers = layers.filter((l) => l.materialId);
-    if (!name.trim() || validLayers.length === 0) return;
+    if (validLayers.length === 0) return;
 
-    addEntry({
-      name: name.trim(),
+    const layerName = buildLayerName(validLayers);
+    const entryData = {
+      name: layerName,
       category,
       uValue: Math.round(rcResult.uValue * 1000) / 1000,
       materialType,
@@ -193,17 +216,29 @@ export function RcCalculator() {
         materialId: l.materialId,
         thickness: l.thickness,
       })),
-    });
+    };
+
+    if (editId) {
+      updateEntry(editId, entryData);
+      setName(layerName);
+    } else {
+      addEntry(entryData);
+    }
 
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }, [name, category, materialType, position, layers, rcResult.uValue, addEntry]);
+    setTimeout(() => {
+      setSaved(false);
+      if (editId) navigate("/library");
+    }, 1000);
+  }, [category, materialType, position, layers, rcResult.uValue, addEntry, updateEntry, editId, navigate]);
 
   const handleGenerateReport = useCallback(async () => {
     setIsGenerating(true);
+    const validLayers = layers.filter((l) => l.materialId);
+    const reportName = validLayers.length > 0 ? buildLayerName(validLayers) : "constructie";
     try {
       const reportData = buildRcReportData({
-        name,
+        name: reportName,
         category,
         materialType,
         position,
@@ -221,7 +256,7 @@ export function RcCalculator() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${name.trim() || "constructie"}.pdf`;
+      a.download = `${reportName}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -234,36 +269,32 @@ export function RcCalculator() {
     } finally {
       setIsGenerating(false);
     }
-  }, [name, category, materialType, position, layers, rcResult, glaserResult, moistureResult, thetaI, thetaE, rhI, rhE, addToast]);
+  }, [category, materialType, position, layers, rcResult, glaserResult, moistureResult, thetaI, thetaE, rhI, rhE, addToast]);
 
-  const canSave =
-    name.trim().length > 0 && layers.some((l) => l.materialId);
+  const canSave = layers.some((l) => l.materialId);
 
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Rc-waarde"
-        subtitle="Constructie-opbouw samenstellen en opslaan"
+        title={editId ? "Constructie bewerken" : "Rc-waarde"}
+        subtitle={editId ? name : "Constructie-opbouw samenstellen en opslaan"}
+        actions={
+          editId ? (
+            <button
+              type="button"
+              onClick={() => navigate("/library")}
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100"
+            >
+              Terug naar bibliotheek
+            </button>
+          ) : undefined
+        }
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
         <div className="mx-auto max-w-3xl space-y-6">
           {/* Metadata */}
-          <div className="grid grid-cols-3 gap-4">
-            {/* Naam */}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-stone-500">
-                Naam
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Bijv. Spouwmuur nieuwbouw"
-                className="w-full rounded border border-stone-200 px-2.5 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
-              />
-            </div>
-
+          <div className="grid grid-cols-2 gap-4">
             {/* Categorie */}
             <div>
               <label className="mb-1 block text-xs font-medium text-stone-500">
@@ -674,7 +705,7 @@ export function RcCalculator() {
                   disabled={!canSave}
                   size="md"
                 >
-                  Opslaan in bibliotheek
+                  {editId ? "Opslaan" : "Opslaan in bibliotheek"}
                 </Button>
               </div>
             </div>
