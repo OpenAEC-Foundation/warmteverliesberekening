@@ -68,6 +68,8 @@ interface ModellerStore {
   wallConstructions: Record<string, string>;
   floorConstructions: Record<string, string>;
   roofConstructions: Record<string, string>;
+  // Standalone wall constructions: wallId -> catalogueEntryId
+  standaloneWallConstructions: Record<string, string>;
 
   // History (not persisted)
   _past: Snapshot[];
@@ -89,6 +91,7 @@ interface ModellerStore {
 
   // Standalone wall CRUD
   addWall: (wall: Omit<ModelWall, "id">) => string;
+  updateWall: (id: string, updates: Partial<Omit<ModelWall, "id">>) => void;
   removeWall: (id: string) => void;
 
   // Underlay
@@ -99,6 +102,7 @@ interface ModellerStore {
   assignWallConstruction: (roomId: string, wallIndex: number, entryId: string | null) => void;
   assignFloorConstruction: (roomId: string, entryId: string | null) => void;
   assignRoofConstruction: (roomId: string, entryId: string | null) => void;
+  assignStandaloneWallConstruction: (wallId: string, entryId: string | null) => void;
 
   // History
   undo: () => void;
@@ -145,6 +149,7 @@ export const useModellerStore = create<ModellerStore>()(
       wallConstructions: {},
       floorConstructions: {},
       roofConstructions: {},
+      standaloneWallConstructions: {},
       _past: [],
       _future: [],
 
@@ -240,6 +245,14 @@ export const useModellerStore = create<ModellerStore>()(
         return id;
       },
 
+      updateWall: (id, updates) => {
+        const state = get();
+        set({
+          ...pushUndo(state),
+          walls: state.walls.map((w) => (w.id === id ? { ...w, ...updates } : w)),
+        });
+      },
+
       removeWall: (id) => {
         const state = get();
         set({
@@ -280,6 +293,14 @@ export const useModellerStore = create<ModellerStore>()(
           if (entryId) next[roomId] = entryId;
           else delete next[roomId];
           return { roofConstructions: next };
+        });
+      },
+      assignStandaloneWallConstruction: (wallId, entryId) => {
+        set((state) => {
+          const next = { ...state.standaloneWallConstructions };
+          if (entryId) next[wallId] = entryId;
+          else delete next[wallId];
+          return { standaloneWallConstructions: next };
         });
       },
 
@@ -326,6 +347,7 @@ export const useModellerStore = create<ModellerStore>()(
           wallConstructions: {},
           floorConstructions: {},
           roofConstructions: {},
+          standaloneWallConstructions: {},
           _past: [],
           _future: [],
         }),
@@ -342,6 +364,7 @@ export const useModellerStore = create<ModellerStore>()(
         wallConstructions: state.wallConstructions,
         floorConstructions: state.floorConstructions,
         roofConstructions: state.roofConstructions,
+        standaloneWallConstructions: state.standaloneWallConstructions,
       }),
     },
   ),

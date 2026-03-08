@@ -32,12 +32,17 @@ export interface ModelDoor {
   swing: "left" | "right";
 }
 
+/** Where the drawn polyline sits relative to the wall thickness. */
+export type WallAlignment = "exterior" | "center" | "interior";
+
 /** Standalone wall segment (not part of a room polygon). */
 export interface ModelWall {
   id: string;
   /** Polyline of two or more points defining the wall path. */
   points: Point2D[];
   floor: number;
+  /** Placement reference — "exterior" means the drawn line is the outer face. Default: "exterior". */
+  alignment: WallAlignment;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ModelRoom, ModelWindow, Point2D, Selection } from "./types";
+import type { ModelRoom, ModelWall, ModelWindow, Point2D, Selection, WallAlignment } from "./types";
 import { polygonArea, segmentsShareEdge } from "./geometry";
 import { useCatalogueStore } from "../../store/catalogueStore";
 import type { CatalogueEntry, CatalogueCategory } from "../../lib/constructionCatalogue";
@@ -14,17 +14,22 @@ interface PropertiesPanelProps {
   room: ModelRoom | null;
   rooms: ModelRoom[];
   windows: ModelWindow[];
+  walls?: ModelWall[];
   selection: Selection;
   onUpdateRoom?: (id: string, updates: Partial<Omit<ModelRoom, "id">>) => void;
   onRemoveRoom?: (id: string) => void;
+  onUpdateWall?: (id: string, updates: Partial<Omit<ModelWall, "id">>) => void;
+  onRemoveWall?: (id: string) => void;
   onUpdateWindow?: (roomId: string, wallIndex: number, offset: number, updates: Partial<ModelWindow>) => void;
   onRemoveWindow?: (roomId: string, wallIndex: number, offset: number) => void;
   wallConstructions?: Record<string, string>;
   floorConstructions?: Record<string, string>;
   roofConstructions?: Record<string, string>;
+  standaloneWallConstructions?: Record<string, string>;
   onAssignWall?: (roomId: string, wallIndex: number, entryId: string | null) => void;
   onAssignFloor?: (roomId: string, entryId: string | null) => void;
   onAssignRoof?: (roomId: string, entryId: string | null) => void;
+  onAssignStandaloneWall?: (wallId: string, entryId: string | null) => void;
 }
 
 const FUNCTION_LABELS: Record<string, string> = {
@@ -50,19 +55,110 @@ export function PropertiesPanel({
   room,
   rooms,
   windows,
+  walls = [],
   selection,
   onUpdateRoom,
   onRemoveRoom,
+  onUpdateWall,
+  onRemoveWall,
   onUpdateWindow,
   onRemoveWindow,
   wallConstructions = {},
   floorConstructions = {},
   roofConstructions = {},
+  standaloneWallConstructions = {},
   onAssignWall,
   onAssignFloor,
   onAssignRoof,
+  onAssignStandaloneWall,
 }: PropertiesPanelProps) {
   const catalogueEntries = useCatalogueStore((s) => s.entries);
+
+  // Standalone wall selected: show wall type selector
+  if (selection?.type === "standalone_wall") {
+    const wall = walls.find((w) => w.id === selection.wallId);
+    if (wall && wall.points.length >= 2) {
+      // Total wall length
+      let totalLength = 0;
+      for (let i = 0; i < wall.points.length - 1; i++) {
+        const p = wall.points[i]!;
+        const q = wall.points[i + 1]!;
+        totalLength += Math.hypot(q.x - p.x, q.y - p.y);
+      }
+      const assignedId = standaloneWallConstructions[wall.id];
+      const assigned = assignedId ? catalogueEntries.find((e) => e.id === assignedId) : null;
+
+      return (
+        <div className="w-72 shrink-0 overflow-y-auto border-l border-stone-200 bg-white">
+          <div className="border-b border-stone-100 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-stone-800">Wand</span>
+              {onRemoveWall && (
+                <button
+                  onClick={() => onRemoveWall(wall.id)}
+                  className="rounded px-1.5 py-0.5 text-[10px] text-red-500 hover:bg-red-50"
+                >
+                  Verwijderen
+                </button>
+              )}
+            </div>
+            <div className="mt-1 text-xs text-stone-500">
+              {wall.points.length - 1} segment{wall.points.length > 2 ? "en" : ""}
+            </div>
+          </div>
+          <div className="space-y-3 px-4 py-3">
+            <Section title="Eigenschappen">
+              <dl className="space-y-1 text-xs">
+                <Row label="Lengte" value={`${(totalLength / 1000).toFixed(2)} m`} />
+                <Row label="Segmenten" value={String(wall.points.length - 1)} />
+                <Row label="Dikte" value="200 mm" />
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-500">Plaatsingspunt</span>
+                  <select
+                    value={wall.alignment}
+                    onChange={(e) => onUpdateWall?.(wall.id, { alignment: e.target.value as WallAlignment })}
+                    className="rounded border border-stone-200 bg-white px-1.5 py-0.5 text-xs text-stone-800"
+                  >
+                    <option value="exterior">Buitenkant</option>
+                    <option value="center">Hart</option>
+                    <option value="interior">Binnenkant</option>
+                  </select>
+                </div>
+              </dl>
+            </Section>
+
+            <Section title="Wandtype">
+              {assigned ? (
+                <div className="rounded border border-green-200 bg-green-50 px-2 py-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-green-800">{assigned.name}</span>
+                    <button onClick={() => onAssignStandaloneWall?.(wall.id, null)} className="text-red-400 hover:text-red-600">x</button>
+                  </div>
+                  <div className="mt-0.5 text-green-600">U = {assigned.uValue} W/(m²·K)</div>
+                  {assigned.layers && assigned.layers.length > 0 && (
+                    <div className="mt-2 space-y-0.5">
+                      {assigned.layers.map((layer, i) => (
+                        <div key={i} className="flex items-center justify-between text-[10px] text-green-700">
+                          <span>{layer.materialId}</span>
+                          <span>{layer.thickness} mm</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <ConstructionPickerInline
+                  entries={catalogueEntries}
+                  filterCategory="wanden"
+                  onSelect={(entryId) => onAssignStandaloneWall?.(wall.id, entryId)}
+                />
+              )}
+            </Section>
+          </div>
+        </div>
+      );
+    }
+  }
 
   // Window selected: show window editor
   if (selection?.type === "window" && room) {
@@ -207,7 +303,7 @@ export function PropertiesPanel({
 
   // Room selected
   const area = polygonArea(room.polygon) / 1e6;
-  const walls = getWallInfo(room, rooms, windows);
+  const roomWalls = getWallInfo(room, rooms, windows);
 
   return (
     <div className="w-72 shrink-0 overflow-y-auto border-l border-stone-200 bg-white">
@@ -249,9 +345,9 @@ export function PropertiesPanel({
         </Section>
 
         {/* Walls */}
-        <Section title={`Wanden (${walls.length})`}>
+        <Section title={`Wanden (${roomWalls.length})`}>
           <div className="space-y-1.5">
-            {walls.map((w, i) => (
+            {roomWalls.map((w, i) => (
               <WallCard
                 key={i}
                 wall={w}

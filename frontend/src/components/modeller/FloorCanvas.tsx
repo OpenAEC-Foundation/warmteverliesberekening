@@ -66,6 +66,57 @@ const WALL_LAYER_OFFSETS = WALL_LAYERS.reduce<number[]>(
   [0],
 );
 
+/**
+ * Offset an open polyline by `dist` with mitered corners.
+ * Positive dist = left side when walking along the polyline.
+ */
+function offsetPolyline(pts: Point2D[], dist: number): Point2D[] {
+  const n = pts.length;
+  if (n < 2) return pts;
+
+  // Segment normals (left-hand side when walking p→q)
+  const normals: Point2D[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = pts[i + 1]!.x - pts[i]!.x;
+    const dy = pts[i + 1]!.y - pts[i]!.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.001) { normals.push({ x: 0, y: -1 }); continue; }
+    normals.push({ x: -dy / len, y: dx / len });
+  }
+
+  const result: Point2D[] = [];
+
+  // First point: simple offset along first segment normal
+  result.push({ x: pts[0]!.x + normals[0]!.x * dist, y: pts[0]!.y + normals[0]!.y * dist });
+
+  // Internal points: miter at the bisector of consecutive segments
+  for (let i = 1; i < n - 1; i++) {
+    const n1 = normals[i - 1]!;
+    const n2 = normals[i]!;
+    // Average normal
+    const avgX = n1.x + n2.x;
+    const avgY = n1.y + n2.y;
+    const avgLen = Math.hypot(avgX, avgY);
+    if (avgLen < 0.001) {
+      // Normals cancel out (180° turn) — just offset along one
+      result.push({ x: pts[i]!.x + n1.x * dist, y: pts[i]!.y + n1.y * dist });
+    } else {
+      // Miter: scale so that projection onto either normal equals dist
+      const dot = (avgX / avgLen) * n1.x + (avgY / avgLen) * n1.y;
+      const miterDist = dot > 0.1 ? dist / dot : dist;
+      // Clamp miter to avoid spikes at very acute angles
+      const clamped = Math.min(Math.abs(miterDist), Math.abs(dist) * 4) * Math.sign(miterDist);
+      result.push({ x: pts[i]!.x + (avgX / avgLen) * clamped, y: pts[i]!.y + (avgY / avgLen) * clamped });
+    }
+  }
+
+  // Last point: simple offset along last segment normal
+  const lastN = normals[normals.length - 1]!;
+  result.push({ x: pts[n - 1]!.x + lastN.x * dist, y: pts[n - 1]!.y + lastN.y * dist });
+
+  return result;
+}
+
 const FUNCTION_COLORS: Record<string, string> = {
   living_room: "#fef3c7",
   kitchen: "#fef9c3",
@@ -161,6 +212,13 @@ export function FloorCanvas({
             if (d < bestDist && d < snap.gridSize * 2) { bestDist = d; best = v; }
           }
         }
+        // Snap to standalone wall endpoints
+        for (const w of walls) {
+          for (const v of w.points) {
+            const d = Math.hypot(v.x - p.x, v.y - p.y);
+            if (d < bestDist && d < snap.gridSize * 2) { bestDist = d; best = v; }
+          }
+        }
         for (const v of drawPoints) {
           const d = Math.hypot(v.x - p.x, v.y - p.y);
           if (d < bestDist && d < snap.gridSize * 2) { bestDist = d; best = v; }
@@ -178,6 +236,16 @@ export function FloorCanvas({
             if (d < bestDist && d < snap.gridSize * 2) { bestDist = d; best = mid; }
           }
         }
+        // Standalone wall midpoints
+        for (const w of walls) {
+          for (let i = 0; i < w.points.length - 1; i++) {
+            const a = w.points[i]!;
+            const b = w.points[i + 1]!;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const d = Math.hypot(mid.x - p.x, mid.y - p.y);
+            if (d < bestDist && d < snap.gridSize * 2) { bestDist = d; best = mid; }
+          }
+        }
       }
 
       if (snap.modes.includes("grid") && bestDist === Infinity) {
@@ -187,7 +255,7 @@ export function FloorCanvas({
 
       return best;
     },
-    [snap, rooms, drawPoints],
+    [snap, rooms, walls, drawPoints],
   );
 
   // Cancel drawing on tool change / Escape
@@ -343,12 +411,13 @@ export function FloorCanvas({
     }
 
     if (tool === "draw_wall") {
-      // Wall tool: draw wall segments. Closing back to start → create room.
-      if (drawPoints.length >= 3) {
+      // Wall tool: always creates standalone walls, never rooms.
+      // Close on loop (snap back to first point) or continue adding points.
+      if (drawPoints.length >= 2) {
         const first = drawPoints[0]!;
         if (Math.hypot(snapped.x - first.x, snapped.y - first.y) < snap.gridSize * 1.5) {
-          // Closed loop → create room
-          onAddRoom([...drawPoints]);
+          // Closed loop → save as standalone wall (include closing segment back to start)
+          onAddWall?.([...drawPoints, drawPoints[0]!]);
           setDrawPoints([]);
           return;
         }
@@ -423,13 +492,8 @@ export function FloorCanvas({
       setDrawPoints([]);
     }
     if (tool === "draw_wall" && drawPoints.length >= 2) {
-      if (drawPoints.length >= 3) {
-        // 3+ points: create room from closed polygon
-        onAddRoom([...drawPoints]);
-      } else {
-        // 2 points: store as standalone wall
-        onAddWall?.([...drawPoints]);
-      }
+      // Always save as standalone wall
+      onAddWall?.([...drawPoints]);
       setDrawPoints([]);
     }
   }, [tool, drawPoints, onAddRoom, onAddWall]);
@@ -575,7 +639,7 @@ export function FloorCanvas({
               });
             })}
 
-            {/* Standalone walls (not part of rooms) — rendered with layer composition */}
+            {/* Standalone walls (not part of rooms) — rendered with layer composition + mitered corners */}
             {walls.map((wall) => {
               if (wall.points.length < 2) return null;
               const isSelected = selection?.type === "standalone_wall" && selection.wallId === wall.id;
@@ -583,65 +647,76 @@ export function FloorCanvas({
                 if (tool === "select") { e.cancelBubble = true; onSelect({ type: "standalone_wall", wallId: wall.id }); }
               };
 
-              // For each segment, compute perpendicular offset for layer rendering
+              // Alignment offset: shift layers so the drawn line is at the correct face
+              const alignOffset = wall.alignment === "exterior" ? -WALL_THICKNESS_MM
+                : wall.alignment === "interior" ? 0
+                : -WALL_THICKNESS_MM / 2;
+
+              // Pre-compute offset polylines for each layer boundary (with mitered corners)
+              const layerPolylines = WALL_LAYER_OFFSETS.map((d) =>
+                offsetPolyline(wall.points, d + alignOffset),
+              );
+
+              const nPts = wall.points.length;
+              const innerLine = layerPolylines[0]!;
+              const outerLine = layerPolylines[layerPolylines.length - 1]!;
+
               return (
                 <Group key={`sw-${wall.id}`}>
-                  {wall.points.slice(0, -1).map((p, si) => {
-                    const q = wall.points[si + 1]!;
-                    const dx = q.x - p.x;
-                    const dy = q.y - p.y;
-                    const len = Math.hypot(dx, dy);
-                    if (len < 1) return null;
-                    // Normal perpendicular to wall segment
-                    const nx = -dy / len;
-                    const ny = dx / len;
-
-                    return (
-                      <Group key={`seg-${si}`}>
-                        {WALL_LAYERS.map((layer, li) => {
-                          const d0 = WALL_LAYER_OFFSETS[li]! - WALL_THICKNESS_MM / 2;
-                          const d1 = WALL_LAYER_OFFSETS[li + 1]! - WALL_THICKNESS_MM / 2;
-                          const pts = [
-                            p.x + nx * d0, p.y + ny * d0,
-                            q.x + nx * d0, q.y + ny * d0,
-                            q.x + nx * d1, q.y + ny * d1,
-                            p.x + nx * d1, p.y + ny * d1,
-                          ];
-                          return (
-                            <Line
-                              key={`layer-${li}`}
-                              points={pts}
-                              closed
-                              fill={isSelected ? "#fbbf24" : layer.color}
-                              stroke={isSelected ? "#d97706" : "#a8a29e"}
-                              strokeWidth={Math.max(10, 0.5 / zoom)}
-                              hitStrokeWidth={li === 0 ? Math.max(WALL_THICKNESS_MM, 400) : 0}
-                              onClick={wallClick}
-                            />
-                          );
-                        })}
-                        {/* Outer edges */}
-                        <Line
-                          points={[
-                            p.x + nx * (WALL_THICKNESS_MM / 2), p.y + ny * (WALL_THICKNESS_MM / 2),
-                            q.x + nx * (WALL_THICKNESS_MM / 2), q.y + ny * (WALL_THICKNESS_MM / 2),
-                          ]}
-                          stroke={isSelected ? "#d97706" : "#1c1917"}
-                          strokeWidth={Math.max(20, 0.8 / zoom)}
-                          listening={false}
-                        />
-                        <Line
-                          points={[
-                            p.x - nx * (WALL_THICKNESS_MM / 2), p.y - ny * (WALL_THICKNESS_MM / 2),
-                            q.x - nx * (WALL_THICKNESS_MM / 2), q.y - ny * (WALL_THICKNESS_MM / 2),
-                          ]}
-                          stroke={isSelected ? "#d97706" : "#1c1917"}
-                          strokeWidth={Math.max(20, 0.8 / zoom)}
-                          listening={false}
-                        />
-                      </Group>
-                    );
-                  })}
+                  {/* Layer quads per segment */}
+                  {Array.from({ length: nPts - 1 }, (_, si) => (
+                    <Group key={`seg-${si}`}>
+                      {WALL_LAYERS.map((layer, li) => {
+                        const inner = layerPolylines[li]!;
+                        const outer = layerPolylines[li + 1]!;
+                        const pts = [
+                          inner[si]!.x, inner[si]!.y,
+                          inner[si + 1]!.x, inner[si + 1]!.y,
+                          outer[si + 1]!.x, outer[si + 1]!.y,
+                          outer[si]!.x, outer[si]!.y,
+                        ];
+                        return (
+                          <Line
+                            key={`layer-${li}`}
+                            points={pts}
+                            closed
+                            fill={isSelected ? "#fbbf24" : layer.color}
+                            stroke={isSelected ? "#d97706" : "#a8a29e"}
+                            strokeWidth={Math.max(10, 0.5 / zoom)}
+                            hitStrokeWidth={li === 0 ? Math.max(WALL_THICKNESS_MM, 400) : 0}
+                            onClick={wallClick}
+                          />
+                        );
+                      })}
+                    </Group>
+                  ))}
+                  {/* Outer edge polyline */}
+                  <Line
+                    points={outerLine.flatMap((p) => [p.x, p.y])}
+                    stroke={isSelected ? "#d97706" : "#1c1917"}
+                    strokeWidth={Math.max(20, 0.8 / zoom)}
+                    listening={false}
+                  />
+                  {/* Inner edge polyline */}
+                  <Line
+                    points={innerLine.flatMap((p) => [p.x, p.y])}
+                    stroke={isSelected ? "#d97706" : "#1c1917"}
+                    strokeWidth={Math.max(20, 0.8 / zoom)}
+                    listening={false}
+                  />
+                  {/* End caps */}
+                  <Line
+                    points={[innerLine[0]!.x, innerLine[0]!.y, outerLine[0]!.x, outerLine[0]!.y]}
+                    stroke={isSelected ? "#d97706" : "#1c1917"}
+                    strokeWidth={Math.max(20, 0.8 / zoom)}
+                    listening={false}
+                  />
+                  <Line
+                    points={[innerLine[nPts - 1]!.x, innerLine[nPts - 1]!.y, outerLine[nPts - 1]!.x, outerLine[nPts - 1]!.y]}
+                    stroke={isSelected ? "#d97706" : "#1c1917"}
+                    strokeWidth={Math.max(20, 0.8 / zoom)}
+                    listening={false}
+                  />
                 </Group>
               );
             })}

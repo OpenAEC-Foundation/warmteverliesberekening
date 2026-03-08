@@ -27,6 +27,7 @@ export type {
   ModelWindow,
   ModelDoor,
   ModelWall,
+  WallAlignment,
   ModellerTool,
   ViewMode,
   SnapMode,

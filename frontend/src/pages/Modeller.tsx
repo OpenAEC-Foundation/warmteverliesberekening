@@ -9,6 +9,7 @@ import {
 import { Ribbon } from "../components/modeller/Ribbon";
 import { useModellerStore } from "../components/modeller/modellerStore";
 import type { ModellerTool, Point2D, Selection, SnapSettings, ViewMode } from "../components/modeller";
+import type { WallAlignment } from "../components/modeller/types";
 import { useToastStore } from "../store/toastStore";
 import { useCatalogueStore } from "../store/catalogueStore";
 
@@ -18,6 +19,7 @@ export function Modeller() {
   const [activeFloor, setActiveFloor] = useState(0);
   const [selection, setSelection] = useState<Selection>(null);
   const [snap, setSnap] = useState<SnapSettings>(DEFAULT_SNAP_SETTINGS);
+  const [wallAlignment, setWallAlignment] = useState<WallAlignment>("exterior");
   const addToast = useToastStore((s) => s.addToast);
 
   // Store
@@ -29,6 +31,7 @@ export function Modeller() {
   const wallConstructions = useModellerStore((s) => s.wallConstructions);
   const floorConstructions = useModellerStore((s) => s.floorConstructions);
   const roofConstructions = useModellerStore((s) => s.roofConstructions);
+  const standaloneWallConstructions = useModellerStore((s) => s.standaloneWallConstructions);
 
   const addRoom = useModellerStore((s) => s.addRoom);
   const updateRoom = useModellerStore((s) => s.updateRoom);
@@ -38,11 +41,13 @@ export function Modeller() {
   const removeWindow = useModellerStore((s) => s.removeWindow);
   const addDoor = useModellerStore((s) => s.addDoor);
   const addWall = useModellerStore((s) => s.addWall);
+  const updateWall = useModellerStore((s) => s.updateWall);
   const removeWall = useModellerStore((s) => s.removeWall);
   const setUnderlay = useModellerStore((s) => s.setUnderlay);
   const assignWallConstruction = useModellerStore((s) => s.assignWallConstruction);
   const assignFloorConstruction = useModellerStore((s) => s.assignFloorConstruction);
   const assignRoofConstruction = useModellerStore((s) => s.assignRoofConstruction);
+  const assignStandaloneWallConstruction = useModellerStore((s) => s.assignStandaloneWallConstruction);
   const undo = useModellerStore((s) => s.undo);
   const redo = useModellerStore((s) => s.redo);
 
@@ -108,10 +113,10 @@ export function Modeller() {
 
   const handleAddWall = useCallback(
     (points: Point2D[]) => {
-      addWall({ points, floor: activeFloor });
+      addWall({ points, floor: activeFloor, alignment: wallAlignment });
       addToast("Wand getekend", "success");
     },
-    [addWall, activeFloor, addToast],
+    [addWall, activeFloor, wallAlignment, addToast],
   );
 
   const handleRemoveWall = useCallback(
@@ -255,10 +260,12 @@ export function Modeller() {
         viewMode={viewMode}
         activeFloor={activeFloor}
         snap={snap}
+        wallAlignment={wallAlignment}
         onToolChange={setTool}
         onViewModeChange={setViewMode}
         onFloorChange={setActiveFloor}
         onSnapChange={setSnap}
+        onWallAlignmentChange={setWallAlignment}
         onFitView={handleFitView}
         onUndo={undo}
         onRedo={redo}
@@ -313,17 +320,22 @@ export function Modeller() {
           room={selectedRoom}
           rooms={floorRooms}
           windows={floorWindows}
+          walls={floorWalls}
           selection={selection}
           onUpdateRoom={updateRoom}
           onRemoveRoom={handleRemoveRoom}
+          onUpdateWall={updateWall}
+          onRemoveWall={handleRemoveWall}
           onUpdateWindow={handleUpdateWindow}
           onRemoveWindow={handleRemoveWindow}
           wallConstructions={wallConstructions}
           floorConstructions={floorConstructions}
           roofConstructions={roofConstructions}
+          standaloneWallConstructions={standaloneWallConstructions}
           onAssignWall={assignWallConstruction}
           onAssignFloor={assignFloorConstruction}
           onAssignRoof={assignRoofConstruction}
+          onAssignStandaloneWall={assignStandaloneWallConstruction}
         />
       </div>
     </div>
