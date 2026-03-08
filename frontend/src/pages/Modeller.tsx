@@ -328,9 +328,9 @@ export function Modeller() {
             />
           ) : (
             <FloorCanvas3D
-              rooms={floorRooms}
-              windows={floorWindows}
-              doors={floorDoors}
+              rooms={rooms}
+              windows={windows}
+              doors={doors}
               selection={selection}
               onSelect={setSelection}
               onDeleteRoom={handleRemoveRoom}

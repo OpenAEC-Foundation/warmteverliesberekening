@@ -102,7 +102,7 @@ export function segmentsShareEdge(
   a: Point2D, b: Point2D,
   c: Point2D, d: Point2D,
 ): boolean {
-  const eps = 1;
+  const eps = 50;
   const cross1 = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
   const cross2 = (b.x - a.x) * (d.y - a.y) - (b.y - a.y) * (d.x - a.x);
   if (Math.abs(cross1) > eps || Math.abs(cross2) > eps) return false;

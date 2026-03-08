@@ -108,6 +108,8 @@ export function FloorCanvas({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // Split room tool: stores first hit info between clicks
   const splitHitRef = useRef<{ roomId: string; wallIndex: number; offset: number }[] | null>(null);
+  // Dimension edit overlay
+  const [editingDim, setEditingDim] = useState<{ roomId: string; wallIndex: number; draft: string } | null>(null);
 
   // Panning
   const isPanningRef = useRef(false);
@@ -570,7 +572,7 @@ export function FloorCanvas({
               />
             ))}
 
-            {/* Room edges — exterior: solid dark, shared: dashed light */}
+            {/* Room edges — exterior: solid dark, shared: thin light gray */}
             {rooms.map((room) =>
               room.polygon.map((_, wi) => {
                 const ni = (wi + 1) % room.polygon.length;
@@ -584,10 +586,9 @@ export function FloorCanvas({
                   <Line
                     key={`wall-${room.id}-${wi}`}
                     points={[a.x, a.y, b.x, b.y]}
-                    stroke={isWallSelected ? "#d97706" : isShared ? "#a8a29e" : "#1c1917"}
+                    stroke={isWallSelected ? "#d97706" : isShared ? "#d6d3d1" : "#1c1917"}
                     strokeWidth={isShared ? Math.max(40, 1 / zoom) : Math.max(80, 2 / zoom)}
                     hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
-                    dash={isShared ? [200, 150] : undefined}
                     onClick={(e) => {
                       if (tool === "select") { e.cancelBubble = true; onSelect({ type: "wall", roomId: room.id, wallIndex: wi }); }
                     }}
@@ -674,7 +675,14 @@ export function FloorCanvas({
             {/* Dimension annotations on selected room */}
             {selectedRoomId && (() => {
               const sel = rooms.find((r) => r.id === selectedRoomId);
-              return sel ? <DimensionAnnotations room={sel} invZoom={invZoom} onSelectWall={(wallIndex) => onSelect({ type: "wall", roomId: selectedRoomId, wallIndex })} /> : null;
+              return sel ? <DimensionAnnotations room={sel} invZoom={invZoom} onSelectWall={(wallIndex) => onSelect({ type: "wall", roomId: selectedRoomId, wallIndex })} onStartEdit={(wallIndex) => {
+                const r = rooms.find((r) => r.id === selectedRoomId);
+                if (!r) return;
+                const a = r.polygon[wallIndex]!;
+                const b = r.polygon[(wallIndex + 1) % r.polygon.length]!;
+                const len = Math.hypot(b.x - a.x, b.y - a.y);
+                setEditingDim({ roomId: selectedRoomId, wallIndex, draft: (len / 1000).toFixed(2) });
+              }} /> : null;
             })()}
 
             {/* Vertex grips on selected room */}
@@ -878,6 +886,50 @@ export function FloorCanvas({
       <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white">
         1:{Math.round(1000 / (zoom * 1000))}
       </div>
+
+      {/* Dimension edit overlay */}
+      {editingDim && (() => {
+        const room = rooms.find((r) => r.id === editingDim.roomId);
+        if (!room) return null;
+        const a = room.polygon[editingDim.wallIndex]!;
+        const b = room.polygon[(editingDim.wallIndex + 1) % room.polygon.length]!;
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        // Convert world to screen
+        const sx = (mx - viewCenter.x) * zoom + size.width / 2;
+        const sy = (my - viewCenter.y) * zoom + size.height / 2;
+        return (
+          <div className="absolute z-30" style={{ left: sx - 40, top: sy - 14 }}>
+            <input
+              autoFocus
+              value={editingDim.draft}
+              onChange={(e) => setEditingDim({ ...editingDim, draft: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const newLen = parseFloat(editingDim.draft) * 1000;
+                  if (!isNaN(newLen) && newLen > 100 && room) {
+                    const oldA = room.polygon[editingDim.wallIndex]!;
+                    const oldB = room.polygon[(editingDim.wallIndex + 1) % room.polygon.length]!;
+                    const dx = oldB.x - oldA.x;
+                    const dy = oldB.y - oldA.y;
+                    const oldLen = Math.hypot(dx, dy);
+                    if (oldLen > 0) {
+                      const ux = dx / oldLen;
+                      const uy = dy / oldLen;
+                      const newB = { x: Math.round(oldA.x + ux * newLen), y: Math.round(oldA.y + uy * newLen) };
+                      onMoveVertex(editingDim.roomId, (editingDim.wallIndex + 1) % room.polygon.length, newB.x, newB.y);
+                    }
+                  }
+                  setEditingDim(null);
+                }
+                if (e.key === "Escape") setEditingDim(null);
+              }}
+              onBlur={() => setEditingDim(null)}
+              className="w-20 rounded border border-amber-400 bg-amber-50 px-1.5 py-0.5 text-center text-xs font-mono font-bold text-amber-800 outline-none shadow-lg"
+            />
+          </div>
+        );
+      })()}
 
       {/* Right-click context menu */}
       {ctxMenu && (
@@ -1183,7 +1235,7 @@ function RoomLabel({ room, invZoom, isSelected }: { room: ModelRoom; invZoom: nu
 }
 
 /** Dimension annotations on all edges of a room. */
-function DimensionAnnotations({ room, invZoom, onSelectWall }: { room: ModelRoom; invZoom: number; onSelectWall?: (wallIndex: number) => void }) {
+function DimensionAnnotations({ room, invZoom, onSelectWall, onStartEdit }: { room: ModelRoom; invZoom: number; onSelectWall?: (wallIndex: number) => void; onStartEdit?: (wallIndex: number) => void }) {
   const poly = room.polygon;
   const n = poly.length;
 
@@ -1203,7 +1255,7 @@ function DimensionAnnotations({ room, invZoom, onSelectWall }: { room: ModelRoom
         const ny = Math.sin(angle - Math.PI / 2) * off;
 
         return (
-          <Group key={i} onClick={() => onSelectWall?.(i)} onTap={() => onSelectWall?.(i)}>
+          <Group key={i} onClick={() => { onSelectWall?.(i); onStartEdit?.(i); }} onTap={() => { onSelectWall?.(i); onStartEdit?.(i); }}>
             {/* Dimension line */}
             <Line
               points={[a.x + nx, a.y + ny, b.x + nx, b.y + ny]}
