@@ -32,6 +32,14 @@ export interface ModelDoor {
   swing: "left" | "right";
 }
 
+/** Standalone wall segment (not part of a room polygon). */
+export interface ModelWall {
+  id: string;
+  /** Polyline of two or more points defining the wall path. */
+  points: Point2D[];
+  floor: number;
+}
+
 // ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
@@ -63,6 +71,7 @@ export type Selection =
   | { type: "wall"; roomId: string; wallIndex: number }
   | { type: "window"; roomId: string; wallIndex: number; offset: number }
   | { type: "door"; roomId: string; wallIndex: number; offset: number }
+  | { type: "standalone_wall"; wallId: string }
   | null;
 
 // ---------------------------------------------------------------------------

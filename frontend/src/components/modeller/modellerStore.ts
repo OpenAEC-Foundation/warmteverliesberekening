@@ -7,7 +7,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { ModelRoom, ModelWindow, ModelDoor } from "./types";
+import type { ModelRoom, ModelWindow, ModelDoor, ModelWall } from "./types";
 import { EXAMPLE_ROOMS, EXAMPLE_WINDOWS } from "./exampleData";
 
 // ---------------------------------------------------------------------------
@@ -36,13 +36,15 @@ interface Snapshot {
   rooms: ModelRoom[];
   windows: ModelWindow[];
   doors: ModelDoor[];
+  walls: ModelWall[];
 }
 
-function takeSnapshot(state: { rooms: ModelRoom[]; windows: ModelWindow[]; doors: ModelDoor[] }): Snapshot {
+function takeSnapshot(state: { rooms: ModelRoom[]; windows: ModelWindow[]; doors: ModelDoor[]; walls: ModelWall[] }): Snapshot {
   return {
     rooms: structuredClone(state.rooms),
     windows: structuredClone(state.windows),
     doors: structuredClone(state.doors),
+    walls: structuredClone(state.walls),
   };
 }
 
@@ -57,6 +59,7 @@ interface ModellerStore {
   rooms: ModelRoom[];
   windows: ModelWindow[];
   doors: ModelDoor[];
+  walls: ModelWall[];
 
   // Underlay
   underlay: UnderlayImage | null;
@@ -83,6 +86,10 @@ interface ModellerStore {
   // Door CRUD
   addDoor: (door: ModelDoor) => void;
   removeDoor: (roomId: string, wallIndex: number, offset: number) => void;
+
+  // Standalone wall CRUD
+  addWall: (wall: Omit<ModelWall, "id">) => string;
+  removeWall: (id: string) => void;
 
   // Underlay
   setUnderlay: (underlay: UnderlayImage | null) => void;
@@ -133,6 +140,7 @@ export const useModellerStore = create<ModellerStore>()(
       rooms: [...EXAMPLE_ROOMS],
       windows: [...EXAMPLE_WINDOWS],
       doors: [],
+      walls: [],
       underlay: null,
       wallConstructions: {},
       floorConstructions: {},
@@ -220,6 +228,26 @@ export const useModellerStore = create<ModellerStore>()(
         });
       },
 
+      // -- Standalone walls --
+      addWall: (wall) => {
+        const state = get();
+        const id = `w${Date.now().toString(36)}`;
+        const newWall: ModelWall = { ...wall, id };
+        set({
+          ...pushUndo(state),
+          walls: [...state.walls, newWall],
+        });
+        return id;
+      },
+
+      removeWall: (id) => {
+        const state = get();
+        set({
+          ...pushUndo(state),
+          walls: state.walls.filter((w) => w.id !== id),
+        });
+      },
+
       // -- Underlay --
       setUnderlay: (underlay) => set({ underlay }),
       updateUnderlay: (updates) => {
@@ -265,6 +293,7 @@ export const useModellerStore = create<ModellerStore>()(
           rooms: prev.rooms,
           windows: prev.windows,
           doors: prev.doors,
+          walls: prev.walls,
           _past: state._past.slice(0, -1),
           _future: [...state._future, snap],
         });
@@ -279,6 +308,7 @@ export const useModellerStore = create<ModellerStore>()(
           rooms: next.rooms,
           windows: next.windows,
           doors: next.doors,
+          walls: next.walls,
           _past: [...state._past, snap],
           _future: state._future.slice(0, -1),
         });
@@ -292,6 +322,7 @@ export const useModellerStore = create<ModellerStore>()(
           rooms: [...EXAMPLE_ROOMS],
           windows: [...EXAMPLE_WINDOWS],
           doors: [],
+          walls: [],
           wallConstructions: {},
           floorConstructions: {},
           roofConstructions: {},
@@ -306,6 +337,7 @@ export const useModellerStore = create<ModellerStore>()(
         rooms: state.rooms,
         windows: state.windows,
         doors: state.doors,
+        walls: state.walls,
         underlay: state.underlay,
         wallConstructions: state.wallConstructions,
         floorConstructions: state.floorConstructions,

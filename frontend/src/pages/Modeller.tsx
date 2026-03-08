@@ -24,6 +24,7 @@ export function Modeller() {
   const rooms = useModellerStore((s) => s.rooms);
   const windows = useModellerStore((s) => s.windows);
   const doors = useModellerStore((s) => s.doors);
+  const walls = useModellerStore((s) => s.walls);
   const underlay = useModellerStore((s) => s.underlay);
   const wallConstructions = useModellerStore((s) => s.wallConstructions);
   const floorConstructions = useModellerStore((s) => s.floorConstructions);
@@ -36,6 +37,8 @@ export function Modeller() {
   const updateWindow = useModellerStore((s) => s.updateWindow);
   const removeWindow = useModellerStore((s) => s.removeWindow);
   const addDoor = useModellerStore((s) => s.addDoor);
+  const addWall = useModellerStore((s) => s.addWall);
+  const removeWall = useModellerStore((s) => s.removeWall);
   const setUnderlay = useModellerStore((s) => s.setUnderlay);
   const assignWallConstruction = useModellerStore((s) => s.assignWallConstruction);
   const assignFloorConstruction = useModellerStore((s) => s.assignFloorConstruction);
@@ -60,6 +63,7 @@ export function Modeller() {
   const floorRooms = useMemo(() => rooms.filter((r) => r.floor === activeFloor), [rooms, activeFloor]);
   const floorWindows = useMemo(() => windows.filter((w) => floorRooms.some((r) => r.id === w.roomId)), [windows, floorRooms]);
   const floorDoors = useMemo(() => doors.filter((d) => floorRooms.some((r) => r.id === d.roomId)), [doors, floorRooms]);
+  const floorWalls = useMemo(() => walls.filter((w) => w.floor === activeFloor), [walls, activeFloor]);
 
   // Selected room (for properties panel)
   const selectedRoomId = selection?.type === "room" ? selection.roomId
@@ -100,6 +104,22 @@ export function Modeller() {
       addToast("Deur geplaatst", "success");
     },
     [addDoor, addToast],
+  );
+
+  const handleAddWall = useCallback(
+    (points: Point2D[]) => {
+      addWall({ points, floor: activeFloor });
+      addToast("Wand getekend", "success");
+    },
+    [addWall, activeFloor, addToast],
+  );
+
+  const handleRemoveWall = useCallback(
+    (id: string) => {
+      removeWall(id);
+      addToast("Wand verwijderd", "info");
+    },
+    [removeWall, addToast],
   );
 
   const handleMoveRoom = useCallback(
@@ -266,10 +286,13 @@ export function Modeller() {
               onAddWindow={handleAddWindow}
               onAddDoor={handleAddDoor}
               onMoveRoom={handleMoveRoom}
+              walls={floorWalls}
               onMoveVertex={handleMoveVertex}
               onUpdateWindow={handleUpdateWindow}
               onRemoveRoom={handleRemoveRoom}
               onRemoveWindow={handleRemoveWindow}
+              onAddWall={handleAddWall}
+              onRemoveWall={handleRemoveWall}
               fitViewTrigger={fitViewTrigger}
             />
           </div>

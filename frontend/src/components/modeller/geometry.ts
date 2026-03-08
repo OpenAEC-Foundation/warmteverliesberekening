@@ -1,5 +1,5 @@
 /** Shared geometry helpers for the modeller. */
-import type { Point2D } from "./types";
+import type { ModelRoom, Point2D } from "./types";
 
 export function polygonCenter(polygon: Point2D[]): Point2D {
   const n = polygon.length;
@@ -116,4 +116,33 @@ export function segmentsShareEdge(
     : [Math.min(c.y, d.y), Math.max(c.y, d.y)];
 
   return Math.min(b1, d1) - Math.max(a1, c1) > eps;
+}
+
+/**
+ * Compute shared wall edges between rooms.
+ * Returns a Set of "roomId:wallIndex" keys for edges shared with another room.
+ */
+export function getSharedEdges(rooms: ModelRoom[]): Set<string> {
+  const shared = new Set<string>();
+  for (let i = 0; i < rooms.length; i++) {
+    const ri = rooms[i]!;
+    const ni = ri.polygon.length;
+    for (let wi = 0; wi < ni; wi++) {
+      const a = ri.polygon[wi]!;
+      const b = ri.polygon[(wi + 1) % ni]!;
+      for (let j = i + 1; j < rooms.length; j++) {
+        const rj = rooms[j]!;
+        const nj = rj.polygon.length;
+        for (let wj = 0; wj < nj; wj++) {
+          const c = rj.polygon[wj]!;
+          const d = rj.polygon[(wj + 1) % nj]!;
+          if (segmentsShareEdge(a, b, c, d)) {
+            shared.add(`${ri.id}:${wi}`);
+            shared.add(`${rj.id}:${wj}`);
+          }
+        }
+      }
+    }
+  }
+  return shared;
 }

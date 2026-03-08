@@ -13,7 +13,7 @@ import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 
 import type { ModelRoom, ModelWindow, ModelDoor, Point2D } from "./types";
-import { polygonCenter, offsetPolygon } from "./geometry";
+import { polygonCenter, offsetPolygon, getSharedEdges } from "./geometry";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -237,6 +237,8 @@ export function FloorCanvas3D({
     clearGroup(group);
     roomMeshMapRef.current.clear();
 
+    const sharedEdges = getSharedEdges(rooms);
+
     for (const room of rooms) {
       const isSelected = room.id === selectedRoomId;
       const floorY = room.floor * (room.height / 1000 + 0.3);
@@ -294,7 +296,48 @@ export function FloorCanvas3D({
         const edgeLen = Math.hypot(poly[ni]!.x - poly[i]!.x, poly[ni]!.y - poly[i]!.y);
         if (edgeLen < 1) continue;
         const wallLenM = edgeLen / 1000;
+        const isShared = sharedEdges.has(`${room.id}:${i}`);
 
+        if (isShared) {
+          // Shared (interior) wall: render a thin partition (single layer, 60mm)
+          const partThick = 60; // mm
+          const innerOff = offsetPolygon(poly, 0);
+          const outerOff = offsetPolygon(poly, partThick);
+          const iStart = { x: innerOff[i]!.x / 1000, z: innerOff[i]!.y / 1000 };
+          const iEnd = { x: innerOff[ni]!.x / 1000, z: innerOff[ni]!.y / 1000 };
+          const oStart = { x: outerOff[i]!.x / 1000, z: outerOff[ni]!.y / 1000 };
+          const oEnd = { x: outerOff[ni]!.x / 1000, z: outerOff[ni]!.y / 1000 };
+
+          // Openings on this wall
+          const openings: Opening[] = [];
+          for (const dr of roomDoors) {
+            if (dr.wallIndex % n !== i) continue;
+            openings.push({
+              start: (dr.offset - dr.width / 2) / 1000,
+              end: (dr.offset + dr.width / 2) / 1000,
+              sillH: 0,
+              headH: Math.min(DOOR_HEAD_H, h),
+            });
+          }
+          openings.sort((a, b) => a.start - b.start);
+          const pieces = computeWallPieces(wallLenM, h, openings);
+
+          for (const piece of pieces) {
+            const geom = createWallPieceGeom(iStart, iEnd, oStart, oEnd, piece);
+            const mat = new THREE.MeshStandardMaterial({
+              color: 0xe8e5e0,
+              side: THREE.DoubleSide,
+              flatShading: true,
+              roughness: 0.85,
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.position.y = floorY;
+            group.add(mesh);
+          }
+          continue;
+        }
+
+        // Exterior wall: full multi-layer rendering
         // Openings on this wall
         const openings: Opening[] = [];
         for (const win of roomWindows) {

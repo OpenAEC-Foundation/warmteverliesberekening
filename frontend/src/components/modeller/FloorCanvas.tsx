@@ -8,8 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stage, Layer, Group, Line, Rect, Text, Shape, Circle } from "react-konva";
 import Konva from "konva";
 
-import type { ModelRoom, ModelWindow, ModelDoor, ModellerTool, Point2D, SnapSettings, Selection } from "./types";
-import { pointInPolygon, polygonArea, polygonCenter, offsetPolygon } from "./geometry";
+import type { ModelRoom, ModelWindow, ModelDoor, ModelWall, ModellerTool, Point2D, SnapSettings, Selection } from "./types";
+import { pointInPolygon, polygonArea, polygonCenter, offsetPolygon, getSharedEdges } from "./geometry";
 import type { UnderlayImage } from "./modellerStore";
 
 // ---------------------------------------------------------------------------
@@ -20,6 +20,7 @@ interface FloorCanvasProps {
   rooms: ModelRoom[];
   windows: ModelWindow[];
   doors: ModelDoor[];
+  walls?: ModelWall[];
   selection: Selection;
   tool: ModellerTool;
   snap: SnapSettings;
@@ -35,6 +36,8 @@ interface FloorCanvasProps {
   onUpdateWindow: (roomId: string, wallIndex: number, offset: number, updates: Partial<ModelWindow>) => void;
   onRemoveRoom?: (id: string) => void;
   onRemoveWindow?: (roomId: string, wallIndex: number, offset: number) => void;
+  onAddWall?: (points: Point2D[]) => void;
+  onRemoveWall?: (id: string) => void;
   /** Increment to trigger a fit-view zoom. */
   fitViewTrigger?: number;
 }
@@ -69,6 +72,7 @@ export function FloorCanvas({
   rooms,
   windows,
   doors,
+  walls = [],
   selection,
   tool,
   snap,
@@ -84,6 +88,8 @@ export function FloorCanvas({
   onUpdateWindow,
   onRemoveRoom,
   onRemoveWindow,
+  onAddWall,
+  onRemoveWall,
   fitViewTrigger = 0,
 }: FloorCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -170,9 +176,22 @@ export function FloorCanvas({
   );
 
   // Cancel drawing on tool change / Escape
-  useEffect(() => { setDrawPoints([]); setCursorWorld(null); setMeasurePoints([]); }, [tool]);
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setDrawPoints([]); };
+    // When switching away from wall tool with pending points, save as standalone wall
+    if (drawPoints.length >= 2 && onAddWall) {
+      onAddWall([...drawPoints]);
+    }
+    setDrawPoints([]); setCursorWorld(null); setMeasurePoints([]);
+  }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (tool === "draw_wall" && drawPoints.length >= 2 && onAddWall) {
+          onAddWall([...drawPoints]);
+        }
+        setDrawPoints([]);
+      }
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
@@ -295,10 +314,25 @@ export function FloorCanvas({
       return;
     }
 
-    if (tool === "draw_polygon" || tool === "draw_wall") {
+    if (tool === "draw_polygon") {
       if (drawPoints.length >= 3) {
         const first = drawPoints[0]!;
         if (Math.hypot(snapped.x - first.x, snapped.y - first.y) < snap.gridSize * 1.5) {
+          onAddRoom([...drawPoints]);
+          setDrawPoints([]);
+          return;
+        }
+      }
+      setDrawPoints([...drawPoints, snapped]);
+      return;
+    }
+
+    if (tool === "draw_wall") {
+      // Wall tool: draw wall segments. Closing back to start → create room.
+      if (drawPoints.length >= 3) {
+        const first = drawPoints[0]!;
+        if (Math.hypot(snapped.x - first.x, snapped.y - first.y) < snap.gridSize * 1.5) {
+          // Closed loop → create room
           onAddRoom([...drawPoints]);
           setDrawPoints([]);
           return;
@@ -369,17 +403,30 @@ export function FloorCanvas({
   }, [tool, drawPoints, rooms, screenToWorld, applySnap, snap.gridSize, onAddRoom, onAddWindow, onAddDoor, onSelect]);
 
   const handleDblClick = useCallback(() => {
-    if ((tool === "draw_polygon" || tool === "draw_wall") && drawPoints.length >= 3) {
+    if (tool === "draw_polygon" && drawPoints.length >= 3) {
       onAddRoom([...drawPoints]);
       setDrawPoints([]);
     }
-  }, [tool, drawPoints, onAddRoom]);
+    if (tool === "draw_wall" && drawPoints.length >= 2) {
+      if (drawPoints.length >= 3) {
+        // 3+ points: create room from closed polygon
+        onAddRoom([...drawPoints]);
+      } else {
+        // 2 points: store as standalone wall
+        onAddWall?.([...drawPoints]);
+      }
+      setDrawPoints([]);
+    }
+  }, [tool, drawPoints, onAddRoom, onAddWall]);
 
   // Wall thickness in mm, with minimum pixel width
   const wallStroke = Math.max(WALL_THICKNESS_MM, MIN_WALL_PX / zoom);
 
   // Inverse zoom for fixed-size screen elements
   const invZoom = 1 / zoom;
+
+  // Shared edges between rooms (interior walls — rendered as thin lines)
+  const sharedEdges = useMemo(() => getSharedEdges(rooms), [rooms]);
 
   // Selected room ID (for highlighting)
   const selectedRoomId = selection?.type === "room" ? selection.roomId
@@ -433,18 +480,36 @@ export function FloorCanvas({
               />
             ))}
 
-            {/* Thick walls (filled polygon between inner and outer edge) */}
+            {/* Thick walls — exterior walls get full thickness, shared (interior) walls get a thin line */}
             {rooms.map((room) => {
               const outerPoly = offsetPolygon(room.polygon, WALL_THICKNESS_MM);
               return room.polygon.map((_, wi) => {
                 const ni = (wi + 1) % room.polygon.length;
                 const isWallSelected = selection?.type === "wall"
                   && selection.roomId === room.id && selection.wallIndex === wi;
+                const isShared = sharedEdges.has(`${room.id}:${wi}`);
                 const a = room.polygon[wi]!;
                 const b = room.polygon[ni]!;
+
+                if (isShared) {
+                  // Interior shared wall: thin dividing line
+                  return (
+                    <Line
+                      key={`wall-${room.id}-${wi}`}
+                      points={[a.x, a.y, b.x, b.y]}
+                      stroke={isWallSelected ? "#d97706" : "#78716c"}
+                      strokeWidth={Math.max(60, 1 / zoom)}
+                      hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
+                      onClick={(e) => {
+                        if (tool === "select") { e.cancelBubble = true; onSelect({ type: "wall", roomId: room.id, wallIndex: wi }); }
+                      }}
+                    />
+                  );
+                }
+
+                // Exterior wall: thick filled quad
                 const oa = outerPoly[wi]!;
                 const ob = outerPoly[ni]!;
-                // Quad: inner_start, inner_end, outer_end, outer_start
                 const pts = [a.x, a.y, b.x, b.y, ob.x, ob.y, oa.x, oa.y];
                 return (
                   <Line
@@ -461,6 +526,27 @@ export function FloorCanvas({
                   />
                 );
               });
+            })}
+
+            {/* Standalone walls (not part of rooms) */}
+            {walls.map((wall) => {
+              if (wall.points.length < 2) return null;
+              const isSelected = selection?.type === "standalone_wall" && selection.wallId === wall.id;
+              const pts = wall.points.flatMap((p) => [p.x, p.y]);
+              return (
+                <Line
+                  key={`sw-${wall.id}`}
+                  points={pts}
+                  stroke={isSelected ? "#d97706" : "#1c1917"}
+                  strokeWidth={WALL_THICKNESS_MM}
+                  lineCap="square"
+                  lineJoin="miter"
+                  hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
+                  onClick={(e) => {
+                    if (tool === "select") { e.cancelBubble = true; onSelect({ type: "standalone_wall", wallId: wall.id }); }
+                  }}
+                />
+              );
             })}
 
             {/* Windows */}
@@ -735,6 +821,14 @@ export function FloorCanvas({
               onClick={() => { onRemoveRoom?.(selection.roomId); setCtxMenu(null); }}
             >
               Verwijder ruimte
+            </button>
+          )}
+          {selection?.type === "standalone_wall" && (
+            <button
+              className="w-full px-3 py-1.5 text-left hover:bg-stone-100 text-stone-700"
+              onClick={() => { onRemoveWall?.(selection.wallId); setCtxMenu(null); }}
+            >
+              Verwijder wand
             </button>
           )}
           {!selection && (
@@ -1283,8 +1377,9 @@ function getDrawingHint(tool: ModellerTool, pointCount: number): string {
     return "Klik om punt toe te voegen, dubbelklik of klik bij startpunt om te sluiten";
   }
   if (tool === "draw_wall") {
-    if (pointCount < 3) return `Klik om wandpunt ${pointCount + 1} te plaatsen`;
-    return "Klik om wand door te trekken, dubbelklik om af te sluiten";
+    if (pointCount === 0) return "Klik om wand te starten";
+    if (pointCount === 1) return "Klik om wandsegment te plaatsen";
+    return "Klik om door te gaan, dubbelklik/Escape om te bevestigen, klik bij startpunt om te sluiten";
   }
   if (tool === "draw_circle") return pointCount === 0 ? "Klik om middelpunt te plaatsen" : "Klik om straal in te stellen";
   if (tool === "draw_window") return "Klik op een wand om een raam te plaatsen";
