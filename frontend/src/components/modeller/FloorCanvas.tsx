@@ -36,6 +36,8 @@ interface FloorCanvasProps {
   onRemoveRoom?: (id: string) => void;
   onRemoveWindow?: (roomId: string, wallIndex: number, offset: number) => void;
   onSplitRoom?: (roomId: string, edgeA: number, tA: number, edgeB: number, tB: number) => void;
+  /** Rooms from the floor below, rendered as ghost outlines. */
+  ghostRooms?: ModelRoom[];
   /** Increment to trigger a fit-view zoom. */
   fitViewTrigger?: number;
 }
@@ -86,6 +88,7 @@ export function FloorCanvas({
   onRemoveRoom,
   onRemoveWindow,
   onSplitRoom,
+  ghostRooms = [],
   fitViewTrigger = 0,
 }: FloorCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,8 +142,11 @@ export function FloorCanvas({
       let best = p;
       let bestDist = Infinity;
 
+      // Snap targets: active rooms + ghost rooms from floor below
+      const allSnapRooms = [...rooms, ...ghostRooms];
+
       if (snap.modes.includes("endpoint")) {
-        for (const room of rooms) {
+        for (const room of allSnapRooms) {
           for (const v of room.polygon) {
             const d = Math.hypot(v.x - p.x, v.y - p.y);
             if (d < bestDist && d < snap.gridSize * 2) { bestDist = d; best = v; }
@@ -153,7 +159,7 @@ export function FloorCanvas({
       }
 
       if (snap.modes.includes("midpoint")) {
-        for (const room of rooms) {
+        for (const room of allSnapRooms) {
           const poly = room.polygon;
           for (let i = 0; i < poly.length; i++) {
             const a = poly[i]!;
@@ -172,7 +178,7 @@ export function FloorCanvas({
 
       return best;
     },
-    [snap, rooms, drawPoints],
+    [snap, rooms, ghostRooms, drawPoints],
   );
 
   // Cancel drawing on tool change / Escape
@@ -516,6 +522,42 @@ export function FloorCanvas({
               <UnderlayShape ul={underlay} img={underlayImg} />
             )}
 
+            {/* Ghost rooms from floor below */}
+            {ghostRooms.map((room) => {
+              const flatPts = room.polygon.flatMap((p) => [p.x, p.y]);
+              return (
+                <Group key={`ghost-${room.id}`} listening={false}>
+                  <Line points={flatPts} closed fill="#f5f5f4" opacity={0.3} />
+                  {room.polygon.map((_, gi) => {
+                    const ni = (gi + 1) % room.polygon.length;
+                    const a = room.polygon[gi]!;
+                    const b = room.polygon[ni]!;
+                    return (
+                      <Line
+                        key={`ghost-wall-${room.id}-${gi}`}
+                        points={[a.x, a.y, b.x, b.y]}
+                        stroke="#d6d3d1"
+                        strokeWidth={Math.max(40, 1 / zoom)}
+                        dash={[200, 150]}
+                      />
+                    );
+                  })}
+                  <Text
+                    x={polygonCenter(room.polygon).x}
+                    y={polygonCenter(room.polygon).y}
+                    text={room.name}
+                    fontSize={9 * invZoom}
+                    fontFamily="Inter, system-ui, sans-serif"
+                    fill="#d6d3d1"
+                    align="center"
+                    offsetX={30 * invZoom}
+                    width={60 * invZoom}
+                    listening={false}
+                  />
+                </Group>
+              );
+            })}
+
             {/* Room fills */}
             {rooms.map((room) => (
               <RoomFill
@@ -632,7 +674,7 @@ export function FloorCanvas({
             {/* Dimension annotations on selected room */}
             {selectedRoomId && (() => {
               const sel = rooms.find((r) => r.id === selectedRoomId);
-              return sel ? <DimensionAnnotations room={sel} invZoom={invZoom} /> : null;
+              return sel ? <DimensionAnnotations room={sel} invZoom={invZoom} onSelectWall={(wallIndex) => onSelect({ type: "wall", roomId: selectedRoomId, wallIndex })} /> : null;
             })()}
 
             {/* Vertex grips on selected room */}
@@ -651,8 +693,8 @@ export function FloorCanvas({
                   draggable
                   hitStrokeWidth={10 * invZoom}
                   onDragEnd={(e) => {
-                    const nx = v.x + e.target.x();
-                    const ny = v.y + e.target.y();
+                    const nx = e.target.x();
+                    const ny = e.target.y();
                     e.target.position({ x: 0, y: 0 });
                     const snapped = applySnap({ x: nx, y: ny });
                     onMoveVertex(sel.id, vi, snapped.x, snapped.y);
@@ -1141,12 +1183,12 @@ function RoomLabel({ room, invZoom, isSelected }: { room: ModelRoom; invZoom: nu
 }
 
 /** Dimension annotations on all edges of a room. */
-function DimensionAnnotations({ room, invZoom }: { room: ModelRoom; invZoom: number }) {
+function DimensionAnnotations({ room, invZoom, onSelectWall }: { room: ModelRoom; invZoom: number; onSelectWall?: (wallIndex: number) => void }) {
   const poly = room.polygon;
   const n = poly.length;
 
   return (
-    <Group listening={false}>
+    <Group>
       {Array.from({ length: n }, (_, i) => {
         const a = poly[i]!;
         const b = poly[(i + 1) % n]!;
@@ -1161,13 +1203,14 @@ function DimensionAnnotations({ room, invZoom }: { room: ModelRoom; invZoom: num
         const ny = Math.sin(angle - Math.PI / 2) * off;
 
         return (
-          <Group key={i}>
+          <Group key={i} onClick={() => onSelectWall?.(i)} onTap={() => onSelectWall?.(i)}>
             {/* Dimension line */}
             <Line
               points={[a.x + nx, a.y + ny, b.x + nx, b.y + ny]}
               stroke="#d97706"
               strokeWidth={invZoom}
               opacity={0.6}
+              hitStrokeWidth={8 * invZoom}
             />
             {/* Ticks */}
             <Line

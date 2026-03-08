@@ -107,8 +107,8 @@ export function FloorCanvas3D({
   onSelect,
   onDeleteRoom,
   wallConstructions = {},
-  floorConstructions: _floorConstructions = {},
-  roofConstructions: _roofConstructions = {},
+  floorConstructions = {},
+  roofConstructions = {},
   catalogueUValues = {},
 }: FloorCanvas3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -275,6 +275,29 @@ export function FloorCanvas3D({
       const n = poly.length;
       const baseColor = FUNCTION_COLORS[room.function] ?? FUNCTION_COLORS.custom!;
 
+      // --- Floor surface ---
+      const floorColor = getSurfaceColor(renderMode, false, baseColor, floorConstructions[room.id], catalogueUValues);
+      const floorGeom = createPolygonGeometry(poly);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: floorColor, side: THREE.DoubleSide, transparent: true,
+        opacity: SURFACE_OPACITY, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+      });
+      const floorMesh = new THREE.Mesh(floorGeom, floorMat);
+      floorMesh.position.y = floorY + 0.005;
+      group.add(floorMesh);
+      surfaceMeshMapRef.current.set(floorMesh, { roomId: room.id, type: "floor" });
+
+      // --- Ceiling surface ---
+      const ceilColor = getSurfaceColor(renderMode, false, baseColor, roofConstructions[room.id], catalogueUValues);
+      const ceilGeom = createPolygonGeometry(poly);
+      const ceilMat = new THREE.MeshStandardMaterial({
+        color: ceilColor, side: THREE.DoubleSide, transparent: true, opacity: SURFACE_OPACITY,
+      });
+      const ceilMesh = new THREE.Mesh(ceilGeom, ceilMat);
+      ceilMesh.position.y = floorY + h;
+      group.add(ceilMesh);
+      surfaceMeshMapRef.current.set(ceilMesh, { roomId: room.id, type: "ceiling" });
+
       // --- Wall surfaces (one per polygon edge) ---
       const roomWindows = windows.filter((w) => w.roomId === room.id);
       const roomDoors = doors.filter((d) => d.roomId === room.id);
@@ -384,7 +407,7 @@ export function FloorCanvas3D({
       sprite.scale.set(2, 1, 1);
       group.add(sprite);
     }
-  }, [rooms, windows, doors, selectedRoomId, selectedWallIndex, renderMode, wallConstructions, catalogueUValues]);
+  }, [rooms, windows, doors, selectedRoomId, selectedWallIndex, renderMode, wallConstructions, floorConstructions, roofConstructions, catalogueUValues]);
 
   // -----------------------------------------------------------------------
   // Click handler (room selection)
@@ -713,6 +736,24 @@ function createWallSurfaceGeom(
   geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geom.setIndex(new THREE.BufferAttribute(indices, 1));
   geom.computeVertexNormals();
+  return geom;
+}
+
+// ---------------------------------------------------------------------------
+// Polygon geometry (floor / ceiling)
+// ---------------------------------------------------------------------------
+
+function createPolygonGeometry(polygon: { x: number; y: number }[]): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const p0 = polygon[0]!;
+  shape.moveTo(p0.x / 1000, -p0.y / 1000);
+  for (let i = 1; i < polygon.length; i++) {
+    const p = polygon[i]!;
+    shape.lineTo(p.x / 1000, -p.y / 1000);
+  }
+  shape.closePath();
+  const geom = new THREE.ShapeGeometry(shape);
+  geom.rotateX(-Math.PI / 2);
   return geom;
 }
 

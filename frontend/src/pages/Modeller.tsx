@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FloorCanvas,
   FloorCanvas3D,
+  PropertiesPanel,
   DEFAULT_SNAP_SETTINGS,
 } from "../components/modeller";
 import { Ribbon } from "../components/modeller/Ribbon";
@@ -65,6 +66,7 @@ export function Modeller() {
   const floorRooms = useMemo(() => rooms.filter((r) => r.floor === activeFloor), [rooms, activeFloor]);
   const floorWindows = useMemo(() => windows.filter((w) => floorRooms.some((r) => r.id === w.roomId)), [windows, floorRooms]);
   const floorDoors = useMemo(() => doors.filter((d) => floorRooms.some((r) => r.id === d.roomId)), [doors, floorRooms]);
+  const belowFloorRooms = useMemo(() => activeFloor > 0 ? rooms.filter((r) => r.floor === activeFloor - 1) : [], [rooms, activeFloor]);
 
   // Selected room (for properties panel)
   const selectedRoomId = selection?.type === "room" ? selection.roomId
@@ -236,6 +238,8 @@ export function Modeller() {
       if (e.ctrlKey && e.key === "z") { e.preventDefault(); undo(); return; }
       if (e.ctrlKey && e.key === "y") { e.preventDefault(); redo(); return; }
 
+      if (e.key === "Escape") { setTool("select"); setSelection(null); return; }
+
       if (e.key === "Delete") {
         if (selection?.type === "room") { handleRemoveRoom(selection.roomId); return; }
         if (selection?.type === "window") { handleRemoveWindow(selection.roomId, selection.wallIndex, selection.offset); return; }
@@ -274,7 +278,29 @@ export function Modeller() {
       />
 
       <div className="flex min-h-0 flex-1">
-        {/* Canvas area with 2D/3D overlay */}
+        {/* Left: Project Browser */}
+        <ProjectBrowser
+          rooms={rooms}
+          floorRooms={floorRooms}
+          windows={windows}
+          selection={selection}
+          selectedRoom={selectedRoom}
+          activeFloor={activeFloor}
+          onFloorChange={setActiveFloor}
+          onSelect={setSelection}
+          onUpdateRoom={updateRoom}
+          onRemoveRoom={handleRemoveRoom}
+          onUpdateWindow={handleUpdateWindow}
+          onRemoveWindow={handleRemoveWindow}
+          wallConstructions={wallConstructions}
+          floorConstructions={floorConstructions}
+          roofConstructions={roofConstructions}
+          onAssignWall={assignWallConstruction}
+          onAssignFloor={assignFloorConstruction}
+          onAssignRoof={assignRoofConstruction}
+        />
+
+        {/* Center: Canvas area with 2D/3D overlay */}
         <div className="relative min-w-0 flex-1">
           {viewMode === "2d" ? (
             <FloorCanvas
@@ -287,6 +313,7 @@ export function Modeller() {
               underlay={underlay}
               wallConstructions={wallConstructions}
               catalogueUValues={catalogueUValues}
+              ghostRooms={belowFloorRooms}
               onSelect={setSelection}
               onAddRoom={handleAddRoom}
               onAddWindow={handleAddWindow}
@@ -335,16 +362,12 @@ export function Modeller() {
           </div>
         </div>
 
-        {/* Right panel: project browser + properties */}
-        <ProjectBrowser
-          rooms={rooms}
-          floorRooms={floorRooms}
-          windows={windows}
+        {/* Right: Properties Panel */}
+        <PropertiesPanel
+          room={selectedRoom}
+          rooms={floorRooms}
+          windows={floorWindows}
           selection={selection}
-          selectedRoom={selectedRoom}
-          activeFloor={activeFloor}
-          onFloorChange={setActiveFloor}
-          onSelect={setSelection}
           onUpdateRoom={updateRoom}
           onRemoveRoom={handleRemoveRoom}
           onUpdateWindow={handleUpdateWindow}
@@ -411,7 +434,7 @@ function ProjectBrowser({
   const catalogueEntries = useCatalogueStore((s) => s.entries);
 
   return (
-    <div className="w-64 shrink-0 overflow-y-auto border-l border-stone-200 bg-white text-xs">
+    <div className="w-64 shrink-0 overflow-y-auto border-r border-stone-200 bg-white text-xs">
       <div className="border-b border-stone-100 px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Project</span>
       </div>
