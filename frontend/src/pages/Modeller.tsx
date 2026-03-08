@@ -56,10 +56,10 @@ export function Modeller() {
   // Fit view trigger counter
   const [fitViewTrigger, setFitViewTrigger] = useState(0);
 
-  // Filter by floor
-  const floorRooms = rooms.filter((r) => r.floor === activeFloor);
-  const floorWindows = windows.filter((w) => floorRooms.some((r) => r.id === w.roomId));
-  const floorDoors = doors.filter((d) => floorRooms.some((r) => r.id === d.roomId));
+  // Filter by floor (memoized to prevent unnecessary 3D scene re-init)
+  const floorRooms = useMemo(() => rooms.filter((r) => r.floor === activeFloor), [rooms, activeFloor]);
+  const floorWindows = useMemo(() => windows.filter((w) => floorRooms.some((r) => r.id === w.roomId)), [windows, floorRooms]);
+  const floorDoors = useMemo(() => doors.filter((d) => floorRooms.some((r) => r.id === d.roomId)), [doors, floorRooms]);
 
   // Selected room (for properties panel)
   const selectedRoomId = selection?.type === "room" ? selection.roomId
@@ -268,6 +268,8 @@ export function Modeller() {
               onMoveRoom={handleMoveRoom}
               onMoveVertex={handleMoveVertex}
               onUpdateWindow={handleUpdateWindow}
+              onRemoveRoom={handleRemoveRoom}
+              onRemoveWindow={handleRemoveWindow}
               fitViewTrigger={fitViewTrigger}
             />
           </div>
@@ -279,6 +281,7 @@ export function Modeller() {
               doors={floorDoors}
               selectedRoomId={selectedRoomId}
               onSelectRoom={(id) => setSelection(id ? { type: "room", roomId: id } : null)}
+              onDeleteRoom={handleRemoveRoom}
             />
           </div>
         )}

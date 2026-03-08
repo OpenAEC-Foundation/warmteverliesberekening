@@ -11,16 +11,73 @@ export function polygonCenter(polygon: Point2D[]): Point2D {
 
 /** Shoelace formula — returns positive area in mm². */
 export function polygonArea(polygon: Point2D[]): number {
+  return Math.abs(signedPolygonArea(polygon));
+}
+
+/** Signed area (positive for CW in screen coords / Y-down). */
+export function signedPolygonArea(polygon: Point2D[]): number {
   let area = 0;
   const n = polygon.length;
   for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    const pi = polygon[i]!;
-    const pj = polygon[j]!;
-    area += pi.x * pj.y;
-    area -= pj.x * pi.y;
+    const a = polygon[i]!;
+    const b = polygon[(i + 1) % n]!;
+    area += a.x * b.y - b.x * a.y;
   }
-  return Math.abs(area) / 2;
+  return area / 2;
+}
+
+/**
+ * Offset a 2D polygon outward by `dist` mm.
+ * Uses mitered corners for clean joins.
+ */
+export function offsetPolygon(polygon: Point2D[], dist: number): Point2D[] {
+  const n = polygon.length;
+  const area = signedPolygonArea(polygon);
+  // CW in screen coords (area > 0): outward normal of edge (dx,dy) is (dy,-dx)/len
+  const sign = area > 0 ? 1 : -1;
+
+  const result: Point2D[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const prev = polygon[(i - 1 + n) % n]!;
+    const curr = polygon[i]!;
+    const next = polygon[(i + 1) % n]!;
+
+    const e1dx = curr.x - prev.x;
+    const e1dy = curr.y - prev.y;
+    const e1len = Math.hypot(e1dx, e1dy);
+
+    const e2dx = next.x - curr.x;
+    const e2dy = next.y - curr.y;
+    const e2len = Math.hypot(e2dx, e2dy);
+
+    if (e1len < 0.1 || e2len < 0.1) {
+      result.push({ x: curr.x, y: curr.y });
+      continue;
+    }
+
+    const n1x = sign * e1dy / e1len;
+    const n1y = sign * (-e1dx) / e1len;
+    const n2x = sign * e2dy / e2len;
+    const n2y = sign * (-e2dx) / e2len;
+
+    const mx = n1x + n2x;
+    const my = n1y + n2y;
+    const mlen = Math.hypot(mx, my);
+
+    if (mlen < 0.001) {
+      result.push({ x: curr.x + n1x * dist, y: curr.y + n1y * dist });
+    } else {
+      const dot = n1x * (mx / mlen) + n1y * (my / mlen);
+      const miterScale = Math.abs(dot) > 0.25 ? dist / dot : dist * 2;
+      result.push({
+        x: curr.x + (mx / mlen) * miterScale,
+        y: curr.y + (my / mlen) * miterScale,
+      });
+    }
+  }
+
+  return result;
 }
 
 /** Ray-casting point-in-polygon test. */

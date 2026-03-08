@@ -9,7 +9,7 @@ import { Stage, Layer, Group, Line, Rect, Text, Shape, Circle } from "react-konv
 import Konva from "konva";
 
 import type { ModelRoom, ModelWindow, ModelDoor, ModellerTool, Point2D, SnapSettings, Selection } from "./types";
-import { pointInPolygon, polygonArea, polygonCenter } from "./geometry";
+import { pointInPolygon, polygonArea, polygonCenter, offsetPolygon } from "./geometry";
 import type { UnderlayImage } from "./modellerStore";
 
 // ---------------------------------------------------------------------------
@@ -33,6 +33,8 @@ interface FloorCanvasProps {
   onMoveRoom: (roomId: string, dx: number, dy: number) => void;
   onMoveVertex: (roomId: string, vertexIndex: number, x: number, y: number) => void;
   onUpdateWindow: (roomId: string, wallIndex: number, offset: number, updates: Partial<ModelWindow>) => void;
+  onRemoveRoom?: (id: string) => void;
+  onRemoveWindow?: (roomId: string, wallIndex: number, offset: number) => void;
   /** Increment to trigger a fit-view zoom. */
   fitViewTrigger?: number;
 }
@@ -80,6 +82,8 @@ export function FloorCanvas({
   onMoveRoom,
   onMoveVertex,
   onUpdateWindow,
+  onRemoveRoom,
+  onRemoveWindow,
   fitViewTrigger = 0,
 }: FloorCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,6 +97,8 @@ export function FloorCanvas({
   const [cursorWorld, setCursorWorld] = useState<Point2D | null>(null);
   // Measure tool state
   const [measurePoints, setMeasurePoints] = useState<Point2D[]>([]);
+  // Context menu
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
 
   // Panning
   const isPanningRef = useRef(false);
@@ -262,6 +268,7 @@ export function FloorCanvas({
 
   // --- Stage click (background) ---
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    setCtxMenu(null);
     if (isPanningRef.current || e.evt.button !== 0) return;
 
     const stage = stageRef.current;
@@ -396,7 +403,10 @@ export function FloorCanvas({
         onMouseUp={handleMouseUp}
         onClick={handleStageClick}
         onDblClick={handleDblClick}
-        onContextMenu={(e) => e.evt.preventDefault()}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          setCtxMenu({ x: e.evt.clientX, y: e.evt.clientY });
+        }}
       >
         {/* Grid layer (screen coords) */}
         <Layer listening={false}>
@@ -423,24 +433,35 @@ export function FloorCanvas({
               />
             ))}
 
-            {/* Wall edges */}
-            {rooms.map((room) =>
-              room.polygon.map((_, wi) => {
+            {/* Thick walls (filled polygon between inner and outer edge) */}
+            {rooms.map((room) => {
+              const outerPoly = offsetPolygon(room.polygon, WALL_THICKNESS_MM);
+              return room.polygon.map((_, wi) => {
+                const ni = (wi + 1) % room.polygon.length;
                 const isWallSelected = selection?.type === "wall"
                   && selection.roomId === room.id && selection.wallIndex === wi;
+                const a = room.polygon[wi]!;
+                const b = room.polygon[ni]!;
+                const oa = outerPoly[wi]!;
+                const ob = outerPoly[ni]!;
+                // Quad: inner_start, inner_end, outer_end, outer_start
+                const pts = [a.x, a.y, b.x, b.y, ob.x, ob.y, oa.x, oa.y];
                 return (
-                  <WallEdge
+                  <Line
                     key={`wall-${room.id}-${wi}`}
-                    room={room}
-                    wallIndex={wi}
-                    strokeWidth={wallStroke}
-                    isSelected={isWallSelected}
-                    tool={tool}
-                    onSelect={() => onSelect({ type: "wall", roomId: room.id, wallIndex: wi })}
+                    points={pts}
+                    closed
+                    fill={isWallSelected ? "#fbbf24" : "#d6d3d1"}
+                    stroke={isWallSelected ? "#d97706" : "#1c1917"}
+                    strokeWidth={Math.max(30, 1 / zoom)}
+                    hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
+                    onClick={(e) => {
+                      if (tool === "select") { e.cancelBubble = true; onSelect({ type: "wall", roomId: room.id, wallIndex: wi }); }
+                    }}
                   />
                 );
-              }),
-            )}
+              });
+            })}
 
             {/* Windows */}
             {windows.map((win) => {
@@ -684,6 +705,43 @@ export function FloorCanvas({
       <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white">
         1:{Math.round(1000 / (zoom * 1000))}
       </div>
+
+      {/* Right-click context menu */}
+      {ctxMenu && (
+        <div
+          className="fixed z-50 min-w-[160px] rounded-lg bg-white/95 py-1 shadow-xl backdrop-blur-sm text-xs"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onClick={() => setCtxMenu(null)}
+        >
+          {selection?.type === "room" && (
+            <button
+              className="w-full px-3 py-1.5 text-left hover:bg-stone-100 text-stone-700"
+              onClick={() => { onRemoveRoom?.(selection.roomId); setCtxMenu(null); }}
+            >
+              Verwijder ruimte
+            </button>
+          )}
+          {selection?.type === "window" && (
+            <button
+              className="w-full px-3 py-1.5 text-left hover:bg-stone-100 text-stone-700"
+              onClick={() => { onRemoveWindow?.(selection.roomId, selection.wallIndex, selection.offset); setCtxMenu(null); }}
+            >
+              Verwijder raam
+            </button>
+          )}
+          {selection?.type === "wall" && (
+            <button
+              className="w-full px-3 py-1.5 text-left hover:bg-stone-100 text-stone-700"
+              onClick={() => { onRemoveRoom?.(selection.roomId); setCtxMenu(null); }}
+            >
+              Verwijder ruimte
+            </button>
+          )}
+          {!selection && (
+            <div className="px-3 py-1.5 text-stone-400 italic">Geen selectie</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -784,29 +842,6 @@ function RoomFill({ room, isSelected, tool, onSelect, onDragEnd }: {
   );
 }
 
-/** Single wall edge. Clickable for selection. */
-function WallEdge({ room, wallIndex, strokeWidth, isSelected, tool, onSelect }: {
-  room: ModelRoom; wallIndex: number; strokeWidth: number; isSelected: boolean; tool: ModellerTool;
-  onSelect: () => void;
-}) {
-  const poly = room.polygon;
-  const a = poly[wallIndex]!;
-  const b = poly[(wallIndex + 1) % poly.length]!;
-
-  return (
-    <Line
-      points={[a.x, a.y, b.x, b.y]}
-      stroke={isSelected ? "#d97706" : "#1c1917"}
-      strokeWidth={strokeWidth}
-      lineCap="square"
-      lineJoin="miter"
-      hitStrokeWidth={Math.max(strokeWidth, 400)} // generous hit area
-      onClick={(e) => {
-        if (tool === "select") { e.cancelBubble = true; onSelect(); }
-      }}
-    />
-  );
-}
 
 /** Window marker on a wall. Draggable along wall when selected. */
 function WindowMarker({ room, win, strokeWidth, isSelected, tool, onSelect, onDragAlongWall }: {

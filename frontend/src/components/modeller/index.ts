@@ -18,7 +18,7 @@ export { useModellerStore } from "./modellerStore";
 export type { UnderlayImage } from "./modellerStore";
 
 // Geometry helpers
-export { polygonArea, polygonCenter, pointInPolygon, segmentsShareEdge } from "./geometry";
+export { polygonArea, signedPolygonArea, polygonCenter, pointInPolygon, segmentsShareEdge, offsetPolygon } from "./geometry";
 
 // Types
 export type {
