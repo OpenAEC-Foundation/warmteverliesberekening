@@ -28,7 +28,22 @@
 - [ ] PDF rapport: complete rapportage conform ISSO format
 
 ## Roadmap — platform
-- [ ] 3D modeller: visueel model van het gebouw met vertrekken en constructies
+- [x] 2D modeller: canvas met pan/zoom, grid, ruimte-polygonen, wanden, ramen
+- [x] 3D modeller: ThatOpen viewer met geëxtrudeerde ruimtes, wanden, ramen
+- [x] Ribbon toolbar (Revit-stijl) met Model/Annotatie/Beeld/Invoegen tabs
+- [x] IFCX (IFC5 JSON) als intern bestandsformaat
+- [x] ISSO51 namespace extensies voor berekeningen in IFCX
+- [x] 3D: ramen vereenvoudigd, wanden bijna wit, vloeren gefixt
+- [x] Teken-functionaliteit: rechthoek/polygoon tekenen met snap + preview
+- [x] Raam plaatsen tool: klik op wand
+- [x] Constructiebibliotheek koppelen aan wanden/vloeren/daken (inline picker)
+- [x] Onderlegger import (afbeelding als achtergrond)
+- [x] Zustand store met undo/redo, bewerkbare eigenschappen
+- [ ] Ruimte verplaatsen/resizen + vertex editing
+- [ ] PDF onderlegger + DWG import
+- [ ] IFC import/export via ThatOpen IfcLoader
+- [ ] Schuine daken en dakkapellen
+- [ ] Modeller data ↔ project store synchronisatie
 - [ ] IFC/BIM import: constructies en vertrekken uit IFC-model halen
 - [ ] API voor derden: berekening als service voor andere tools
 - [ ] Multi-user: projecten delen, rollen (engineer/reviewer)

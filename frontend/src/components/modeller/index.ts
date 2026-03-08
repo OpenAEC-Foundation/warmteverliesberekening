@@ -13,6 +13,10 @@ export { ModellerToolbar } from "./ModellerToolbar";
 export { PropertiesPanel } from "./PropertiesPanel";
 export { Ribbon } from "./Ribbon";
 
+// Store
+export { useModellerStore } from "./modellerStore";
+export type { UnderlayImage } from "./modellerStore";
+
 // Geometry helpers
 export { polygonArea, polygonCenter, pointInPolygon, segmentsShareEdge } from "./geometry";
 

@@ -33,7 +33,7 @@ const FUNCTION_COLORS: Record<string, number> = {
   custom: 0xf3f4f6,
 };
 
-const WALL_COLOR = 0xd4d4d4;       // lichtgrijs
+const WALL_COLOR = 0xf0f0f0;       // bijna wit
 const WALL_THICKNESS = 0.2;         // meters
 const SELECTED_COLOR = 0xf59e0b;
 const WINDOW_COLOR = 0x60a5fa;      // blauw
@@ -218,34 +218,24 @@ export function FloorCanvas3D({
         wallMesh.position.y = floorY;
         group.add(wallMesh);
 
-        // Windows on this wall — rendered as blue blocks on the outer face
+        // Windows on this wall — simple transparent flat pane
         const wallWindows = windows.filter(
           (w) => w.roomId === room.id && w.wallIndex % n === i,
         );
         for (const win of wallWindows) {
-          const winGeom = createWindowGeometry(ax, az, bx, bz, win, nx, nz);
-          if (winGeom) {
-            // Glass pane (translucent blue)
+          const glassGeom = createWindowPane(ax, az, bx, bz, win, nx, nz);
+          if (glassGeom) {
             const glassMat = new THREE.MeshStandardMaterial({
               color: WINDOW_COLOR,
               transparent: true,
-              opacity: 0.45,
+              opacity: 0.35,
               side: THREE.DoubleSide,
               depthWrite: false,
             });
-            const glassMesh = new THREE.Mesh(winGeom.glass, glassMat);
+            const glassMesh = new THREE.Mesh(glassGeom, glassMat);
             glassMesh.position.y = floorY;
             glassMesh.renderOrder = 1;
             group.add(glassMesh);
-
-            // Frame (solid blue outline)
-            const frameMat = new THREE.MeshStandardMaterial({
-              color: WINDOW_COLOR,
-              roughness: 0.5,
-            });
-            const frameMesh = new THREE.Mesh(winGeom.frame, frameMat);
-            frameMesh.position.y = floorY;
-            group.add(frameMesh);
           }
         }
       }
@@ -307,12 +297,14 @@ export function FloorCanvas3D({
 // ---------------------------------------------------------------------------
 
 function createPolygonGeometry(polygon: Point2D[], _yOffset: number): THREE.BufferGeometry {
+  // Shape coords (x, y) map to 3D (x, 0, -y) after rotateX(-PI/2).
+  // Walls use az = p.y/1000 (positive), so negate y here to match.
   const shape = new THREE.Shape();
   const p0 = polygon[0]!;
-  shape.moveTo(p0.x / 1000, p0.y / 1000);
+  shape.moveTo(p0.x / 1000, -p0.y / 1000);
   for (let i = 1; i < polygon.length; i++) {
     const p = polygon[i]!;
-    shape.lineTo(p.x / 1000, p.y / 1000);
+    shape.lineTo(p.x / 1000, -p.y / 1000);
   }
   shape.closePath();
 
@@ -354,12 +346,13 @@ function createWallGeometry(
   return geom;
 }
 
-function createWindowGeometry(
+/** Simple flat quad for a window — centered in the wall, visible from both sides. */
+function createWindowPane(
   ax: number, az: number,
   bx: number, bz: number,
   win: ModelWindow,
   nx: number, nz: number,
-): { glass: THREE.BufferGeometry; frame: THREE.BufferGeometry } | null {
+): THREE.BufferGeometry | null {
   const dx = bx - ax;
   const dz = bz - az;
   const len = Math.sqrt(dx * dx + dz * dz);
@@ -367,125 +360,32 @@ function createWindowGeometry(
 
   const ux = dx / len;
   const uz = dz / len;
-  const t = WALL_THICKNESS;
 
   const offset = win.offset / 1000;
   const hw = win.width / 2000;
 
-  // Position on the outer face of the wall (offset by full thickness + tiny epsilon)
-  const outOff = t * 1.005;
-  const cx = ax + ux * offset + nx * outOff;
-  const cz = az + uz * offset + nz * outOff;
+  // Center of window on the wall mid-plane
+  const mid = WALL_THICKNESS * 0.5;
+  const cx = ax + ux * offset + nx * mid;
+  const cz = az + uz * offset + nz * mid;
 
   const sillH = 0.8;
   const headH = 2.0;
 
-  // Glass pane — flat quad on outer wall face
-  const glassVerts = new Float32Array([
+  const verts = new Float32Array([
     cx - ux * hw, sillH, cz - uz * hw,
     cx + ux * hw, sillH, cz + uz * hw,
     cx + ux * hw, headH, cz + uz * hw,
     cx - ux * hw, headH, cz - uz * hw,
   ]);
-  const glassIdx = new Uint16Array([0, 1, 2, 0, 2, 3, 2, 1, 0, 3, 2, 0]);
+  // Double-sided indices (CW + CCW)
+  const idx = new Uint16Array([0, 1, 2, 0, 2, 3, 2, 1, 0, 3, 2, 0]);
 
-  const glass = new THREE.BufferGeometry();
-  glass.setAttribute("position", new THREE.BufferAttribute(glassVerts, 3));
-  glass.setIndex(new THREE.BufferAttribute(glassIdx, 1));
-  glass.computeVertexNormals();
-
-  // Frame — thin box surrounding the window opening
-  const frameW = 0.05; // frame width in meters
-  const frameD = t * 0.5; // frame depth
-  const frame = createWindowFrame(
-    cx, cz, ux, uz, nx, nz,
-    hw, sillH, headH, frameW, frameD,
-  );
-
-  return { glass, frame };
-}
-
-function createWindowFrame(
-  cx: number, cz: number,
-  ux: number, uz: number,
-  _nx: number, _nz: number,
-  hw: number, sillH: number, headH: number,
-  fw: number, fd: number,
-): THREE.BufferGeometry {
-  const geoms: THREE.BufferGeometry[] = [];
-
-  // 4 frame members: top, bottom, left, right
-  const members = [
-    // Bottom sill
-    { ox: 0, oy: sillH, ohw: hw + fw, ohh: fw },
-    // Top head
-    { ox: 0, oy: headH, ohw: hw + fw, ohh: fw },
-    // Left jamb
-    { ox: -hw, oy: (sillH + headH) / 2, ohw: fw, ohh: (headH - sillH) / 2 },
-    // Right jamb
-    { ox: hw, oy: (sillH + headH) / 2, ohw: fw, ohh: (headH - sillH) / 2 },
-  ];
-
-  for (const m of members) {
-    const mcx = cx + ux * m.ox;
-    const mcz = cz + uz * m.ox;
-
-    // Small box centered on the frame member
-    const box = new THREE.BoxGeometry(1, 1, 1);
-    const matrix = new THREE.Matrix4();
-
-    // Scale: width along wall direction, height vertical, depth along normal
-    const scaleX = m.ohw * 2;
-    const scaleY = m.ohh * 2;
-    const scaleZ = fd;
-
-    // Rotation to align with wall
-    const angle = Math.atan2(ux, uz);
-
-    matrix.makeRotationY(angle);
-    matrix.scale(new THREE.Vector3(scaleX, scaleY, scaleZ));
-    matrix.setPosition(mcx, m.oy, mcz);
-
-    box.applyMatrix4(matrix);
-    geoms.push(box);
-  }
-
-  return mergeGeometries(geoms);
-}
-
-function mergeGeometries(geoms: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  let totalVerts = 0;
-  let totalIdx = 0;
-  for (const g of geoms) {
-    totalVerts += g.getAttribute("position").count;
-    totalIdx += g.index ? g.index.count : 0;
-  }
-
-  const positions = new Float32Array(totalVerts * 3);
-  const indices = new Uint32Array(totalIdx);
-  let vertOffset = 0;
-  let idxOffset = 0;
-
-  for (const g of geoms) {
-    const pos = g.getAttribute("position");
-    for (let i = 0; i < pos.count * 3; i++) {
-      positions[vertOffset * 3 + i] = (pos.array as Float32Array)[i]!;
-    }
-    if (g.index) {
-      for (let i = 0; i < g.index.count; i++) {
-        indices[idxOffset + i] = g.index.array[i]! + vertOffset;
-      }
-      idxOffset += g.index.count;
-    }
-    vertOffset += pos.count;
-    g.dispose();
-  }
-
-  const merged = new THREE.BufferGeometry();
-  merged.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  merged.setIndex(new THREE.BufferAttribute(indices, 1));
-  merged.computeVertexNormals();
-  return merged;
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(verts, 3));
+  geom.setIndex(new THREE.BufferAttribute(idx, 1));
+  geom.computeVertexNormals();
+  return geom;
 }
 
 function createLabelSprite(id: string, name: string, isSelected: boolean): THREE.Sprite {
