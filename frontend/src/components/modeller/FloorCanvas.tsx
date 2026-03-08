@@ -51,6 +51,21 @@ const DEFAULT_WINDOW_WIDTH = 1200;
 const DEFAULT_DOOR_WIDTH = 900;
 const MIN_WALL_PX = 3;
 
+/** Wall layer definitions (inner → outer), matching the 3D view. */
+const WALL_LAYERS = [
+  { thickness: 12,  color: "#f0ede8" },  // inner plaster
+  { thickness: 88,  color: "#e0ddd0" },  // structural inner leaf
+  { thickness: 50,  color: "#fef9c3" },  // insulation (pastel yellow)
+  { thickness: 10,  color: "#f0f0f0" },  // spouw (cavity)
+  { thickness: 40,  color: "#d6d0c8" },  // outer leaf
+];
+
+/** Cumulative offsets for layer boundaries (0, 12, 100, 150, 160, 200). */
+const WALL_LAYER_OFFSETS = WALL_LAYERS.reduce<number[]>(
+  (acc, l) => { acc.push(acc[acc.length - 1]! + l.thickness); return acc; },
+  [0],
+);
+
 const FUNCTION_COLORS: Record<string, string> = {
   living_room: "#fef3c7",
   kitchen: "#fef9c3",
@@ -480,9 +495,12 @@ export function FloorCanvas({
               />
             ))}
 
-            {/* Thick walls — exterior walls get full thickness, shared (interior) walls get a thin line */}
+            {/* Thick walls — exterior walls get layered composition, shared (interior) walls get a thin line */}
             {rooms.map((room) => {
-              const outerPoly = offsetPolygon(room.polygon, WALL_THICKNESS_MM);
+              // Pre-compute offset polygons for each layer boundary
+              const layerPolys = WALL_LAYER_OFFSETS.map((d) =>
+                d === 0 ? room.polygon : offsetPolygon(room.polygon, d),
+              );
               return room.polygon.map((_, wi) => {
                 const ni = (wi + 1) % room.polygon.length;
                 const isWallSelected = selection?.type === "wall"
@@ -507,45 +525,124 @@ export function FloorCanvas({
                   );
                 }
 
-                // Exterior wall: thick filled quad
-                const oa = outerPoly[wi]!;
-                const ob = outerPoly[ni]!;
-                const pts = [a.x, a.y, b.x, b.y, ob.x, ob.y, oa.x, oa.y];
+                // Exterior wall: multi-layer colored bands
+                const wallClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+                  if (tool === "select") { e.cancelBubble = true; onSelect({ type: "wall", roomId: room.id, wallIndex: wi }); }
+                };
+
                 return (
-                  <Line
-                    key={`wall-${room.id}-${wi}`}
-                    points={pts}
-                    closed
-                    fill={isWallSelected ? "#fbbf24" : "#d6d3d1"}
-                    stroke={isWallSelected ? "#d97706" : "#1c1917"}
-                    strokeWidth={Math.max(30, 1 / zoom)}
-                    hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
-                    onClick={(e) => {
-                      if (tool === "select") { e.cancelBubble = true; onSelect({ type: "wall", roomId: room.id, wallIndex: wi }); }
-                    }}
-                  />
+                  <Group key={`wall-${room.id}-${wi}`}>
+                    {WALL_LAYERS.map((layer, li) => {
+                      const innerPoly = layerPolys[li]!;
+                      const outerPoly = layerPolys[li + 1]!;
+                      const ia = innerPoly[wi]!;
+                      const ib = innerPoly[ni]!;
+                      const oa = outerPoly[wi]!;
+                      const ob = outerPoly[ni]!;
+                      const pts = [ia.x, ia.y, ib.x, ib.y, ob.x, ob.y, oa.x, oa.y];
+                      return (
+                        <Line
+                          key={`layer-${li}`}
+                          points={pts}
+                          closed
+                          fill={isWallSelected ? "#fbbf24" : layer.color}
+                          stroke={isWallSelected ? "#d97706" : "#a8a29e"}
+                          strokeWidth={Math.max(10, 0.5 / zoom)}
+                          hitStrokeWidth={li === 0 ? Math.max(WALL_THICKNESS_MM, 400) : 0}
+                          onClick={wallClick}
+                        />
+                      );
+                    })}
+                    {/* Outer edge (dark outline) */}
+                    <Line
+                      points={[
+                        layerPolys[layerPolys.length - 1]![wi]!.x, layerPolys[layerPolys.length - 1]![wi]!.y,
+                        layerPolys[layerPolys.length - 1]![ni]!.x, layerPolys[layerPolys.length - 1]![ni]!.y,
+                      ]}
+                      stroke={isWallSelected ? "#d97706" : "#1c1917"}
+                      strokeWidth={Math.max(20, 0.8 / zoom)}
+                      listening={false}
+                    />
+                    {/* Inner edge (dark outline) */}
+                    <Line
+                      points={[a.x, a.y, b.x, b.y]}
+                      stroke={isWallSelected ? "#d97706" : "#1c1917"}
+                      strokeWidth={Math.max(20, 0.8 / zoom)}
+                      listening={false}
+                    />
+                  </Group>
                 );
               });
             })}
 
-            {/* Standalone walls (not part of rooms) */}
+            {/* Standalone walls (not part of rooms) — rendered with layer composition */}
             {walls.map((wall) => {
               if (wall.points.length < 2) return null;
               const isSelected = selection?.type === "standalone_wall" && selection.wallId === wall.id;
-              const pts = wall.points.flatMap((p) => [p.x, p.y]);
+              const wallClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+                if (tool === "select") { e.cancelBubble = true; onSelect({ type: "standalone_wall", wallId: wall.id }); }
+              };
+
+              // For each segment, compute perpendicular offset for layer rendering
               return (
-                <Line
-                  key={`sw-${wall.id}`}
-                  points={pts}
-                  stroke={isSelected ? "#d97706" : "#1c1917"}
-                  strokeWidth={WALL_THICKNESS_MM}
-                  lineCap="square"
-                  lineJoin="miter"
-                  hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
-                  onClick={(e) => {
-                    if (tool === "select") { e.cancelBubble = true; onSelect({ type: "standalone_wall", wallId: wall.id }); }
-                  }}
-                />
+                <Group key={`sw-${wall.id}`}>
+                  {wall.points.slice(0, -1).map((p, si) => {
+                    const q = wall.points[si + 1]!;
+                    const dx = q.x - p.x;
+                    const dy = q.y - p.y;
+                    const len = Math.hypot(dx, dy);
+                    if (len < 1) return null;
+                    // Normal perpendicular to wall segment
+                    const nx = -dy / len;
+                    const ny = dx / len;
+
+                    return (
+                      <Group key={`seg-${si}`}>
+                        {WALL_LAYERS.map((layer, li) => {
+                          const d0 = WALL_LAYER_OFFSETS[li]! - WALL_THICKNESS_MM / 2;
+                          const d1 = WALL_LAYER_OFFSETS[li + 1]! - WALL_THICKNESS_MM / 2;
+                          const pts = [
+                            p.x + nx * d0, p.y + ny * d0,
+                            q.x + nx * d0, q.y + ny * d0,
+                            q.x + nx * d1, q.y + ny * d1,
+                            p.x + nx * d1, p.y + ny * d1,
+                          ];
+                          return (
+                            <Line
+                              key={`layer-${li}`}
+                              points={pts}
+                              closed
+                              fill={isSelected ? "#fbbf24" : layer.color}
+                              stroke={isSelected ? "#d97706" : "#a8a29e"}
+                              strokeWidth={Math.max(10, 0.5 / zoom)}
+                              hitStrokeWidth={li === 0 ? Math.max(WALL_THICKNESS_MM, 400) : 0}
+                              onClick={wallClick}
+                            />
+                          );
+                        })}
+                        {/* Outer edges */}
+                        <Line
+                          points={[
+                            p.x + nx * (WALL_THICKNESS_MM / 2), p.y + ny * (WALL_THICKNESS_MM / 2),
+                            q.x + nx * (WALL_THICKNESS_MM / 2), q.y + ny * (WALL_THICKNESS_MM / 2),
+                          ]}
+                          stroke={isSelected ? "#d97706" : "#1c1917"}
+                          strokeWidth={Math.max(20, 0.8 / zoom)}
+                          listening={false}
+                        />
+                        <Line
+                          points={[
+                            p.x - nx * (WALL_THICKNESS_MM / 2), p.y - ny * (WALL_THICKNESS_MM / 2),
+                            q.x - nx * (WALL_THICKNESS_MM / 2), q.y - ny * (WALL_THICKNESS_MM / 2),
+                          ]}
+                          stroke={isSelected ? "#d97706" : "#1c1917"}
+                          strokeWidth={Math.max(20, 0.8 / zoom)}
+                          listening={false}
+                        />
+                      </Group>
+                    );
+                  })}
+                </Group>
               );
             })}
 
