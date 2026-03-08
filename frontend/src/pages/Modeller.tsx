@@ -276,6 +276,7 @@ export function Modeller() {
             <FloorCanvas3D
               rooms={floorRooms}
               windows={floorWindows}
+              doors={floorDoors}
               selectedRoomId={selectedRoomId}
               onSelectRoom={(id) => setSelection(id ? { type: "room", roomId: id } : null)}
             />

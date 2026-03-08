@@ -1,8 +1,19 @@
+/**
+ * 3D building viewer using ThatOpen Components + Three.js.
+ *
+ * Features:
+ * - Multi-layer walls with mitered corner connections
+ * - Window and door openings cut into walls
+ * - Transparent glass panes in window openings
+ * - Floor slabs and semi-transparent ceiling/roof
+ * - Room labels as sprites
+ * - Click-to-select rooms
+ */
 import { useEffect, useRef, useMemo, useCallback } from "react";
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 
-import type { ModelRoom, ModelWindow, Point2D } from "./types";
+import type { ModelRoom, ModelWindow, ModelDoor, Point2D } from "./types";
 import { polygonCenter } from "./geometry";
 
 // ---------------------------------------------------------------------------
@@ -12,12 +23,29 @@ import { polygonCenter } from "./geometry";
 interface FloorCanvas3DProps {
   rooms: ModelRoom[];
   windows: ModelWindow[];
+  doors: ModelDoor[];
   selectedRoomId: string | null;
   onSelectRoom: (id: string | null) => void;
 }
 
 // ---------------------------------------------------------------------------
-// Color scheme
+// Wall layers (inner → outer, thicknesses in mm, total = 200mm)
+// ---------------------------------------------------------------------------
+
+interface WallLayer {
+  thickness: number; // mm
+  color: number;
+}
+
+const WALL_LAYERS: WallLayer[] = [
+  { thickness: 15,  color: 0xf2efea }, // inner plaster
+  { thickness: 140, color: 0xeae7e2 }, // structural
+  { thickness: 30,  color: 0xe0ddd8 }, // insulation
+  { thickness: 15,  color: 0xd8d5d0 }, // outer finish
+];
+
+// ---------------------------------------------------------------------------
+// Colors & constants
 // ---------------------------------------------------------------------------
 
 const FUNCTION_COLORS: Record<string, number> = {
@@ -33,13 +61,14 @@ const FUNCTION_COLORS: Record<string, number> = {
   custom: 0xf3f4f6,
 };
 
-const WALL_COLOR = 0xf0f0f0;       // bijna wit
-const WALL_THICKNESS = 0.2;         // meters
 const SELECTED_COLOR = 0xf59e0b;
-const WINDOW_COLOR = 0x60a5fa;      // blauw
-const ROOF_COLOR = 0xdc2626;        // rood
+const WINDOW_COLOR = 0x93c5fd;
+const ROOF_COLOR = 0xdc2626;
 const FLOOR_OPACITY = 0.95;
 const CEILING_OPACITY = 0.15;
+const WINDOW_SILL_H = 0.8;  // meters
+const WINDOW_HEAD_H = 2.1;  // meters
+const DOOR_HEAD_H = 2.1;    // meters
 
 // ---------------------------------------------------------------------------
 // Component
@@ -48,6 +77,7 @@ const CEILING_OPACITY = 0.15;
 export function FloorCanvas3D({
   rooms,
   windows,
+  doors,
   selectedRoomId,
   onSelectRoom,
 }: FloorCanvas3DProps) {
@@ -100,7 +130,7 @@ export function FloorCanvas3D({
       .filter((c) => c instanceof THREE.Light)
       .forEach((l) => scene.remove(l));
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambient);
 
     const dir1 = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -136,29 +166,21 @@ export function FloorCanvas3D({
     };
   }, [sceneCenter]);
 
-  // Build/update 3D geometry when rooms/windows/selection change
+  // Build/update 3D geometry when rooms/windows/doors/selection change
   useEffect(() => {
     const group = modelGroupRef.current;
-
-    // Clear previous
-    while (group.children.length > 0) {
-      const child = group.children[0]!;
-      group.remove(child);
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (child.material instanceof THREE.Material) child.material.dispose();
-      }
-    }
+    clearGroup(group);
     roomMeshMapRef.current.clear();
 
-    // Build rooms
     for (const room of rooms) {
       const isSelected = room.id === selectedRoomId;
       const floorY = room.floor * (room.height / 1000 + 0.3);
       const h = room.height / 1000;
+      const poly = room.polygon;
+      const n = poly.length;
 
       // Floor slab
-      const floorGeom = createPolygonGeometry(room.polygon, 0);
+      const floorGeom = createPolygonGeometry(poly);
       const floorColor = isSelected
         ? SELECTED_COLOR
         : (FUNCTION_COLORS[room.function] ?? FUNCTION_COLORS.custom!);
@@ -172,12 +194,12 @@ export function FloorCanvas3D({
         polygonOffsetUnits: 1,
       });
       const floorMesh = new THREE.Mesh(floorGeom, floorMat);
-      floorMesh.position.y = floorY + 0.01; // slight offset to avoid z-fighting with grid
+      floorMesh.position.y = floorY + 0.01;
       group.add(floorMesh);
       roomMeshMapRef.current.set(floorMesh, room.id);
 
-      // Ceiling / Roof — red, semi-transparent
-      const ceilGeom = createPolygonGeometry(room.polygon, 0);
+      // Ceiling / Roof
+      const ceilGeom = createPolygonGeometry(poly);
       const ceilMat = new THREE.MeshStandardMaterial({
         color: ROOF_COLOR,
         side: THREE.DoubleSide,
@@ -189,65 +211,110 @@ export function FloorCanvas3D({
       ceilMesh.position.y = floorY + h;
       group.add(ceilMesh);
 
-      // Walls
-      const poly = room.polygon;
-      const n = poly.length;
+      // Compute offset polygons for each layer boundary
+      const layerOffsets = [0]; // mm from inner face
+      for (const layer of WALL_LAYERS) {
+        layerOffsets.push(layerOffsets[layerOffsets.length - 1]! + layer.thickness);
+      }
+      const offsetPolys = layerOffsets.map((d) =>
+        d === 0 ? poly : offsetPolygon2D(poly, d),
+      );
+
+      // Room's windows and doors
+      const roomWindows = windows.filter((w) => w.roomId === room.id);
+      const roomDoors = doors.filter((d) => d.roomId === room.id);
+
+      // Build walls per edge
       for (let i = 0; i < n; i++) {
-        const a = poly[i]!;
-        const b = poly[(i + 1) % n]!;
-
-        const ax = a.x / 1000;
-        const az = a.y / 1000;
-        const bx = b.x / 1000;
-        const bz = b.y / 1000;
-
-        const dx = bx - ax;
-        const dz = bz - az;
-        const len = Math.sqrt(dx * dx + dz * dz);
-        if (len < 0.001) continue;
-
-        const nx = -dz / len;
-        const nz = dx / len;
-
-        const wallGeom = createWallGeometry(ax, az, bx, bz, h, WALL_THICKNESS, nx, nz);
-        const wallMat = new THREE.MeshStandardMaterial({
-          color: WALL_COLOR,
-          roughness: 0.8,
-        });
-        const wallMesh = new THREE.Mesh(wallGeom, wallMat);
-        wallMesh.position.y = floorY;
-        group.add(wallMesh);
-
-        // Windows on this wall — simple transparent flat pane
-        const wallWindows = windows.filter(
-          (w) => w.roomId === room.id && w.wallIndex % n === i,
+        const ni = (i + 1) % n;
+        const edgeLen = Math.hypot(
+          poly[ni]!.x - poly[i]!.x,
+          poly[ni]!.y - poly[i]!.y,
         );
-        for (const win of wallWindows) {
-          const glassGeom = createWindowPane(ax, az, bx, bz, win, nx, nz);
-          if (glassGeom) {
-            const glassMat = new THREE.MeshStandardMaterial({
+        if (edgeLen < 1) continue;
+        const wallLenM = edgeLen / 1000;
+
+        // Collect openings on this wall
+        const openings: Opening[] = [];
+        for (const win of roomWindows) {
+          if (win.wallIndex % n !== i) continue;
+          openings.push({
+            start: (win.offset - win.width / 2) / 1000,
+            end: (win.offset + win.width / 2) / 1000,
+            sillH: WINDOW_SILL_H,
+            headH: Math.min(WINDOW_HEAD_H, h),
+          });
+        }
+        for (const dr of roomDoors) {
+          if (dr.wallIndex % n !== i) continue;
+          openings.push({
+            start: (dr.offset - dr.width / 2) / 1000,
+            end: (dr.offset + dr.width / 2) / 1000,
+            sillH: 0,
+            headH: Math.min(DOOR_HEAD_H, h),
+          });
+        }
+        openings.sort((a, b) => a.start - b.start);
+
+        const pieces = computeWallPieces(wallLenM, h, openings);
+
+        // For each layer, create wall pieces
+        for (let j = 0; j < WALL_LAYERS.length; j++) {
+          const innerPoly = offsetPolys[j]!;
+          const outerPoly = offsetPolys[j + 1]!;
+
+          const iStart = { x: innerPoly[i]!.x / 1000, z: innerPoly[i]!.y / 1000 };
+          const iEnd = { x: innerPoly[ni]!.x / 1000, z: innerPoly[ni]!.y / 1000 };
+          const oStart = { x: outerPoly[i]!.x / 1000, z: outerPoly[i]!.y / 1000 };
+          const oEnd = { x: outerPoly[ni]!.x / 1000, z: outerPoly[ni]!.y / 1000 };
+
+          for (const piece of pieces) {
+            const geom = createWallPieceGeom(iStart, iEnd, oStart, oEnd, piece);
+            const mat = new THREE.MeshStandardMaterial({
+              color: WALL_LAYERS[j]!.color,
+              side: THREE.DoubleSide,
+              flatShading: true,
+              roughness: 0.85,
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.position.y = floorY;
+            group.add(mesh);
+          }
+        }
+
+        // Window glass panes (placed at wall mid-thickness)
+        const midIdx = Math.floor(offsetPolys.length / 2);
+        const midPoly = offsetPolys[midIdx]!;
+        const midStart = { x: midPoly[i]!.x / 1000, z: midPoly[i]!.y / 1000 };
+        const midEnd = { x: midPoly[ni]!.x / 1000, z: midPoly[ni]!.y / 1000 };
+
+        for (const win of roomWindows) {
+          if (win.wallIndex % n !== i) continue;
+          const paneGeom = createPaneGeom(midStart, midEnd, wallLenM, win);
+          if (paneGeom) {
+            const paneMat = new THREE.MeshStandardMaterial({
               color: WINDOW_COLOR,
               transparent: true,
               opacity: 0.35,
               side: THREE.DoubleSide,
               depthWrite: false,
             });
-            const glassMesh = new THREE.Mesh(glassGeom, glassMat);
-            glassMesh.position.y = floorY;
-            glassMesh.renderOrder = 1;
-            group.add(glassMesh);
+            const paneMesh = new THREE.Mesh(paneGeom, paneMat);
+            paneMesh.position.y = floorY;
+            paneMesh.renderOrder = 1;
+            group.add(paneMesh);
           }
         }
       }
 
       // Room label sprite
-      const center = polygonCenter(room.polygon);
+      const center = polygonCenter(poly);
       const sprite = createLabelSprite(room.id, room.name, isSelected);
       sprite.position.set(center.x / 1000, floorY + h / 2, center.y / 1000);
       sprite.scale.set(2, 1, 1);
       group.add(sprite);
     }
-  }, [rooms, windows, selectedRoomId]);
+  }, [rooms, windows, doors, selectedRoomId]);
 
   // Click handler for room selection
   const handleClick = useCallback(
@@ -292,13 +359,233 @@ export function FloorCanvas3D({
   );
 }
 
-// ---------------------------------------------------------------------------
+// =============================================================================
 // Geometry helpers
+// =============================================================================
+
+/** Dispose all children of a Three.js group. */
+function clearGroup(group: THREE.Group): void {
+  while (group.children.length > 0) {
+    const child = group.children[0]!;
+    group.remove(child);
+    if (child instanceof THREE.Mesh) {
+      child.geometry.dispose();
+      if (child.material instanceof THREE.Material) child.material.dispose();
+    }
+    if (child instanceof THREE.Sprite) {
+      child.material.map?.dispose();
+      child.material.dispose();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Polygon offset (mitered corners)
 // ---------------------------------------------------------------------------
 
-function createPolygonGeometry(polygon: Point2D[], _yOffset: number): THREE.BufferGeometry {
-  // Shape coords (x, y) map to 3D (x, 0, -y) after rotateX(-PI/2).
-  // Walls use az = p.y/1000 (positive), so negate y here to match.
+function signedArea2D(poly: Point2D[]): number {
+  let area = 0;
+  const n = poly.length;
+  for (let i = 0; i < n; i++) {
+    const a = poly[i]!;
+    const b = poly[(i + 1) % n]!;
+    area += a.x * b.y - b.x * a.y;
+  }
+  return area / 2;
+}
+
+/**
+ * Offset a 2D polygon outward by `dist` mm.
+ * Uses mitered corners for clean connections.
+ */
+function offsetPolygon2D(poly: Point2D[], dist: number): Point2D[] {
+  const n = poly.length;
+  const area = signedArea2D(poly);
+  // CW in screen coords (area > 0): outward normal of edge (dx,dy) is (dy,-dx)/len
+  const sign = area > 0 ? 1 : -1;
+
+  const result: Point2D[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const prev = poly[(i - 1 + n) % n]!;
+    const curr = poly[i]!;
+    const next = poly[(i + 1) % n]!;
+
+    const e1dx = curr.x - prev.x;
+    const e1dy = curr.y - prev.y;
+    const e1len = Math.hypot(e1dx, e1dy);
+
+    const e2dx = next.x - curr.x;
+    const e2dy = next.y - curr.y;
+    const e2len = Math.hypot(e2dx, e2dy);
+
+    if (e1len < 0.1 || e2len < 0.1) {
+      result.push({ x: curr.x, y: curr.y });
+      continue;
+    }
+
+    // Outward normals
+    const n1x = sign * e1dy / e1len;
+    const n1y = sign * (-e1dx) / e1len;
+    const n2x = sign * e2dy / e2len;
+    const n2y = sign * (-e2dx) / e2len;
+
+    // Miter bisector
+    const mx = n1x + n2x;
+    const my = n1y + n2y;
+    const mlen = Math.hypot(mx, my);
+
+    if (mlen < 0.001) {
+      // Parallel edges
+      result.push({ x: curr.x + n1x * dist, y: curr.y + n1y * dist });
+    } else {
+      const dot = n1x * (mx / mlen) + n1y * (my / mlen);
+      // Clamp miter to avoid huge spikes at acute angles
+      const miterScale = Math.abs(dot) > 0.25 ? dist / dot : dist * 2;
+      result.push({
+        x: curr.x + (mx / mlen) * miterScale,
+        y: curr.y + (my / mlen) * miterScale,
+      });
+    }
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Wall pieces (segments around openings)
+// ---------------------------------------------------------------------------
+
+interface Opening {
+  start: number; // meters from wall start
+  end: number;
+  sillH: number; // meters from floor
+  headH: number;
+}
+
+interface WallPiece {
+  t1: number; // 0..1 along wall
+  t2: number;
+  yBot: number; // meters
+  yTop: number;
+}
+
+/**
+ * Split a wall into pieces around window/door openings.
+ * Returns rectangles that represent solid wall regions.
+ */
+function computeWallPieces(wallLen: number, wallH: number, openings: Opening[]): WallPiece[] {
+  if (openings.length === 0) {
+    return [{ t1: 0, t2: 1, yBot: 0, yTop: wallH }];
+  }
+
+  const pieces: WallPiece[] = [];
+  let cursor = 0;
+
+  for (const op of openings) {
+    const tStart = Math.max(0, op.start) / wallLen;
+    const tEnd = Math.min(wallLen, op.end) / wallLen;
+
+    // Solid wall before opening
+    if (tStart > cursor + 0.001) {
+      pieces.push({ t1: cursor, t2: tStart, yBot: 0, yTop: wallH });
+    }
+
+    // Below sill (skip for doors where sillH = 0)
+    if (op.sillH > 0.01) {
+      pieces.push({ t1: tStart, t2: tEnd, yBot: 0, yTop: op.sillH });
+    }
+
+    // Above head
+    if (op.headH < wallH - 0.01) {
+      pieces.push({ t1: tStart, t2: tEnd, yBot: op.headH, yTop: wallH });
+    }
+
+    cursor = tEnd;
+  }
+
+  // Solid wall after last opening
+  if (cursor < 1 - 0.001) {
+    pieces.push({ t1: cursor, t2: 1, yBot: 0, yTop: wallH });
+  }
+
+  return pieces;
+}
+
+// ---------------------------------------------------------------------------
+// Wall piece 3D geometry (box with 6 faces)
+// ---------------------------------------------------------------------------
+
+interface XZ { x: number; z: number }
+
+function lerp(a: XZ, b: XZ, t: number): XZ {
+  return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+}
+
+/**
+ * Create a wall box geometry for one piece (segment) of one layer.
+ *
+ * Vertices layout (looking from outside):
+ *   4---5  top
+ *   |   |
+ *   0---1  bottom
+ *
+ * Inner face: 0,1,5,4  Outer face: 3,2,6,7
+ * Top: 4,5,6,7  Bottom: 0,3,2,1
+ * Left cap: 0,4,7,3  Right cap: 1,2,6,5
+ */
+function createWallPieceGeom(
+  iStart: XZ, iEnd: XZ,
+  oStart: XZ, oEnd: XZ,
+  piece: WallPiece,
+): THREE.BufferGeometry {
+  const is = lerp(iStart, iEnd, piece.t1);
+  const ie = lerp(iStart, iEnd, piece.t2);
+  const os = lerp(oStart, oEnd, piece.t1);
+  const oe = lerp(oStart, oEnd, piece.t2);
+  const yb = piece.yBot;
+  const yt = piece.yTop;
+
+  // 8 vertices
+  const positions = new Float32Array([
+    is.x, yb, is.z,   // 0: inner-start-bot
+    ie.x, yb, ie.z,   // 1: inner-end-bot
+    oe.x, yb, oe.z,   // 2: outer-end-bot
+    os.x, yb, os.z,   // 3: outer-start-bot
+    is.x, yt, is.z,   // 4: inner-start-top
+    ie.x, yt, ie.z,   // 5: inner-end-top
+    oe.x, yt, oe.z,   // 6: outer-end-top
+    os.x, yt, os.z,   // 7: outer-start-top
+  ]);
+
+  // 6 faces × 2 triangles = 12 triangles × 3 indices = 36
+  const indices = new Uint16Array([
+    // Inner face
+    0, 5, 4,  0, 1, 5,
+    // Outer face
+    3, 7, 6,  3, 6, 2,
+    // Top
+    4, 5, 6,  4, 6, 7,
+    // Bottom
+    0, 3, 2,  0, 2, 1,
+    // Left cap (start)
+    0, 4, 7,  0, 7, 3,
+    // Right cap (end)
+    1, 2, 6,  1, 6, 5,
+  ]);
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geom.setIndex(new THREE.BufferAttribute(indices, 1));
+  geom.computeVertexNormals();
+  return geom;
+}
+
+// ---------------------------------------------------------------------------
+// Floor/ceiling polygon geometry
+// ---------------------------------------------------------------------------
+
+function createPolygonGeometry(polygon: Point2D[]): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   const p0 = polygon[0]!;
   shape.moveTo(p0.x / 1000, -p0.y / 1000);
@@ -313,73 +600,31 @@ function createPolygonGeometry(polygon: Point2D[], _yOffset: number): THREE.Buff
   return geom;
 }
 
-function createWallGeometry(
-  ax: number, az: number,
-  bx: number, bz: number,
-  h: number, t: number,
-  nx: number, nz: number,
-): THREE.BufferGeometry {
-  const vertices = new Float32Array([
-    ax, 0, az,
-    bx, 0, bz,
-    ax + nx * t, 0, az + nz * t,
-    bx + nx * t, 0, bz + nz * t,
-    ax, h, az,
-    bx, h, bz,
-    ax + nx * t, h, az + nz * t,
-    bx + nx * t, h, bz + nz * t,
-  ]);
+// ---------------------------------------------------------------------------
+// Window glass pane
+// ---------------------------------------------------------------------------
 
-  const indices = new Uint16Array([
-    2, 3, 7, 2, 7, 6,   // outer
-    1, 0, 4, 1, 4, 5,   // inner
-    0, 2, 6, 0, 6, 4,   // left cap
-    3, 1, 5, 3, 5, 7,   // right cap
-    4, 6, 7, 4, 7, 5,   // top
-    0, 1, 3, 0, 3, 2,   // bottom
-  ]);
-
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
-  geom.setIndex(new THREE.BufferAttribute(indices, 1));
-  geom.computeVertexNormals();
-  return geom;
-}
-
-/** Simple flat quad for a window — centered in the wall, visible from both sides. */
-function createWindowPane(
-  ax: number, az: number,
-  bx: number, bz: number,
+function createPaneGeom(
+  edgeStart: XZ, edgeEnd: XZ,
+  wallLenM: number,
   win: ModelWindow,
-  nx: number, nz: number,
 ): THREE.BufferGeometry | null {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const len = Math.sqrt(dx * dx + dz * dz);
-  if (len < 0.001) return null;
+  if (wallLenM < 0.001) return null;
 
-  const ux = dx / len;
-  const uz = dz / len;
+  const tLeft = Math.max(0, (win.offset - win.width / 2) / 1000 / wallLenM);
+  const tRight = Math.min(1, (win.offset + win.width / 2) / 1000 / wallLenM);
 
-  const offset = win.offset / 1000;
-  const hw = win.width / 2000;
-
-  // Center of window on the wall mid-plane
-  const mid = WALL_THICKNESS * 0.5;
-  const cx = ax + ux * offset + nx * mid;
-  const cz = az + uz * offset + nz * mid;
-
-  const sillH = 0.8;
-  const headH = 2.0;
+  const left = lerp(edgeStart, edgeEnd, tLeft);
+  const right = lerp(edgeStart, edgeEnd, tRight);
 
   const verts = new Float32Array([
-    cx - ux * hw, sillH, cz - uz * hw,
-    cx + ux * hw, sillH, cz + uz * hw,
-    cx + ux * hw, headH, cz + uz * hw,
-    cx - ux * hw, headH, cz - uz * hw,
+    left.x, WINDOW_SILL_H, left.z,
+    right.x, WINDOW_SILL_H, right.z,
+    right.x, WINDOW_HEAD_H, right.z,
+    left.x, WINDOW_HEAD_H, left.z,
   ]);
-  // Double-sided indices (CW + CCW)
-  const idx = new Uint16Array([0, 1, 2, 0, 2, 3, 2, 1, 0, 3, 2, 0]);
+
+  const idx = new Uint16Array([0, 1, 2, 0, 2, 3]);
 
   const geom = new THREE.BufferGeometry();
   geom.setAttribute("position", new THREE.BufferAttribute(verts, 3));
@@ -387,6 +632,10 @@ function createWindowPane(
   geom.computeVertexNormals();
   return geom;
 }
+
+// ---------------------------------------------------------------------------
+// Room label sprite
+// ---------------------------------------------------------------------------
 
 function createLabelSprite(id: string, name: string, isSelected: boolean): THREE.Sprite {
   const canvas = document.createElement("canvas");
