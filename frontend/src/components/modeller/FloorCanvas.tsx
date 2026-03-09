@@ -113,6 +113,8 @@ export function FloorCanvas({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // Split room tool: stores first hit info between clicks
   const splitHitRef = useRef<{ roomId: string; wallIndex: number; offset: number }[] | null>(null);
+  // Split tool: wall Line onClick passes wall info to Stage onClick via this ref
+  const splitClickedWallRef = useRef<{ roomId: string; wallIndex: number } | null>(null);
   // Dimension edit overlay
   const [editingDim, setEditingDim] = useState<{ roomId: string; wallIndex: number; draft: string } | null>(null);
 
@@ -357,6 +359,66 @@ export function FloorCanvas({
 
   const handleMouseUp = useCallback(() => { isPanningRef.current = false; }, []);
 
+  // Shared edges between rooms (interior walls — rendered as thin lines)
+  const sharedEdges = useMemo(() => getSharedEdges(rooms), [rooms]);
+
+  // Split tool helper: resolve wall hit from direct wall Line click (exact) or
+  // findWallHit fallback (tolerant). Returns { roomId, wallIndex, worldPt } or null.
+  const resolveSplitWall = useCallback((
+    raw: Point2D,
+    snapped: Point2D,
+  ): { roomId: string; wallIndex: number; worldPt: Point2D } | null => {
+    // 1. Check if a wall Line was clicked directly (exact info via ref)
+    const directHit = splitClickedWallRef.current;
+    splitClickedWallRef.current = null;
+
+    if (directHit) {
+      let { roomId, wallIndex } = directHit;
+
+      // For shared walls, prefer the room the cursor is inside
+      if (sharedEdges.has(`${roomId}:${wallIndex}`)) {
+        const clickedRoom = rooms.find((r) => r.id === roomId);
+        if (clickedRoom) {
+          const ca = clickedRoom.polygon[wallIndex]!;
+          const cb = clickedRoom.polygon[(wallIndex + 1) % clickedRoom.polygon.length]!;
+          for (const other of rooms) {
+            if (other.id === roomId) continue;
+            if (!pointInPolygon(raw, other.polygon)) continue;
+            for (let ow = 0; ow < other.polygon.length; ow++) {
+              const oa = other.polygon[ow]!;
+              const ob = other.polygon[(ow + 1) % other.polygon.length]!;
+              if (segmentsShareEdge(ca, cb, oa, ob)) {
+                roomId = other.id;
+                wallIndex = ow;
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+      return { roomId, wallIndex, worldPt: snapped };
+    }
+
+    // 2. Fallback: findWallHit with generous tolerance
+    const wallTol = Math.max(snap.gridSize * 3, 40 / zoom);
+    const firstHit = splitHitRef.current?.[0];
+    // After first click, search only the target room
+    const searchRooms = firstHit
+      ? rooms.filter((r) => r.id === firstHit.roomId)
+      : rooms;
+    // After first click, exclude the starting wall
+    const exclude = firstHit
+      ? { roomId: firstHit.roomId, wallIndex: firstHit.wallIndex }
+      : undefined;
+
+    const hit = findWallHit(snapped, searchRooms, wallTol, exclude)
+      ?? findWallHit(raw, searchRooms, wallTol, exclude);
+
+    if (hit) return { roomId: hit.roomId, wallIndex: hit.wallIndex, worldPt: snapped };
+    return null;
+  }, [rooms, sharedEdges, snap.gridSize, zoom]);
+
   // --- Stage click (background) ---
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     setCtxMenu(null);
@@ -412,15 +474,62 @@ export function FloorCanvas({
       return;
     }
 
-    // Split room tool: wall clicks are handled by wall Line onClick handlers
-    // (they know the exact room + wallIndex — no tolerance guessing needed).
-    // Stage click only handles intermediate free-space points.
+    // Split room tool: two-click wall-to-wall split.
+    // Wall detection uses two sources: (1) exact info from wall Line onClick via
+    // splitClickedWallRef, (2) findWallHit tolerance as backup.
     if (tool === "split_room") {
-      if (drawPoints.length > 0) {
-        // Add intermediate polyline point (free-space click)
+      const wallHit = resolveSplitWall(raw, snapped);
+
+      if (drawPoints.length === 0) {
+        // First click — must hit a wall to start
+        if (!wallHit) return;
+        const room = rooms.find((r) => r.id === wallHit.roomId);
+        if (!room) return;
+        const poly = room.polygon;
+        const n = poly.length;
+        const a = poly[wallHit.wallIndex]!;
+        const b = poly[(wallHit.wallIndex + 1) % n]!;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const lenSq = dx * dx + dy * dy;
+        const len = Math.sqrt(lenSq);
+        const t = len > 0 ? Math.max(0, Math.min(1, ((wallHit.worldPt.x - a.x) * dx + (wallHit.worldPt.y - a.y) * dy) / lenSq)) : 0;
+        const offset = t * len;
+        splitHitRef.current = [{ roomId: wallHit.roomId, wallIndex: wallHit.wallIndex, offset }];
+        setDrawPoints([{ x: a.x + dx * t, y: a.y + dy * t }]);
+      } else if (wallHit) {
+        // Subsequent click on a wall → execute split
+        const firstHit = splitHitRef.current?.[0];
+        if (!firstHit) return;
+        if (wallHit.wallIndex === firstHit.wallIndex && wallHit.roomId === firstHit.roomId) return; // same wall
+
+        const room = rooms.find((r) => r.id === firstHit.roomId);
+        if (!room) return;
+        const polyLen = room.polygon.length;
+
+        // tA: parametric position on start wall
+        const a1 = room.polygon[firstHit.wallIndex]!;
+        const b1 = room.polygon[(firstHit.wallIndex + 1) % polyLen]!;
+        const len1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
+        const tA = len1 > 0 ? firstHit.offset / len1 : 0;
+
+        // tB: parametric position on end wall
+        const a2 = room.polygon[wallHit.wallIndex]!;
+        const b2 = room.polygon[(wallHit.wallIndex + 1) % polyLen]!;
+        const edx = b2.x - a2.x;
+        const edy = b2.y - a2.y;
+        const eLenSq = edx * edx + edy * edy;
+        const eLen = Math.sqrt(eLenSq);
+        const tB = eLen > 0 ? Math.max(0, Math.min(1, ((wallHit.worldPt.x - a2.x) * edx + (wallHit.worldPt.y - a2.y) * edy) / eLenSq)) : 0;
+
+        const intermediatePoints = drawPoints.slice(1);
+        onSplitRoom?.(firstHit.roomId, firstHit.wallIndex, tA, wallHit.wallIndex, tB, intermediatePoints);
+        setDrawPoints([]);
+        splitHitRef.current = null;
+      } else {
+        // No wall hit → add as intermediate polyline point
         setDrawPoints([...drawPoints, snapped]);
       }
-      // First click on empty area (not on a wall) → ignore
       return;
     }
 
@@ -470,7 +579,7 @@ export function FloorCanvas({
       }
       onSelect(null);
     }
-  }, [tool, drawPoints, rooms, screenToWorld, applySnap, snap.gridSize, zoom, onAddRoom, onAddWindow, onAddDoor, onSelect]);
+  }, [tool, drawPoints, rooms, screenToWorld, applySnap, snap.gridSize, zoom, onAddRoom, onAddWindow, onAddDoor, onSelect, onSplitRoom, resolveSplitWall]);
 
   const handleDblClick = useCallback(() => {
     if (tool === "draw_polygon" && drawPoints.length >= 3) {
@@ -478,128 +587,6 @@ export function FloorCanvas({
       setDrawPoints([]);
     }
   }, [tool, drawPoints, onAddRoom]);
-
-  // Shared edges between rooms (interior walls — rendered as thin lines)
-  const sharedEdges = useMemo(() => getSharedEdges(rooms), [rooms]);
-
-  // Split tool: handle wall clicks directly from wall Line onClick.
-  // This bypasses Konva event bubbling and findWallHit tolerance issues —
-  // the Line element knows exactly which room and wall it represents.
-  const handleSplitWallClick = useCallback((
-    clickedRoomId: string,
-    clickedWallIndex: number,
-    _e: Konva.KonvaEventObject<MouseEvent>,
-  ) => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-    const raw = screenToWorld(pointer.x, pointer.y);
-    const snapped = applySnap(raw, true);
-
-    // Resolve which room/wall to use (for shared walls, pick the room the cursor is inside)
-    let targetRoomId = clickedRoomId;
-    let targetWallIndex = clickedWallIndex;
-    const clickedRoom = rooms.find((r) => r.id === clickedRoomId);
-    if (!clickedRoom) return;
-
-    // For shared walls, prefer the room the cursor is actually inside
-    if (sharedEdges.has(`${clickedRoomId}:${clickedWallIndex}`)) {
-      const ca = clickedRoom.polygon[clickedWallIndex]!;
-      const cb = clickedRoom.polygon[(clickedWallIndex + 1) % clickedRoom.polygon.length]!;
-      for (const other of rooms) {
-        if (other.id === clickedRoomId) continue;
-        if (!pointInPolygon(raw, other.polygon)) continue;
-        // Cursor is inside this other room — check if it shares this wall
-        for (let ow = 0; ow < other.polygon.length; ow++) {
-          const oa = other.polygon[ow]!;
-          const ob = other.polygon[(ow + 1) % other.polygon.length]!;
-          if (segmentsShareEdge(ca, cb, oa, ob)) {
-            targetRoomId = other.id;
-            targetWallIndex = ow;
-            break;
-          }
-        }
-        if (targetRoomId !== clickedRoomId) break;
-      }
-    }
-
-    const room = rooms.find((r) => r.id === targetRoomId);
-    if (!room) return;
-    const poly = room.polygon;
-    const n = poly.length;
-    const a = poly[targetWallIndex]!;
-    const b = poly[(targetWallIndex + 1) % n]!;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const lenSq = dx * dx + dy * dy;
-    const len = Math.sqrt(lenSq);
-    const t = len > 0 ? Math.max(0, Math.min(1, ((snapped.x - a.x) * dx + (snapped.y - a.y) * dy) / lenSq)) : 0;
-    const offset = t * len;
-    const splitPt: Point2D = { x: a.x + dx * t, y: a.y + dy * t };
-
-    if (drawPoints.length === 0) {
-      // First click — start the split
-      splitHitRef.current = [{ roomId: targetRoomId, wallIndex: targetWallIndex, offset }];
-      setDrawPoints([splitPt]);
-    } else {
-      // Subsequent click on a wall → execute split
-      const firstHit = splitHitRef.current?.[0];
-      if (!firstHit) return;
-
-      // Must be the same room as the first click
-      if (targetRoomId !== firstHit.roomId) {
-        // Different room — check if target room has a wall at this position
-        const firstRoom = rooms.find((r) => r.id === firstHit.roomId);
-        if (!firstRoom) return;
-        let mappedWall = -1;
-        for (let fw = 0; fw < firstRoom.polygon.length; fw++) {
-          if (fw === firstHit.wallIndex) continue;
-          const fa = firstRoom.polygon[fw]!;
-          const fb = firstRoom.polygon[(fw + 1) % firstRoom.polygon.length]!;
-          if (segmentsShareEdge(fa, fb, a, b)) {
-            mappedWall = fw;
-            break;
-          }
-        }
-        if (mappedWall < 0) return; // No matching wall in the target room
-        // Re-project onto the mapped wall
-        const ma = firstRoom.polygon[mappedWall]!;
-        const mb = firstRoom.polygon[(mappedWall + 1) % firstRoom.polygon.length]!;
-        const mdx = mb.x - ma.x;
-        const mdy = mb.y - ma.y;
-        const mLenSq = mdx * mdx + mdy * mdy;
-        const mLen = Math.sqrt(mLenSq);
-        const mT = mLen > 0 ? Math.max(0, Math.min(1, ((snapped.x - ma.x) * mdx + (snapped.y - ma.y) * mdy) / mLenSq)) : 0;
-
-        const a1 = firstRoom.polygon[firstHit.wallIndex]!;
-        const b1 = firstRoom.polygon[(firstHit.wallIndex + 1) % firstRoom.polygon.length]!;
-        const len1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
-        const tA = len1 > 0 ? firstHit.offset / len1 : 0;
-
-        const intermediatePoints = drawPoints.slice(1);
-        onSplitRoom?.(firstHit.roomId, firstHit.wallIndex, tA, mappedWall, mT, intermediatePoints);
-        setDrawPoints([]);
-        splitHitRef.current = null;
-        return;
-      }
-
-      // Same room — must be a different wall
-      if (targetWallIndex === firstHit.wallIndex) return;
-
-      const polyLen = room.polygon.length;
-      const a1 = room.polygon[firstHit.wallIndex]!;
-      const b1 = room.polygon[(firstHit.wallIndex + 1) % polyLen]!;
-      const len1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
-      const tA = len1 > 0 ? firstHit.offset / len1 : 0;
-      const tB = len > 0 ? offset / len : 0;
-
-      const intermediatePoints = drawPoints.slice(1);
-      onSplitRoom?.(targetRoomId, firstHit.wallIndex, tA, targetWallIndex, tB, intermediatePoints);
-      setDrawPoints([]);
-      splitHitRef.current = null;
-    }
-  }, [rooms, drawPoints, sharedEdges, screenToWorld, applySnap, onSplitRoom]);
 
   // Wall thickness in mm, with minimum pixel width
   const wallStroke = Math.max(WALL_THICKNESS_MM, MIN_WALL_PX / zoom);
@@ -725,8 +712,7 @@ export function FloorCanvas({
                     hitStrokeWidth={Math.max(WALL_THICKNESS_MM, 400)}
                     onClick={(e) => {
                       if (tool === "select") { e.cancelBubble = true; onSelect({ type: "wall", roomId: room.id, wallIndex: wi }); }
-                      else if (tool === "split_room") { e.cancelBubble = true; handleSplitWallClick(room.id, wi, e); }
-                      else if (tool === "draw_window" || tool === "draw_door") { /* let bubble to Stage */ }
+                      else if (tool === "split_room") { splitClickedWallRef.current = { roomId: room.id, wallIndex: wi }; }
                     }}
                   />
                 );
