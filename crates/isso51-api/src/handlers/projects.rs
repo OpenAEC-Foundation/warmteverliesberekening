@@ -90,6 +90,9 @@ pub async fn create_project(
     AuthClaims(claims): AuthClaims,
     Json(body): Json<CreateProjectRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // Ensure user record exists (FK constraint on projects.user_id).
+    ensure_user(&state, &claims).await?;
+
     let id = Uuid::new_v4().to_string();
     let name = body.name.unwrap_or_else(|| "Naamloos project".to_string());
     let project_data = serde_json::to_string(&body.project_data)
@@ -294,6 +297,43 @@ pub async fn calculate_and_save(
         [("content-type", "application/json")],
         result_json,
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Ensure the authenticated user exists in the `users` table (upsert).
+///
+/// This prevents FOREIGN KEY violations when creating projects before
+/// the frontend has called `GET /me`.
+async fn ensure_user(
+    state: &AppState,
+    claims: &crate::auth::OidcClaims,
+) -> Result<(), ApiError> {
+    let email = claims.email.as_deref().unwrap_or("");
+    let name = claims.name.as_deref().unwrap_or("");
+    let preferred_username = claims.preferred_username.as_deref().unwrap_or("");
+    let issuer = claims.iss.as_deref().unwrap_or("");
+
+    sqlx::query(
+        "INSERT INTO users (id, email, name, preferred_username, oidc_issuer)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+           email = excluded.email,
+           name = excluded.name,
+           preferred_username = excluded.preferred_username,
+           last_login_at = datetime('now')",
+    )
+    .bind(&claims.sub)
+    .bind(email)
+    .bind(name)
+    .bind(preferred_username)
+    .bind(issuer)
+    .execute(&state.db)
+    .await?;
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
