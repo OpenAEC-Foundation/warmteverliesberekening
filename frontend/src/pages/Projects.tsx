@@ -121,6 +121,7 @@ export function Projects() {
       <PageHeader
         title="Projecten"
         subtitle="Opgeslagen projecten op de server"
+        breadcrumbs={[{ label: "Projecten" }]}
         actions={
           <Button onClick={handleSaveNew}>Huidig project opslaan</Button>
         }

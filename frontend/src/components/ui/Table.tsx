@@ -15,8 +15,8 @@ export function Th({
 }: ThHTMLAttributes<HTMLTableCellElement> & { children?: ReactNode }) {
   return (
     <th
-      className={`border-b border-stone-200 bg-stone-50 px-3 py-2 text-left text-xs
-        font-medium uppercase tracking-wider text-stone-500 ${className}`}
+      className={`border-b border-stone-200 bg-concrete px-4 py-3 text-left text-xs
+        font-medium uppercase tracking-wider text-[#57534E] ${className}`}
       {...props}
     >
       {children}
@@ -32,7 +32,7 @@ export function Td({
 }: TdHTMLAttributes<HTMLTableCellElement> & { children?: ReactNode; numeric?: boolean }) {
   return (
     <td
-      className={`border-b border-stone-100 px-3 py-2
+      className={`border-b border-stone-100 px-4 py-3
         ${numeric ? "font-mono text-right" : ""}
         ${className}`}
       {...props}

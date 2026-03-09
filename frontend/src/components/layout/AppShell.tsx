@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { useProjectStore } from "../../store/projectStore";
+import { Topbar } from "./Topbar";
 import { Sidebar } from "./Sidebar";
 import { ToastContainer } from "../ui/Toast";
 import { ConflictDialog } from "../ui/ConflictDialog";
@@ -16,8 +17,9 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen">
+      <Topbar />
       <Sidebar />
-      <main className="ml-sidebar flex-1">
+      <main className="ml-sidebar mt-topbar flex-1">
         {error && (
           <div className="flex items-center gap-2 bg-red-50 px-4 py-2.5 text-sm text-red-700">
             <span className="flex-1">{error}</span>

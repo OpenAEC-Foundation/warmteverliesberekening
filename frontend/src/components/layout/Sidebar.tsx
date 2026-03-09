@@ -1,44 +1,132 @@
-import { Component, useEffect, useState, type ReactNode } from "react";
+import { Component, type ReactNode, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import { isTauri } from "../../lib/backend";
 import { useProjectStore } from "../../store/projectStore";
 
+/* ─── SVG Icon components (inline, no dependency) ─── */
+
+function IconHome({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+function IconGrid({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" />
+      <rect x="14" y="3" width="7" height="7" />
+      <rect x="3" y="14" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+
+function IconCube({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+
+function IconBarChart({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  );
+}
+
+function IconBook({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+    </svg>
+  );
+}
+
+function IconLayers({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
+function IconSwatches({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="8" height="8" rx="1" />
+      <rect x="14" y="2" width="8" height="8" rx="1" />
+      <rect x="2" y="14" width="8" height="8" rx="1" />
+      <circle cx="18" cy="18" r="4" />
+    </svg>
+  );
+}
+
+function IconFolder({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+    </svg>
+  );
+}
+
+/* ─── Nav data with icon components ─── */
+
 const NAV_MAIN = [
-  { to: "/project", label: "Project", icon: "\u2302" },
-  { to: "/rooms", label: "Vertrekken", icon: "\u25A6" },
-  { to: "/modeller", label: "Modeller", icon: "\u2316" },
-  { to: "/results", label: "Resultaten", icon: "\u2261" },
+  { to: "/project", label: "Project", Icon: IconHome },
+  { to: "/rooms", label: "Vertrekken", Icon: IconGrid },
+  { to: "/modeller", label: "Modeller", Icon: IconCube },
+  { to: "/results", label: "Resultaten", Icon: IconBarChart },
 ] as const;
 
 const NAV_LIBRARY = [
-  { to: "/library", label: "Bibliotheek", icon: "\u25E8" },
-  { to: "/rc", label: "Rc-waarde", icon: "\u229E" },
-  { to: "/materialen", label: "Materialen", icon: "\u25A4" },
+  { to: "/library", label: "Bibliotheek", Icon: IconBook },
+  { to: "/rc", label: "Rc-waarde", Icon: IconLayers },
+  { to: "/materialen", label: "Materialen", Icon: IconSwatches },
 ] as const;
 
-function NavItem({ to, label, icon }: { to: string; label: string; icon: string }) {
+/* ─── Components ─── */
+
+function NavItem({ to, label, Icon }: { to: string; label: string; Icon: React.ComponentType<{ className?: string }> }) {
   return (
     <li>
       <NavLink
         to={to}
         className={({ isActive }) =>
-          `flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors
+          `flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors
           ${
             isActive
-              ? "bg-zinc-800 text-white font-medium"
-              : "hover:bg-zinc-800/60 hover:text-white"
+              ? "bg-primary font-medium text-white"
+              : "text-[#57534E] hover:bg-stone-200 hover:text-deep-forge"
           }`
         }
       >
-        <span className="text-base">{icon}</span>
-        {label}
+        {({ isActive }) => (
+          <>
+            <Icon className={isActive ? "text-white" : "text-scaffold-gray"} />
+            {label}
+          </>
+        )}
       </NavLink>
     </li>
   );
 }
 
-/** Catches oidc-spa errors when OIDC is not bootstrapped. */
+/** Error boundary for oidc-spa. */
 class OidcGuard extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -65,73 +153,9 @@ function ProjectsNavLink() {
   if (!visible) return null;
   return (
     <>
-      <li className="my-2 border-t border-zinc-800" />
-      <NavItem to="/projects" label="Projecten" icon="&#128193;" />
+      <li className="mx-3 my-3 border-t border-stone-200" />
+      <NavItem to="/projects" label="Projecten" Icon={IconFolder} />
     </>
-  );
-}
-
-/** Lazily loads oidc-spa for login/logout buttons. */
-function AuthSection() {
-  const [oidcState, setOidcState] = useState<{
-    isLoggedIn: boolean;
-    name?: string;
-    login?: () => void;
-    logout?: () => void;
-  } | null>(null);
-
-  useEffect(() => {
-    import("../../lib/oidc")
-      .then(({ getOidc }) => getOidc())
-      .then((oidc) => {
-        if (oidc.isUserLoggedIn) {
-          const token = oidc.getDecodedIdToken();
-          setOidcState({
-            isLoggedIn: true,
-            name:
-              token.name ??
-              token.preferred_username ??
-              "Gebruiker",
-            logout: () => oidc.logout({ redirectTo: "current page" }),
-          });
-        } else {
-          setOidcState({
-            isLoggedIn: false,
-            login: () => oidc.login({ redirectUrl: window.location.href }),
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!oidcState) return null;
-
-  if (oidcState.isLoggedIn) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-            {oidcState.name!.charAt(0).toUpperCase()}
-          </div>
-          <span className="truncate text-xs text-stone-300">{oidcState.name}</span>
-        </div>
-        <button
-          onClick={oidcState.logout}
-          className="w-full rounded-md border border-zinc-700 px-2 py-1 text-xs text-stone-400 transition-colors hover:bg-zinc-800 hover:text-white"
-        >
-          Uitloggen
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={oidcState.login}
-      className="w-full rounded-md bg-primary/20 px-2 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/30"
-    >
-      Inloggen
-    </button>
   );
 }
 
@@ -142,13 +166,11 @@ function SaveStatus() {
   if (!activeProjectId) return null;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 text-xs">
+    <div className="flex items-center gap-2 px-3 py-2 text-xs text-scaffold-gray">
       <span
         className={`inline-block h-2 w-2 rounded-full ${isDirty ? "bg-amber-500" : "bg-green-500"}`}
       />
-      <span className="text-stone-400">
-        {isDirty ? "Niet opgeslagen" : "Opgeslagen"}
-      </span>
+      <span>{isDirty ? "Niet opgeslagen" : "Opgeslagen"}</span>
     </div>
   );
 }
@@ -157,18 +179,13 @@ export function Sidebar() {
   const isWeb = !isTauri();
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-screen w-sidebar flex-col bg-zinc-900 text-stone-300">
-      {/* Logo / title */}
-      <div className="flex h-header items-center gap-2 border-b border-zinc-800 px-4">
-        <div
-          className="h-6 w-6 rounded"
-          style={{ background: "var(--gradient-amber, #D97706)" }}
-        />
-        <span className="font-heading text-sm font-bold text-white">ISSO 51</span>
-      </div>
-
+    <aside className="fixed left-0 top-topbar z-30 flex h-[calc(100vh-56px)] w-sidebar flex-col border-r border-stone-200 bg-concrete text-stone-600">
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Main section */}
+        <p className="px-3 pb-1.5 pt-3 font-mono text-2xs font-medium uppercase tracking-wider text-scaffold-gray">
+          Berekening
+        </p>
         <ul className="space-y-0.5">
           {NAV_MAIN.map((item) => (
             <NavItem key={item.to} {...item} />
@@ -178,7 +195,16 @@ export function Sidebar() {
               <ProjectsNavLink />
             </OidcGuard>
           )}
-          <li className="my-2 border-t border-zinc-800" />
+        </ul>
+
+        {/* Divider */}
+        <div className="mx-3 my-3 border-t border-stone-200" />
+
+        {/* Library section */}
+        <p className="px-3 pb-1.5 pt-3 font-mono text-2xs font-medium uppercase tracking-wider text-scaffold-gray">
+          Gereedschap
+        </p>
+        <ul className="space-y-0.5">
           {NAV_LIBRARY.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
@@ -189,13 +215,8 @@ export function Sidebar() {
       <SaveStatus />
 
       {/* Footer */}
-      <div className="space-y-3 border-t border-zinc-800 px-4 py-3">
-        {isWeb && (
-          <OidcGuard>
-            <AuthSection />
-          </OidcGuard>
-        )}
-        <p className="text-2xs text-zinc-500">v0.1.0</p>
+      <div className="border-t border-stone-200 px-4 py-3">
+        <p className="text-2xs text-scaffold-gray">v0.1.0</p>
       </div>
     </aside>
   );

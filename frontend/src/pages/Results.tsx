@@ -63,6 +63,7 @@ export function Results() {
       <div>
         <PageHeader
           title="Resultaten"
+          breadcrumbs={[{ label: "Project", to: "/project" }, { label: "Resultaten" }]}
           actions={
             <Button variant="secondary" onClick={() => navigate("/project")}>
               Terug
@@ -87,6 +88,7 @@ export function Results() {
       <PageHeader
         title="Resultaten"
         subtitle={`${rooms.length} vertrekken`}
+        breadcrumbs={[{ label: "Project", to: "/project" }, { label: "Resultaten" }]}
         actions={
           <div className="flex gap-2">
             <Button

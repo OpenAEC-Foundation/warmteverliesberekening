@@ -12,6 +12,12 @@ const config: Config = {
           light: "#FFFBEB",
           border: "#F59E0B",
         },
+        concrete: "#F5F5F4",
+        "deep-forge": "#36363E",
+        "night-build": "#2A2A32",
+        "scaffold-gray": "#A1A1AA",
+        "signal-orange": "#EA580C",
+        "blueprint-white": "#FAFAF9",
         boundary: {
           exterior: "#3b82f6",
           "exterior-bg": "#dbeafe",
@@ -41,7 +47,8 @@ const config: Config = {
         "3xl": ["1.875rem", { lineHeight: "1.25" }],     // 30px
       },
       spacing: {
-        sidebar: "220px",
+        sidebar: "260px",
+        topbar: "56px",
         header: "48px",
       },
       borderRadius: {

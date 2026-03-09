@@ -143,6 +143,7 @@ export function ProjectSetup() {
       <PageHeader
         title="Project"
         subtitle="Gebouw- en installatie-instellingen"
+        breadcrumbs={[{ label: "Project" }]}
         actions={
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => fileInputRef.current?.click()}>

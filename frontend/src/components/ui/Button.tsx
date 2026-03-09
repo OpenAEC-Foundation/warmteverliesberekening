@@ -4,17 +4,17 @@ const VARIANTS = {
   primary:
     "bg-primary text-white hover:bg-primary-hover focus-visible:ring-primary",
   secondary:
-    "border border-stone-300 bg-white text-stone-700 hover:bg-stone-50 focus-visible:ring-stone-400",
+    "border-2 border-deep-forge bg-white text-deep-forge hover:bg-deep-forge hover:text-white focus-visible:ring-deep-forge",
   ghost:
-    "text-stone-600 hover:bg-stone-100 hover:text-stone-900 focus-visible:ring-stone-400",
+    "border-2 border-primary text-primary hover:bg-primary hover:text-white focus-visible:ring-primary",
   danger:
     "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500",
 } as const;
 
 const SIZES = {
-  sm: "px-2.5 py-1 text-xs",
-  md: "px-3.5 py-1.5 text-sm",
-  lg: "px-5 py-2 text-base",
+  sm: "px-3 py-1.5 text-xs",
+  md: "px-4 py-2 text-sm",
+  lg: "px-5 py-2.5 text-base",
 } as const;
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
