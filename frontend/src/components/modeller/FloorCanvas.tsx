@@ -137,7 +137,7 @@ export function FloorCanvas({
     [viewCenter, zoom, size],
   );
 
-  // Snap — priority: endpoint > midpoint > nearest (wall edge) > grid
+  // Snap — all geometry modes compete on distance, grid is fallback
   const applySnap = useCallback(
     (p: Point2D, forceNearest = false): Point2D => {
       // For tools like split_room: always snap to geometry even if snap is disabled
@@ -151,36 +151,9 @@ export function FloorCanvas({
       // Snap targets: active rooms + ghost rooms from floor below
       const allSnapRooms = [...rooms, ...ghostRooms];
 
-      // 1. Endpoint snap (highest geometry priority)
-      if (snap.modes.includes("endpoint")) {
-        for (const room of allSnapRooms) {
-          for (const v of room.polygon) {
-            const d = Math.hypot(v.x - p.x, v.y - p.y);
-            if (d < bestDist && d < tolerance) { bestDist = d; best = v; }
-          }
-        }
-        for (const v of drawPoints) {
-          const d = Math.hypot(v.x - p.x, v.y - p.y);
-          if (d < bestDist && d < tolerance) { bestDist = d; best = v; }
-        }
-      }
-
-      // 2. Midpoint snap
-      if (snap.modes.includes("midpoint")) {
-        for (const room of allSnapRooms) {
-          const poly = room.polygon;
-          for (let i = 0; i < poly.length; i++) {
-            const a = poly[i]!;
-            const b = poly[(i + 1) % poly.length]!;
-            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            const d = Math.hypot(mid.x - p.x, mid.y - p.y);
-            if (d < bestDist && d < tolerance) { bestDist = d; best = mid; }
-          }
-        }
-      }
-
-      // 3. Nearest (wall edge projection) — before grid
-      if (useNearest && bestDist === Infinity) {
+      // 1. Nearest (wall edge projection) — runs first to establish baseline
+      //    Endpoints/midpoints can still win if they're closer.
+      if (useNearest) {
         for (const room of allSnapRooms) {
           const poly = room.polygon;
           const n = poly.length;
@@ -196,6 +169,34 @@ export function FloorCanvas({
             const proj = { x: a.x + t * dx, y: a.y + t * dy };
             const d = Math.hypot(p.x - proj.x, p.y - proj.y);
             if (d < bestDist && d < tolerance) { bestDist = d; best = proj; }
+          }
+        }
+      }
+
+      // 2. Endpoint snap (wins over nearest if closer)
+      if (snap.modes.includes("endpoint")) {
+        for (const room of allSnapRooms) {
+          for (const v of room.polygon) {
+            const d = Math.hypot(v.x - p.x, v.y - p.y);
+            if (d < bestDist && d < tolerance) { bestDist = d; best = v; }
+          }
+        }
+        for (const v of drawPoints) {
+          const d = Math.hypot(v.x - p.x, v.y - p.y);
+          if (d < bestDist && d < tolerance) { bestDist = d; best = v; }
+        }
+      }
+
+      // 3. Midpoint snap (wins over nearest if closer)
+      if (snap.modes.includes("midpoint")) {
+        for (const room of allSnapRooms) {
+          const poly = room.polygon;
+          for (let i = 0; i < poly.length; i++) {
+            const a = poly[i]!;
+            const b = poly[(i + 1) % poly.length]!;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const d = Math.hypot(mid.x - p.x, mid.y - p.y);
+            if (d < bestDist && d < tolerance) { bestDist = d; best = mid; }
           }
         }
       }
@@ -407,7 +408,9 @@ export function FloorCanvas({
 
     // Split room tool: click wall → optional intermediate points → click wall
     if (tool === "split_room") {
-      const hit = findWallHit(snapped, rooms, snap.gridSize * 3);
+      // Try snapped position first, fall back to raw for wall detection
+      const hit = findWallHit(snapped, rooms, snap.gridSize * 3)
+        ?? findWallHit(raw, rooms, snap.gridSize * 3);
       const firstHit = splitHitRef.current?.[0];
 
       if (drawPoints.length === 0) {
@@ -423,7 +426,7 @@ export function FloorCanvas({
           setDrawPoints([{ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }]);
         }
       } else if (hit && firstHit && hit.roomId === firstHit.roomId && hit.wallIndex !== firstHit.wallIndex) {
-        // Click on a wall of the same room (different edge) → execute split
+        // Click on a different wall of the same room → execute split
         const room = rooms.find((r) => r.id === hit.roomId);
         if (room) {
           const polyLen = room.polygon.length;
@@ -444,7 +447,7 @@ export function FloorCanvas({
         setDrawPoints([]);
         splitHitRef.current = null;
       } else {
-        // Click not on a wall → add as intermediate polyline point
+        // Not on a wall (or same wall) → add as intermediate polyline point
         setDrawPoints([...drawPoints, snapped]);
       }
       return;
@@ -812,7 +815,8 @@ export function FloorCanvas({
               let endPt = cursorWorld;
               let onWall = false;
               const hit = findWallHit(cursorWorld, rooms, snap.gridSize * 3);
-              if (hit && splitHitRef.current?.[0]?.roomId === hit.roomId) {
+              const firstHitRef = splitHitRef.current?.[0];
+              if (hit && firstHitRef?.roomId === hit.roomId && hit.wallIndex !== firstHitRef.wallIndex) {
                 const room = rooms.find((r) => r.id === hit.roomId);
                 if (room) {
                   const a = room.polygon[hit.wallIndex]!;
