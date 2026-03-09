@@ -408,10 +408,15 @@ export function FloorCanvas({
 
     // Split room tool: click wall → optional intermediate points → click wall
     if (tool === "split_room") {
-      // Try snapped position first, fall back to raw for wall detection
-      const hit = findWallHit(snapped, rooms, snap.gridSize * 3)
-        ?? findWallHit(raw, rooms, snap.gridSize * 3);
       const firstHit = splitHitRef.current?.[0];
+
+      // After first click: search ONLY the target room so shared inner walls
+      // always resolve to the correct room (not the adjacent neighbour).
+      const searchRooms = firstHit
+        ? rooms.filter((r) => r.id === firstHit.roomId)
+        : rooms;
+      const hit = findWallHit(snapped, searchRooms, snap.gridSize * 3)
+        ?? findWallHit(raw, searchRooms, snap.gridSize * 3);
 
       if (drawPoints.length === 0) {
         // First click: must be on a wall
@@ -425,15 +430,15 @@ export function FloorCanvas({
           const t = len > 0 ? hit.offset / len : 0;
           setDrawPoints([{ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }]);
         }
-      } else if (hit && firstHit && hit.roomId === firstHit.roomId && hit.wallIndex !== firstHit.wallIndex) {
-        // Click on a different wall of the same room → execute split
+      } else if (hit && hit.wallIndex !== firstHit!.wallIndex) {
+        // Click on a different wall of the target room → execute split
         const room = rooms.find((r) => r.id === hit.roomId);
         if (room) {
           const polyLen = room.polygon.length;
-          const a1 = room.polygon[firstHit.wallIndex]!;
-          const b1 = room.polygon[(firstHit.wallIndex + 1) % polyLen]!;
+          const a1 = room.polygon[firstHit!.wallIndex]!;
+          const b1 = room.polygon[(firstHit!.wallIndex + 1) % polyLen]!;
           const len1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
-          const tA = len1 > 0 ? firstHit.offset / len1 : 0;
+          const tA = len1 > 0 ? firstHit!.offset / len1 : 0;
 
           const a2 = room.polygon[hit.wallIndex]!;
           const b2 = room.polygon[(hit.wallIndex + 1) % polyLen]!;
@@ -442,7 +447,7 @@ export function FloorCanvas({
 
           // Intermediate points = drawPoints[1..n-1] (skip first wall point)
           const intermediatePoints = drawPoints.slice(1);
-          onSplitRoom?.(hit.roomId, firstHit.wallIndex, tA, hit.wallIndex, tB, intermediatePoints);
+          onSplitRoom?.(hit.roomId, firstHit!.wallIndex, tA, hit.wallIndex, tB, intermediatePoints);
         }
         setDrawPoints([]);
         splitHitRef.current = null;
@@ -814,9 +819,12 @@ export function FloorCanvas({
               // Determine end point: snap to wall if near, otherwise follow cursor
               let endPt = cursorWorld;
               let onWall = false;
-              const hit = findWallHit(cursorWorld, rooms, snap.gridSize * 3);
               const firstHitRef = splitHitRef.current?.[0];
-              if (hit && firstHitRef?.roomId === hit.roomId && hit.wallIndex !== firstHitRef.wallIndex) {
+              const targetRooms = firstHitRef
+                ? rooms.filter((r) => r.id === firstHitRef.roomId)
+                : rooms;
+              const hit = findWallHit(cursorWorld, targetRooms, snap.gridSize * 3);
+              if (hit && firstHitRef && hit.wallIndex !== firstHitRef.wallIndex) {
                 const room = rooms.find((r) => r.id === hit.roomId);
                 if (room) {
                   const a = room.polygon[hit.wallIndex]!;
