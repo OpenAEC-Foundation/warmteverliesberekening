@@ -532,7 +532,8 @@ function tryExtractBrep(
 // ---------------------------------------------------------------------------
 
 const VERTEX_STRIDE = 6; // x, y, z, nx, ny, nz per vertex
-const Z_TOLERANCE = 0.05; // 5cm tolerance for "same Z level"
+/** 50mm tolerance for "same Z level", expressed in file units. */
+const Z_TOLERANCE_MM = 50;
 
 /** Position key for deduplication — rounds to ~1mm in file units. */
 function posKey(x: number, y: number, scale: number): string {
@@ -625,10 +626,11 @@ function tryExtractMesh(
       if (v.z > maxZ) maxZ = v.z;
     }
     const height = (maxZ - minZ) * unitToMm;
+    const zTol = Z_TOLERANCE_MM / unitToMm; // tolerance in file units
 
     // Try to extract accurate floor polygon outline from mesh triangles
     const outline = extractFloorOutline(
-      allVertices, allIndices, minZ, unitToMm,
+      allVertices, allIndices, minZ, unitToMm, zTol,
     );
     if (outline && outline.length >= MIN_POLYGON_POINTS) {
       return {
@@ -639,7 +641,7 @@ function tryExtractMesh(
 
     // Fallback: convex hull of bottom vertices
     const bottomVerts = allVertices.filter(
-      (v) => Math.abs(v.z - minZ) < Z_TOLERANCE,
+      (v) => Math.abs(v.z - minZ) < zTol,
     );
     if (bottomVerts.length < MIN_POLYGON_POINTS) return null;
 
@@ -673,6 +675,7 @@ function extractFloorOutline(
   indices: number[],
   minZ: number,
   unitToMm: number,
+  zTol: number,
 ): Point2D[] | null {
   // Snap scale for position deduplication (~1mm precision)
   const snapScale = unitToMm >= 100 ? 100 : 100_000;
@@ -688,9 +691,9 @@ function extractFloorOutline(
 
     // All 3 vertices must be at the floor level
     if (
-      Math.abs(v0.z - minZ) > Z_TOLERANCE ||
-      Math.abs(v1.z - minZ) > Z_TOLERANCE ||
-      Math.abs(v2.z - minZ) > Z_TOLERANCE
+      Math.abs(v0.z - minZ) > zTol ||
+      Math.abs(v1.z - minZ) > zTol ||
+      Math.abs(v2.z - minZ) > zTol
     ) {
       continue;
     }
@@ -748,7 +751,7 @@ function extractFloorOutline(
   // 4. Map position keys back to actual coordinates (average of vertices)
   const posAvg = new Map<string, { sx: number; sy: number; n: number }>();
   for (const v of vertices) {
-    if (Math.abs(v.z - minZ) > Z_TOLERANCE) continue;
+    if (Math.abs(v.z - minZ) > zTol) continue;
     const key = posKey(v.x, v.y, snapScale);
     const entry = posAvg.get(key);
     if (entry) {
@@ -1096,7 +1099,18 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
         brepErr && `brep:${brepErr}`,
       ].filter(Boolean).join(" | ");
 
-      const diagLine = `${spaceName}: ${strategy}${errors ? ` ERR[${errors}]` : ""}`;
+      let polyInfo = "";
+      if (extracted) {
+        const xs = extracted.polygon.map((p) => p.x);
+        const ys = extracted.polygon.map((p) => p.y);
+        const minX = Math.min(...xs).toFixed(0);
+        const maxX = Math.max(...xs).toFixed(0);
+        const minY = Math.min(...ys).toFixed(0);
+        const maxY = Math.max(...ys).toFixed(0);
+        const a = polygonAreaMm2(extracted.polygon);
+        polyInfo = ` pts=${extracted.polygon.length} bbox=[${minX},${minY}]-[${maxX},${maxY}] area=${(a / 1e6).toFixed(2)}m2`;
+      }
+      const diagLine = `${spaceName}: ${strategy}${polyInfo}${errors ? ` ERR[${errors}]` : ""}`;
       diagLines.push(diagLine);
       console.log(`[IFC-DBG] ${diagLine}`);
 
