@@ -14,7 +14,7 @@ import type { ModelRoom, Point2D } from "./types";
 // Constants
 // ---------------------------------------------------------------------------
 
-const IFC_TO_MM = 1000;
+const DEFAULT_UNIT_TO_MM = 1000; // fallback: assume meters
 const MIN_ROOM_AREA_MM2 = 500_000; // 0.5 m2
 const MIN_POLYGON_POINTS = 3;
 const FLOOR_HEIGHT_DEFAULT_MM = 2600;
@@ -22,6 +22,7 @@ const FLOOR_HEIGHT_DEFAULT_MM = 2600;
 // web-ifc entity type constants
 const IFCSPACE = WebIfc.IFCSPACE;
 const IFCBUILDINGSTOREY = WebIfc.IFCBUILDINGSTOREY;
+const IFCPROJECT = WebIfc.IFCPROJECT;
 const IFCEXTRUDEDAREASOLID = WebIfc.IFCEXTRUDEDAREASOLID;
 const IFCARBITRARYCLOSEDPROFILEDEF = WebIfc.IFCARBITRARYCLOSEDPROFILEDEF;
 const IFCRECTANGLEPROFILEDEF = WebIfc.IFCRECTANGLEPROFILEDEF;
@@ -81,11 +82,81 @@ function matchRoomFunction(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Coordinate transform: IFC (meters, Z-up) → Modeller (mm, Y-down screen)
+// IFC length unit detection
 // ---------------------------------------------------------------------------
 
-function ifcToModeller(x: number, y: number): Point2D {
-  return { x: x * IFC_TO_MM, y: -y * IFC_TO_MM };
+/** SI prefix → multiplier to get base unit (meters). */
+const SI_PREFIX_FACTOR: Record<string, number> = {
+  ".EXA.": 1e18,  ".PETA.": 1e15, ".TERA.": 1e12, ".GIGA.": 1e9,
+  ".MEGA.": 1e6,  ".KILO.": 1e3,  ".HECTO.": 1e2, ".DECA.": 1e1,
+  ".DECI.": 1e-1, ".CENTI.": 1e-2, ".MILLI.": 1e-3, ".MICRO.": 1e-6,
+  ".NANO.": 1e-9, ".PICO.": 1e-12,
+};
+
+/**
+ * Detect the IFC file's length unit and return the conversion factor to mm.
+ * Falls back to 1000 (assumes meters) when detection fails.
+ */
+function detectUnitToMm(api: WebIfc.IfcAPI, modelId: number): number {
+  try {
+    const projectIds = api.GetLineIDsWithType(modelId, IFCPROJECT);
+    if (projectIds.size() === 0) return DEFAULT_UNIT_TO_MM;
+
+    const project = api.GetLine(modelId, projectIds.get(0));
+    const unitsCtxRef = project?.UnitsInContext;
+    const unitsAssignment = unitsCtxRef?.value != null
+      ? api.GetLine(modelId, unitsCtxRef.value)
+      : unitsCtxRef;
+
+    const units = unitsAssignment?.Units;
+    if (!Array.isArray(units)) return DEFAULT_UNIT_TO_MM;
+
+    for (const unitRef of units) {
+      const unit = unitRef?.value != null
+        ? api.GetLine(modelId, unitRef.value)
+        : unitRef;
+      if (!unit) continue;
+
+      const unitType = String(unit.UnitType?.value ?? "");
+      if (!unitType.includes("LENGTHUNIT")) continue;
+
+      // IfcSIUnit: check prefix to determine scale
+      const prefix = String(unit.Prefix?.value ?? "");
+      if (prefix && prefix !== "undefined" && prefix !== "null") {
+        const key = prefix.startsWith(".") ? prefix : `.${prefix}.`;
+        const factor = SI_PREFIX_FACTOR[key.toUpperCase()];
+        if (factor !== undefined) {
+          // prefix gives base-unit fraction → meters * 1000 = mm
+          return factor * 1000;
+        }
+      }
+
+      // IfcConversionBasedUnit: check ConversionFactor
+      const convFactor = unit.ConversionFactor;
+      if (convFactor?.value != null) {
+        const measure = api.GetLine(modelId, convFactor.value);
+        const val = Number(
+          measure?.ValueComponent?.value ?? measure?.ValueComponent ?? 1,
+        );
+        // val is the conversion to SI meters
+        return val * 1000;
+      }
+
+      // No prefix, no conversion → base SI = meters
+      return 1000;
+    }
+  } catch {
+    // Detection failed
+  }
+  return DEFAULT_UNIT_TO_MM;
+}
+
+// ---------------------------------------------------------------------------
+// Coordinate transform: IFC → Modeller (mm, Y-down screen)
+// ---------------------------------------------------------------------------
+
+function ifcToModeller(x: number, y: number, unitToMm: number): Point2D {
+  return { x: x * unitToMm, y: -y * unitToMm };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +270,7 @@ function tryExtractProfile(
   api: WebIfc.IfcAPI,
   modelId: number,
   spaceId: number,
+  unitToMm: number,
 ): ExtractionResult | null {
   try {
     const space = api.GetLine(modelId, spaceId);
@@ -226,7 +298,7 @@ function tryExtractProfile(
         if (!isExtrusion) continue;
 
         const depth = Number(item.Depth?.value ?? item.Depth ?? 0);
-        const height = depth > 0 ? depth * IFC_TO_MM : FLOOR_HEIGHT_DEFAULT_MM;
+        const height = depth > 0 ? depth * unitToMm : FLOOR_HEIGHT_DEFAULT_MM;
 
         const sweptArea = item.SweptArea?.value != null
           ? api.GetLine(modelId, item.SweptArea.value)
@@ -234,11 +306,11 @@ function tryExtractProfile(
 
         if (!sweptArea) continue;
 
-        const polygon = extractPolygonFromProfile(api, modelId, sweptArea);
+        const polygon = extractPolygonFromProfile(api, modelId, sweptArea, unitToMm);
         if (!polygon || polygon.length < MIN_POLYGON_POINTS) continue;
 
         // Apply placement transform
-        const transform = getPlacementTransform(api, modelId, spaceId);
+        const transform = getPlacementTransform(api, modelId, spaceId, unitToMm);
         const transformed = polygon.map((p) => applyTransform2D(p, transform));
 
         return { polygon: transformed, height };
@@ -254,6 +326,7 @@ function extractPolygonFromProfile(
   api: WebIfc.IfcAPI,
   modelId: number,
   profile: Record<string, unknown>,
+  unitToMm: number,
 ): Point2D[] | null {
   const profileType = (profile as { type?: number }).type;
 
@@ -263,7 +336,7 @@ function extractPolygonFromProfile(
     const curve = curveRef?.value != null ? api.GetLine(modelId, curveRef.value) : curveRef;
     if (!curve) return null;
 
-    return extractPointsFromCurve(api, modelId, curve as Record<string, unknown>);
+    return extractPointsFromCurve(api, modelId, curve as Record<string, unknown>, unitToMm);
   }
 
   // IfcRectangleProfileDef → generate 4-point rectangle
@@ -275,10 +348,10 @@ function extractPolygonFromProfile(
     const hw = xDim / 2;
     const hh = yDim / 2;
     return [
-      ifcToModeller(-hw, -hh),
-      ifcToModeller(hw, -hh),
-      ifcToModeller(hw, hh),
-      ifcToModeller(-hw, hh),
+      ifcToModeller(-hw, -hh, unitToMm),
+      ifcToModeller(hw, -hh, unitToMm),
+      ifcToModeller(hw, hh, unitToMm),
+      ifcToModeller(-hw, hh, unitToMm),
     ];
   }
 
@@ -289,6 +362,7 @@ function extractPointsFromCurve(
   api: WebIfc.IfcAPI,
   modelId: number,
   curve: Record<string, unknown>,
+  unitToMm: number,
 ): Point2D[] | null {
   const curveType = (curve as { type?: number }).type;
 
@@ -309,7 +383,7 @@ function extractPointsFromCurve(
       const x = Number((coords[0] as { value?: number })?.value ?? coords[0]);
       const y = Number((coords[1] as { value?: number })?.value ?? coords[1]);
 
-      points.push(ifcToModeller(x, y));
+      points.push(ifcToModeller(x, y, unitToMm));
     }
 
     // Remove duplicate closing point if present
@@ -335,6 +409,7 @@ function tryExtractBrep(
   api: WebIfc.IfcAPI,
   modelId: number,
   spaceId: number,
+  unitToMm: number,
 ): ExtractionResult | null {
   try {
     const space = api.GetLine(modelId, spaceId);
@@ -409,13 +484,13 @@ function tryExtractBrep(
         facesWithZ.sort((a, b) => a.z - b.z);
         const floorFace = facesWithZ[0]!;
         const ceilingFace = facesWithZ[facesWithZ.length - 1]!;
-        const height = (ceilingFace.z - floorFace.z) * IFC_TO_MM;
+        const height = (ceilingFace.z - floorFace.z) * unitToMm;
 
         // Apply placement transform and convert to 2D
-        const transform = getPlacementTransform(api, modelId, spaceId);
+        const transform = getPlacementTransform(api, modelId, spaceId, unitToMm);
         const polygon = floorFace.points.map((p) => {
           const transformed = applyTransform2D(
-            ifcToModeller(p.x, p.y),
+            ifcToModeller(p.x, p.y, unitToMm),
             transform,
           );
           return transformed;
@@ -443,6 +518,7 @@ function tryExtractMesh(
   api: WebIfc.IfcAPI,
   modelId: number,
   spaceId: number,
+  unitToMm: number,
 ): ExtractionResult | null {
   try {
     const flatMesh = api.GetFlatMesh(modelId, spaceId);
@@ -479,7 +555,7 @@ function tryExtractMesh(
       if (v.z < minZ) minZ = v.z;
       if (v.z > maxZ) maxZ = v.z;
     }
-    const height = (maxZ - minZ) * IFC_TO_MM;
+    const height = (maxZ - minZ) * unitToMm;
 
     // Extract bottom-face vertices (Z near minZ)
     const zTolerance = 0.05; // 5cm
@@ -490,7 +566,7 @@ function tryExtractMesh(
     if (bottomVerts.length < MIN_POLYGON_POINTS) return null;
 
     // Compute convex hull of bottom vertices in 2D
-    const points2D = bottomVerts.map((v) => ifcToModeller(v.x, v.y));
+    const points2D = bottomVerts.map((v) => ifcToModeller(v.x, v.y, unitToMm));
     const hull = convexHull2D(points2D);
 
     if (hull.length >= MIN_POLYGON_POINTS) {
@@ -570,6 +646,7 @@ function getPlacementTransform(
   api: WebIfc.IfcAPI,
   modelId: number,
   expressId: number,
+  unitToMm: number,
 ): Transform2D {
   try {
     const matrix = api.GetCoordinationMatrix(modelId);
@@ -577,8 +654,8 @@ function getPlacementTransform(
     // We only need the 2D part: translation and rotation from XY plane.
     if (matrix && matrix.length >= 16) {
       return {
-        tx: (matrix[12] ?? 0) * IFC_TO_MM,
-        ty: -(matrix[13] ?? 0) * IFC_TO_MM, // flip Y
+        tx: (matrix[12] ?? 0) * unitToMm,
+        ty: -(matrix[13] ?? 0) * unitToMm, // flip Y
         cos: matrix[0] ?? 1,
         sin: -(matrix[1] ?? 0), // flip for Y-down
       };
@@ -604,8 +681,8 @@ function getPlacementTransform(
             const x = Number(coords[0]?.value ?? coords[0]);
             const y = Number(coords[1]?.value ?? coords[1]);
             return {
-              tx: x * IFC_TO_MM,
-              ty: -y * IFC_TO_MM,
+              tx: x * unitToMm,
+              ty: -y * unitToMm,
               cos: 1,
               sin: 0,
             };
@@ -668,6 +745,9 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
   };
 
   try {
+    // Detect length unit (meters, mm, etc.) → conversion factor to mm
+    const unitToMm = detectUnitToMm(api, modelId);
+
     // Extract storey structure
     const storeyMap = extractStoreys(api, modelId);
 
@@ -682,14 +762,14 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
       // Try extraction strategies in order
       let extracted: ExtractionResult | null = null;
 
-      extracted = tryExtractProfile(api, modelId, spaceId);
+      extracted = tryExtractProfile(api, modelId, spaceId, unitToMm);
 
       if (!extracted) {
-        extracted = tryExtractBrep(api, modelId, spaceId);
+        extracted = tryExtractBrep(api, modelId, spaceId, unitToMm);
       }
 
       if (!extracted) {
-        extracted = tryExtractMesh(api, modelId, spaceId);
+        extracted = tryExtractMesh(api, modelId, spaceId, unitToMm);
       }
 
       if (!extracted) {
@@ -724,7 +804,7 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
       // Determine floor and elevation
       const { floorIndex, elevationMeters } = findFloorForSpace(api, modelId, spaceId, storeyMap);
       const elevation = elevationMeters !== undefined
-        ? Math.round(elevationMeters * IFC_TO_MM)
+        ? Math.round(elevationMeters * unitToMm)
         : undefined;
 
       // Build room
