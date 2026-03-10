@@ -1018,7 +1018,8 @@ function getSpaceName(
 // ---------------------------------------------------------------------------
 
 export async function importIfcFile(file: File): Promise<IfcImportResult> {
-  console.log("[IFC-DBG] === importIfcFile v4 START ===", file.name, file.size);
+  console.log("[IFC-DBG] === importIfcFile v5 START ===", file.name, file.size);
+  alert(`IFC import v5 gestart: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`);
   const api = await getIfcApi();
   console.log("[IFC-DBG] IfcAPI ready");
 
