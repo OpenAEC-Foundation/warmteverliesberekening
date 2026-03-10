@@ -1051,31 +1051,54 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
     result.stats.spacesFound = spaceIds.size();
     console.log("[IFC-DBG] IfcSpace entities found:", spaceIds.size());
 
+    // Diagnostic log for alert
+    const diagLines: string[] = [`unitToMm=${unitToMm}, spaces=${spaceIds.size()}`];
+
     for (let i = 0; i < spaceIds.size(); i++) {
       const spaceId = spaceIds.get(i);
       const spaceName = getSpaceName(api, modelId, spaceId);
 
       // Try extraction strategies in order.
-      // Mesh first: GetFlatMesh returns globally-transformed coordinates via
-      // flatTransformation, making it the most reliable for positioning.
-      // Profile/Brep are fallbacks — their manual placement chain can fail.
       let extracted: ExtractionResult | null = null;
       let strategy = "none";
+      let meshErr = "";
+      let profileErr = "";
+      let brepErr = "";
 
-      extracted = tryExtractMesh(api, modelId, spaceId, unitToMm);
-      if (extracted) strategy = "mesh";
-
-      if (!extracted) {
-        extracted = tryExtractProfile(api, modelId, spaceId, unitToMm);
-        if (extracted) strategy = "profile";
+      try {
+        extracted = tryExtractMesh(api, modelId, spaceId, unitToMm);
+        if (extracted) strategy = "mesh";
+      } catch (e) {
+        meshErr = String(e);
       }
 
       if (!extracted) {
-        extracted = tryExtractBrep(api, modelId, spaceId, unitToMm);
-        if (extracted) strategy = "brep";
+        try {
+          extracted = tryExtractProfile(api, modelId, spaceId, unitToMm);
+          if (extracted) strategy = "profile";
+        } catch (e) {
+          profileErr = String(e);
+        }
       }
 
-      console.log(`[IFC-DBG] "${spaceName}" (#${spaceId}): strategy=${strategy}, unitToMm=${unitToMm}`);
+      if (!extracted) {
+        try {
+          extracted = tryExtractBrep(api, modelId, spaceId, unitToMm);
+          if (extracted) strategy = "brep";
+        } catch (e) {
+          brepErr = String(e);
+        }
+      }
+
+      const errors = [
+        meshErr && `mesh:${meshErr}`,
+        profileErr && `prof:${profileErr}`,
+        brepErr && `brep:${brepErr}`,
+      ].filter(Boolean).join(" | ");
+
+      const diagLine = `${spaceName}: ${strategy}${errors ? ` ERR[${errors}]` : ""}`;
+      diagLines.push(diagLine);
+      console.log(`[IFC-DBG] ${diagLine}`);
 
       if (!extracted) {
         result.warnings.push({
@@ -1131,6 +1154,9 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
       result.rooms.push(room);
       result.stats.spacesImported++;
     }
+
+    // Show diagnostics via alert (temporary debug)
+    alert(`IFC DIAGNOSTICS:\n${diagLines.join("\n")}\n\nImported: ${result.stats.spacesImported}, Skipped: ${result.stats.spacesSkipped}`);
   } finally {
     api.CloseModel(modelId);
   }
