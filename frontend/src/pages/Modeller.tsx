@@ -14,7 +14,7 @@ import { importIfcFile } from "../components/modeller/ifc-import";
 import { useToastStore } from "../store/toastStore";
 import { useCatalogueStore } from "../store/catalogueStore";
 import { FLOOR_LABELS } from "../components/modeller/exampleData";
-import { polygonArea, segmentsShareEdge, mergePolygons } from "../components/modeller";
+import { polygonArea, segmentsShareEdge, mergePolygons, removeCollinearVertices } from "../components/modeller";
 
 export function Modeller() {
   const [tool, setTool] = useState<ModellerTool>("select");
@@ -145,11 +145,22 @@ export function Modeller() {
 
   const handleRemoveRoom = useCallback(
     (id: string) => {
+      // Clean up collinear vertices on same-floor neighbours after removal
+      const removed = rooms.find((r) => r.id === id);
       removeRoom(id);
+      if (removed) {
+        const neighbours = rooms.filter((r) => r.id !== id && r.floor === removed.floor);
+        for (const nb of neighbours) {
+          const cleaned = removeCollinearVertices(nb.polygon);
+          if (cleaned.length < nb.polygon.length) {
+            updateRoom(nb.id, { polygon: cleaned });
+          }
+        }
+      }
       if (selectedRoomId === id) setSelection(null);
       addToast("Ruimte verwijderd", "info");
     },
-    [removeRoom, selectedRoomId, addToast],
+    [rooms, removeRoom, updateRoom, selectedRoomId, addToast],
   );
 
   const handleRemoveWindow = useCallback(
@@ -200,10 +211,20 @@ export function Modeller() {
         floor: rA.floor,
         height: Math.max(rA.height, rB.height),
       });
+      // Clean up collinear vertices on same-floor neighbours
+      const neighbours = rooms.filter(
+        (r) => r.id !== roomIdA && r.id !== roomIdB && r.floor === rA.floor,
+      );
+      for (const nb of neighbours) {
+        const cleaned = removeCollinearVertices(nb.polygon);
+        if (cleaned.length < nb.polygon.length) {
+          updateRoom(nb.id, { polygon: cleaned });
+        }
+      }
       setSelection({ type: "room", roomId: id });
       addToast("Ruimten samengevoegd", "success");
     },
-    [rooms, removeRoom, addRoom, addToast],
+    [rooms, removeRoom, addRoom, updateRoom, addToast],
   );
 
   const handleImportPdf = useCallback(() => {

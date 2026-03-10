@@ -199,15 +199,34 @@ export function mergePolygons(
     merged.push(polyB[i]!);
   }
 
-  // Clean up near-duplicate vertices (from shared edge endpoints that nearly coincide)
-  // NOTE: only remove duplicates, NOT collinear vertices — collinear corners are
-  // T-junction points needed for shared wall detection with adjacent rooms.
-  const cleaned = removeNearDuplicateVertices(merged);
+  // Clean up near-duplicate and collinear vertices
+  const cleaned = removeCollinearVertices(removeNearDuplicateVertices(merged));
 
   if (cleaned.length < 3) return null;
   if (polygonArea(cleaned) < 100) return null;
 
   return cleaned;
+}
+
+/**
+ * Remove collinear vertices that lie on a straight line between their neighbours.
+ * Uses cross-product test: if |cross(prev→curr, prev→next)| ≤ tolerance the vertex is redundant.
+ * Tolerance is in mm² (cross product = parallelogram area).
+ */
+export function removeCollinearVertices(poly: Point2D[], tolerance = 1): Point2D[] {
+  const result: Point2D[] = [];
+  const n = poly.length;
+  for (let i = 0; i < n; i++) {
+    const prev = poly[(i - 1 + n) % n]!;
+    const curr = poly[i]!;
+    const next = poly[(i + 1) % n]!;
+    const cross = (curr.x - prev.x) * (next.y - prev.y)
+                - (curr.y - prev.y) * (next.x - prev.x);
+    if (Math.abs(cross) > tolerance) {
+      result.push(curr);
+    }
+  }
+  return result.length >= 3 ? result : poly;
 }
 
 /** Remove consecutive vertices that are nearly at the same position (< threshold mm apart). */
