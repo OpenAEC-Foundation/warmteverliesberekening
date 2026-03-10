@@ -668,6 +668,8 @@ interface ProjectBrowserProps {
   onAssignRoof: (roomId: string, entryId: string | null) => void;
 }
 
+type SidebarTab = "project" | "bibliotheek";
+
 function ProjectBrowser({
   rooms,
   windows,
@@ -679,6 +681,7 @@ function ProjectBrowser({
   wallConstructions,
 }: ProjectBrowserProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("project");
 
   const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -692,11 +695,41 @@ function ProjectBrowser({
   const catalogueEntries = useAllConstructions();
 
   return (
-    <div className="w-64 shrink-0 overflow-y-auto border-r border-stone-200 bg-white text-xs">
-      <div className="border-b border-stone-100 px-3 py-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Project</span>
+    <div className="flex w-64 shrink-0 flex-col border-r border-stone-200 bg-white text-xs">
+      {/* Tab strip */}
+      <div className="flex border-b border-stone-200">
+        <button
+          onClick={() => setSidebarTab("project")}
+          className={`flex-1 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+            sidebarTab === "project"
+              ? "border-b-2 border-amber-500 text-amber-900"
+              : "text-stone-400 hover:text-stone-600"
+          }`}
+        >
+          Project
+        </button>
+        <button
+          onClick={() => setSidebarTab("bibliotheek")}
+          className={`flex-1 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+            sidebarTab === "bibliotheek"
+              ? "border-b-2 border-amber-500 text-amber-900"
+              : "text-stone-400 hover:text-stone-600"
+          }`}
+        >
+          Bibliotheek
+        </button>
       </div>
 
+      {/* Bibliotheek tab */}
+      {sidebarTab === "bibliotheek" && (
+        <div className="flex-1 overflow-y-auto">
+          <ProjectLibraryPanel />
+        </div>
+      )}
+
+      {/* Project tab */}
+      {sidebarTab === "project" && (<>
+      <div className="flex-1 overflow-y-auto">
       {floorGroups.map(({ label, floor, rooms: floorRooms }) => {
         const floorKey = `floor-${floor}`;
         const isFloorCollapsed = collapsed[floorKey];
@@ -818,10 +851,8 @@ function ProjectBrowser({
         );
       })}
 
-      {/* Project constructions library */}
-      <div className="border-t border-stone-100">
-        <ProjectLibraryPanel />
       </div>
+      </>)}
     </div>
   );
 }
