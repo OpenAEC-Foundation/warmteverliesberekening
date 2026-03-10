@@ -11,8 +11,12 @@ import { useModellerStore } from "../components/modeller/modellerStore";
 import type { ModellerTool, ModelRoom, ModelWindow, Point2D, Selection, SnapSettings, ViewMode } from "../components/modeller";
 import { splitPolygon } from "../components/modeller";
 import { importIfcFile } from "../components/modeller/ifc-import";
+import { modelToIfcx } from "../components/modeller/ifcx-builder";
+import { renderPdfFirstPage } from "../components/modeller/pdf-underlay";
 import { useToastStore } from "../store/toastStore";
+import { useProjectStore } from "../store/projectStore";
 import { useCatalogueStore } from "../store/catalogueStore";
+import { importProject, exportProject } from "../lib/importExport";
 import { FLOOR_LABELS } from "../components/modeller/exampleData";
 import { polygonArea, segmentsShareEdge, mergePolygons, removeCollinearVertices } from "../components/modeller";
 
@@ -231,13 +235,40 @@ export function Modeller() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*,.pdf";
-    input.onchange = () => {
+    input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      if (!file.type.startsWith("image/")) {
-        addToast("Momenteel alleen afbeeldingen ondersteund als onderlegger (PNG, JPG)", "info");
+
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+      if (isPdf) {
+        try {
+          addToast(`PDF "${file.name}" wordt gerenderd...`, "info");
+          const { dataUrl, width, height } = await renderPdfFirstPage(file);
+          const scale = 10; // px → mm
+          setUnderlay({
+            dataUrl,
+            fileName: file.name,
+            x: 0, y: 0,
+            width: width * scale,
+            height: height * scale,
+            opacity: 0.3,
+            rotation: 0,
+            locked: false,
+          });
+          addToast(`Onderlegger "${file.name}" geladen`, "success");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          addToast(`PDF import mislukt: ${msg}`, "error");
+        }
         return;
       }
+
+      if (!file.type.startsWith("image/")) {
+        addToast("Gebruik een afbeelding (PNG, JPG) of PDF als onderlegger", "info");
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result as string;
@@ -324,7 +355,68 @@ export function Modeller() {
   }, [addToast, importModel]);
 
   const handleExportIfc = useCallback(() => {
-    addToast("IFC export wordt binnenkort beschikbaar", "info");
+    const state = useModellerStore.getState();
+    if (state.rooms.length === 0) {
+      addToast("Geen ruimten om te exporteren", "info");
+      return;
+    }
+
+    const projectName = useProjectStore.getState().project.info.name || "Model";
+
+    try {
+      const doc = modelToIfcx(state.rooms, state.windows, state.doors, {
+        projectName,
+        author: "ISSO 51 Warmteverliesberekening",
+      });
+
+      const json = JSON.stringify(doc, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const safeName = projectName.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim() || "model";
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${safeName}.ifcx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      addToast(`IFCX export "${safeName}.ifcx" gedownload`, "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast(`IFCX export mislukt: ${msg}`, "error");
+    }
+  }, [addToast]);
+
+  const handleExportJson = useCallback(() => {
+    const { project, result } = useProjectStore.getState();
+    exportProject(project, result);
+    addToast("Project geexporteerd", "success");
+  }, [addToast]);
+
+  const handleImportJson = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,.isso51.json";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = importProject(reader.result as string);
+          useProjectStore.getState().setProject(imported.project);
+          if (imported.result) {
+            useProjectStore.getState().setResult(imported.result);
+          }
+          addToast(`Project "${imported.project.info.name || file.name}" geladen`, "success");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          addToast(`Import mislukt: ${msg}`, "error");
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   }, [addToast]);
 
   const handleFitView = useCallback(() => {
@@ -377,6 +469,8 @@ export function Modeller() {
         onImportPdf={handleImportPdf}
         onImportIfc={handleImportIfc}
         onExportIfc={handleExportIfc}
+        onImportJson={handleImportJson}
+        onExportJson={handleExportJson}
       />
 
       <div className="flex min-h-0 flex-1">

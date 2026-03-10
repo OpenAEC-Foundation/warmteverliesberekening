@@ -1,5 +1,13 @@
 import { useState } from "react";
 
+import type { LucideIcon } from "lucide-react";
+import {
+  MousePointer2, Hand, Square, Pentagon, Circle,
+  Grid2x2, DoorOpen, Scissors, MoveHorizontal,
+  Type, CornerRightDown, Ruler, Undo2, Redo2,
+  FileImage, FileText, Download, Upload, FileDown, FileUp,
+} from "lucide-react";
+
 import type { ModellerTool, SnapMode, SnapSettings, ViewMode } from "./types";
 import { FLOOR_LABELS } from "./exampleData";
 
@@ -23,6 +31,8 @@ interface RibbonProps {
   onImportPdf: () => void;
   onImportIfc: () => void;
   onExportIfc: () => void;
+  onImportJson: () => void;
+  onExportJson: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,33 +55,33 @@ const TABS: { id: TabId; label: string }[] = [
 interface ToolBtn {
   id: ModellerTool;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   shortcut?: string;
   large?: boolean;
 }
 
 const SELECT_TOOLS: ToolBtn[] = [
-  { id: "select", label: "Selecteer", icon: "\u2190", shortcut: "V", large: true },
-  { id: "pan", label: "Verschuif", icon: "\u2725", shortcut: "H", large: true },
+  { id: "select", label: "Selecteer", icon: MousePointer2, shortcut: "V", large: true },
+  { id: "pan", label: "Verschuif", icon: Hand, shortcut: "H", large: true },
 ];
 
 const SHAPE_TOOLS: ToolBtn[] = [
-  { id: "draw_rect", label: "Rechthoek", icon: "\u25AD", shortcut: "R", large: true },
-  { id: "draw_polygon", label: "Polygoon", icon: "\u2B23", shortcut: "P", large: true },
-  { id: "draw_circle", label: "Cirkel", icon: "\u25CB", shortcut: "C", large: true },
+  { id: "draw_rect", label: "Rechthoek", icon: Square, shortcut: "R", large: true },
+  { id: "draw_polygon", label: "Polygoon", icon: Pentagon, shortcut: "P", large: true },
+  { id: "draw_circle", label: "Cirkel", icon: Circle, shortcut: "C", large: true },
 ];
 
 const ELEMENT_TOOLS: ToolBtn[] = [
-  { id: "draw_window", label: "Raam", icon: "\u25A8", shortcut: "N", large: true },
-  { id: "draw_door", label: "Deur", icon: "\u2395", large: true },
-  { id: "split_room", label: "Splitsen", icon: "\u2702", shortcut: "S", large: true },
+  { id: "draw_window", label: "Raam", icon: Grid2x2, shortcut: "N", large: true },
+  { id: "draw_door", label: "Deur", icon: DoorOpen, large: true },
+  { id: "split_room", label: "Splitsen", icon: Scissors, shortcut: "S", large: true },
 ];
 
 const ANNOTATION_TOOLS: ToolBtn[] = [
-  { id: "annotate_dimension", label: "Maatvoering", icon: "\u2194", large: true },
-  { id: "annotate_text", label: "Tekst", icon: "T", large: true },
-  { id: "annotate_leader", label: "Leider", icon: "\u2198", large: true },
-  { id: "measure", label: "Meten", icon: "\u21A6", shortcut: "M", large: true },
+  { id: "annotate_dimension", label: "Maatvoering", icon: MoveHorizontal, large: true },
+  { id: "annotate_text", label: "Tekst", icon: Type, large: true },
+  { id: "annotate_leader", label: "Leider", icon: CornerRightDown, large: true },
+  { id: "measure", label: "Meten", icon: Ruler, shortcut: "M", large: true },
 ];
 
 const SNAP_OPTIONS: { mode: SnapMode; label: string }[] = [
@@ -130,8 +140,8 @@ function ModelTab({ tool, onToolChange, onUndo, onRedo }: RibbonProps) {
       {/* Undo / Redo */}
       <RibbonGroup label="">
         <div className="flex h-full flex-col items-center justify-center gap-1">
-          <SmallButton icon="&#x21B6;" label="Ongedaan" onClick={onUndo} title="Ctrl+Z" />
-          <SmallButton icon="&#x21B7;" label="Opnieuw" onClick={onRedo} title="Ctrl+Y" />
+          <SmallButton icon={Undo2} label="Ongedaan" onClick={onUndo} title="Ctrl+Z" />
+          <SmallButton icon={Redo2} label="Opnieuw" onClick={onRedo} title="Ctrl+Y" />
         </div>
       </RibbonGroup>
 
@@ -286,20 +296,29 @@ function InvoegenTab({
   onImportPdf,
   onImportIfc,
   onExportIfc,
+  onImportJson,
+  onExportJson,
 }: RibbonProps) {
   return (
     <>
       <RibbonGroup label="Onderlegger">
         <div className="flex h-full items-center gap-1">
-          <LargeButton icon="\u2337" label="DWG" onClick={onImportDwg} />
-          <LargeButton icon="\u2338" label="PDF" onClick={onImportPdf} />
+          <LargeButton icon={FileImage} label="DWG" onClick={onImportDwg} />
+          <LargeButton icon={FileText} label="PDF" onClick={onImportPdf} />
         </div>
       </RibbonGroup>
 
       <RibbonGroup label="IFC">
         <div className="flex h-full items-center gap-1">
-          <LargeButton icon="\u21E9" label="Importeren" onClick={onImportIfc} />
-          <LargeButton icon="\u21E7" label="Exporteren" onClick={onExportIfc} />
+          <LargeButton icon={Download} label="Importeren" onClick={onImportIfc} />
+          <LargeButton icon={Upload} label="Exporteren" onClick={onExportIfc} />
+        </div>
+      </RibbonGroup>
+
+      <RibbonGroup label="Project">
+        <div className="flex h-full items-center gap-1">
+          <LargeButton icon={FileDown} label="Importeren" onClick={onImportJson} />
+          <LargeButton icon={FileUp} label="Exporteren" onClick={onExportJson} />
         </div>
       </RibbonGroup>
     </>
@@ -337,38 +356,44 @@ function ToolRow({
 
   return (
     <div className="flex h-full items-center gap-0.5">
-      {large.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => onSelect(t.id)}
-          title={t.shortcut ? `${t.label} (${t.shortcut})` : t.label}
-          className={`flex h-[52px] w-11 flex-col items-center justify-center gap-0.5 rounded px-1 transition-colors ${
-            active === t.id
-              ? "bg-amber-100 text-amber-800"
-              : "text-stone-500 hover:bg-stone-50 hover:text-stone-700"
-          }`}
-        >
-          <span className="text-lg leading-none">{t.icon}</span>
-          <span className="text-[9px] font-medium leading-tight">{t.label}</span>
-        </button>
-      ))}
+      {large.map((t) => {
+        const Icon = t.icon;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onSelect(t.id)}
+            title={t.shortcut ? `${t.label} (${t.shortcut})` : t.label}
+            className={`flex h-[52px] w-11 flex-col items-center justify-center gap-0.5 rounded px-1 transition-colors ${
+              active === t.id
+                ? "bg-amber-100 text-amber-800"
+                : "text-stone-500 hover:bg-stone-50 hover:text-stone-700"
+            }`}
+          >
+            <Icon size={18} />
+            <span className="text-[9px] font-medium leading-tight">{t.label}</span>
+          </button>
+        );
+      })}
       {small.length > 0 && (
         <div className="flex flex-col gap-px">
-          {small.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onSelect(t.id)}
-              title={t.shortcut ? `${t.label} (${t.shortcut})` : t.label}
-              className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-left transition-colors ${
-                active === t.id
-                  ? "bg-amber-100 text-amber-800"
-                  : "text-stone-500 hover:bg-stone-50 hover:text-stone-700"
-              }`}
-            >
-              <span className="text-xs">{t.icon}</span>
-              <span className="text-[10px] font-medium">{t.label}</span>
-            </button>
-          ))}
+          {small.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onSelect(t.id)}
+                title={t.shortcut ? `${t.label} (${t.shortcut})` : t.label}
+                className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-left transition-colors ${
+                  active === t.id
+                    ? "bg-amber-100 text-amber-800"
+                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-700"
+                }`}
+              >
+                <Icon size={14} />
+                <span className="text-[10px] font-medium">{t.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -376,11 +401,11 @@ function ToolRow({
 }
 
 function LargeButton({
-  icon,
+  icon: Icon,
   label,
   onClick,
 }: {
-  icon: string;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }) {
@@ -389,19 +414,19 @@ function LargeButton({
       onClick={onClick}
       className="flex h-[52px] w-14 flex-col items-center justify-center gap-0.5 rounded px-1 text-stone-500 transition-colors hover:bg-stone-50 hover:text-stone-700"
     >
-      <span className="text-lg leading-none">{icon}</span>
+      <Icon size={18} />
       <span className="text-[9px] font-medium leading-tight">{label}</span>
     </button>
   );
 }
 
 function SmallButton({
-  icon,
+  icon: Icon,
   label,
   onClick,
   title,
 }: {
-  icon: string;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
   title?: string;
@@ -412,7 +437,7 @@ function SmallButton({
       title={title}
       className="flex items-center gap-1 rounded px-1.5 py-0.5 text-stone-500 transition-colors hover:bg-stone-50 hover:text-stone-700"
     >
-      <span className="text-xs">{icon}</span>
+      <Icon size={14} />
       <span className="text-[9px] font-medium">{label}</span>
     </button>
   );
