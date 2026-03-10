@@ -329,8 +329,8 @@ function tryExtractProfile(
         return { polygon: transformed, height };
       }
     }
-  } catch {
-    // Profile extraction failed
+  } catch (err) {
+    console.error(`[IFC-DBG] tryExtractProfile CRASHED for space #${spaceId}:`, err);
   }
   return null;
 }
@@ -517,8 +517,8 @@ function tryExtractBrep(
         }
       }
     }
-  } catch {
-    // Brep extraction failed
+  } catch (err) {
+    console.error(`[IFC-DBG] tryExtractBrep CRASHED for space #${spaceId}:`, err);
   }
   return null;
 }
@@ -652,8 +652,8 @@ function tryExtractMesh(
         height: height > 0 ? height : FLOOR_HEIGHT_DEFAULT_MM,
       };
     }
-  } catch {
-    // Mesh extraction failed
+  } catch (err) {
+    console.error(`[IFC-DBG] tryExtractMesh CRASHED for space #${spaceId}:`, err);
   }
   return null;
 }
@@ -1018,7 +1018,9 @@ function getSpaceName(
 // ---------------------------------------------------------------------------
 
 export async function importIfcFile(file: File): Promise<IfcImportResult> {
+  console.log("[IFC-DBG] === importIfcFile v4 START ===", file.name, file.size);
   const api = await getIfcApi();
+  console.log("[IFC-DBG] IfcAPI ready");
 
   const buffer = await file.arrayBuffer();
   const data = new Uint8Array(buffer);
@@ -1026,6 +1028,7 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
   const modelId = api.OpenModel(data, {
     COORDINATE_TO_ORIGIN: true,
   });
+  console.log("[IFC-DBG] model opened, modelId:", modelId);
 
   const result: IfcImportResult = {
     rooms: [],
@@ -1036,13 +1039,16 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
   try {
     // Detect length unit (meters, mm, etc.) → conversion factor to mm
     const unitToMm = detectUnitToMm(api, modelId);
+    console.log("[IFC-DBG] unitToMm:", unitToMm);
 
     // Extract storey structure
     const storeyMap = extractStoreys(api, modelId);
+    console.log("[IFC-DBG] storeys:", storeyMap.size);
 
     // Find all IfcSpace entities
     const spaceIds = api.GetLineIDsWithType(modelId, IFCSPACE);
     result.stats.spacesFound = spaceIds.size();
+    console.log("[IFC-DBG] IfcSpace entities found:", spaceIds.size());
 
     for (let i = 0; i < spaceIds.size(); i++) {
       const spaceId = spaceIds.get(i);
