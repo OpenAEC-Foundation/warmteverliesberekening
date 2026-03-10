@@ -309,9 +309,22 @@ function tryExtractProfile(
         const polygon = extractPolygonFromProfile(api, modelId, sweptArea, unitToMm);
         if (!polygon || polygon.length < MIN_POLYGON_POINTS) continue;
 
-        // Apply placement transform
-        const transform = getPlacementTransform(api, modelId, spaceId, unitToMm);
-        const transformed = polygon.map((p) => applyTransform2D(p, transform));
+        // Apply extrusion's own Position (profile → representation space)
+        let extrusionPos = IDENTITY_TRANSFORM;
+        const posRef = item.Position;
+        if (posRef?.value != null) {
+          extrusionPos = extractAxisPlacement2D(
+            api, modelId, posRef.value, unitToMm,
+          );
+        }
+
+        // Apply space's ObjectPlacement chain (representation → global)
+        const spaceTransform = getPlacementTransform(
+          api, modelId, spaceId, unitToMm,
+        );
+
+        const combined = composeTransforms(spaceTransform, extrusionPos);
+        const transformed = polygon.map((p) => applyTransform2D(p, combined));
 
         return { polygon: transformed, height };
       }
@@ -630,7 +643,7 @@ function convexHull2D(points: Point2D[]): Point2D[] {
 }
 
 // ---------------------------------------------------------------------------
-// Placement transform (simplified 2D)
+// Placement transform — walks the full IfcLocalPlacement chain
 // ---------------------------------------------------------------------------
 
 interface Transform2D {
@@ -642,6 +655,117 @@ interface Transform2D {
 
 const IDENTITY_TRANSFORM: Transform2D = { tx: 0, ty: 0, cos: 1, sin: 0 };
 
+/**
+ * Compose two transforms: result = outer(inner(point)).
+ * Both transforms are in modeller space (mm, Y-down).
+ */
+function composeTransforms(
+  outer: Transform2D,
+  inner: Transform2D,
+): Transform2D {
+  return {
+    cos: outer.cos * inner.cos - outer.sin * inner.sin,
+    sin: outer.sin * inner.cos + outer.cos * inner.sin,
+    tx: outer.cos * inner.tx - outer.sin * inner.ty + outer.tx,
+    ty: outer.sin * inner.tx + outer.cos * inner.ty + outer.ty,
+  };
+}
+
+/**
+ * Extract a 2D transform from an IfcAxis2Placement3D (or 2D).
+ * Converts IFC coordinates (Y-up) → modeller (mm, Y-down).
+ */
+function extractAxisPlacement2D(
+  api: WebIfc.IfcAPI,
+  modelId: number,
+  axisPlacementId: number,
+  unitToMm: number,
+): Transform2D {
+  try {
+    const ap = api.GetLine(modelId, axisPlacementId);
+
+    let tx = 0;
+    let ty = 0;
+    let cos = 1;
+    let sin = 0;
+
+    // Location → IfcCartesianPoint
+    const locationRef = ap?.Location;
+    if (locationRef?.value != null) {
+      const location = api.GetLine(modelId, locationRef.value);
+      const coords = location?.Coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        tx = Number(coords[0]?.value ?? coords[0]) * unitToMm;
+        ty = -(Number(coords[1]?.value ?? coords[1])) * unitToMm;
+      }
+    }
+
+    // RefDirection → IfcDirection (X-axis) for in-plane rotation
+    const refDirRef = ap?.RefDirection;
+    if (refDirRef?.value != null) {
+      const refDir = api.GetLine(modelId, refDirRef.value);
+      const ratios = refDir?.DirectionRatios;
+      if (Array.isArray(ratios) && ratios.length >= 2) {
+        const dx = Number(ratios[0]?.value ?? ratios[0]);
+        const dy = Number(ratios[1]?.value ?? ratios[1]);
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-10) {
+          cos = dx / len;
+          sin = -(dy / len); // flip for Y-down
+        }
+      }
+    }
+
+    return { tx, ty, cos, sin };
+  } catch {
+    return IDENTITY_TRANSFORM;
+  }
+}
+
+/**
+ * Recursively walk an IfcLocalPlacement chain and compose all transforms.
+ * Returns the cumulative transform from local → global in modeller space.
+ */
+function resolveLocalPlacement(
+  api: WebIfc.IfcAPI,
+  modelId: number,
+  placementId: number,
+  unitToMm: number,
+  visited?: Set<number>,
+): Transform2D {
+  const seen = visited ?? new Set<number>();
+  if (seen.has(placementId)) return IDENTITY_TRANSFORM;
+  seen.add(placementId);
+
+  try {
+    const placement = api.GetLine(modelId, placementId);
+
+    // This level's relative placement
+    let local = IDENTITY_TRANSFORM;
+    const relRef = placement?.RelativePlacement;
+    if (relRef?.value != null) {
+      local = extractAxisPlacement2D(api, modelId, relRef.value, unitToMm);
+    }
+
+    // Parent placement (IfcLocalPlacement.PlacementRelTo)
+    const parentRef = placement?.PlacementRelTo;
+    if (parentRef?.value != null) {
+      const parent = resolveLocalPlacement(
+        api, modelId, parentRef.value, unitToMm, seen,
+      );
+      return composeTransforms(parent, local);
+    }
+
+    return local;
+  } catch {
+    return IDENTITY_TRANSFORM;
+  }
+}
+
+/**
+ * Get the full placement transform for an IFC product (e.g. IfcSpace).
+ * Walks the ObjectPlacement → IfcLocalPlacement chain up to the root.
+ */
 function getPlacementTransform(
   api: WebIfc.IfcAPI,
   modelId: number,
@@ -649,51 +773,16 @@ function getPlacementTransform(
   unitToMm: number,
 ): Transform2D {
   try {
-    const matrix = api.GetCoordinationMatrix(modelId);
-    // The coordination matrix is a flat 4x4 matrix (16 values).
-    // We only need the 2D part: translation and rotation from XY plane.
-    if (matrix && matrix.length >= 16) {
-      return {
-        tx: (matrix[12] ?? 0) * unitToMm,
-        ty: -(matrix[13] ?? 0) * unitToMm, // flip Y
-        cos: matrix[0] ?? 1,
-        sin: -(matrix[1] ?? 0), // flip for Y-down
-      };
-    }
-  } catch {
-    // Fall through to identity
-  }
-
-  // Try to get the object's own placement via properties
-  try {
     const obj = api.GetLine(modelId, expressId);
-    const placement = obj?.ObjectPlacement;
-    if (placement?.value != null) {
-      const placementObj = api.GetLine(modelId, placement.value);
-      const relPlacement = placementObj?.RelativePlacement;
-      if (relPlacement?.value != null) {
-        const axisPlacement = api.GetLine(modelId, relPlacement.value);
-        const locationRef = axisPlacement?.Location;
-        if (locationRef?.value != null) {
-          const location = api.GetLine(modelId, locationRef.value);
-          const coords = location?.Coordinates;
-          if (Array.isArray(coords) && coords.length >= 2) {
-            const x = Number(coords[0]?.value ?? coords[0]);
-            const y = Number(coords[1]?.value ?? coords[1]);
-            return {
-              tx: x * unitToMm,
-              ty: -y * unitToMm,
-              cos: 1,
-              sin: 0,
-            };
-          }
-        }
-      }
+    const placementRef = obj?.ObjectPlacement;
+    if (placementRef?.value != null) {
+      return resolveLocalPlacement(
+        api, modelId, placementRef.value, unitToMm,
+      );
     }
   } catch {
     // Fall through
   }
-
   return IDENTITY_TRANSFORM;
 }
 
