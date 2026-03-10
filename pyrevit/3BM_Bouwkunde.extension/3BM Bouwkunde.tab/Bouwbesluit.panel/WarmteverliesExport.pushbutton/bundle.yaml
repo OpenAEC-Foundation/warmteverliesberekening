@@ -1,0 +1,7 @@
+title: Warmteverlies Export
+tooltip: >-
+  Exporteer verwarmde ruimten en grensvlakken naar ISSO 51 JSON
+  voor warmteverliesberekening via warmteverlies.open-aec.com
+author: 3BM Bouwkunde
+highlight: new
+context: zero-doc
