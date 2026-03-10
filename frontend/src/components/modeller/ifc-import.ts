@@ -1155,8 +1155,15 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
       result.stats.spacesImported++;
     }
 
-    // Show diagnostics via alert (temporary debug)
-    alert(`IFC DIAGNOSTICS:\n${diagLines.join("\n")}\n\nImported: ${result.stats.spacesImported}, Skipped: ${result.stats.spacesSkipped}`);
+    // Download diagnostics as text file (temporary debug)
+    const diagText = `IFC DIAGNOSTICS\n${diagLines.join("\n")}\n\nImported: ${result.stats.spacesImported}, Skipped: ${result.stats.spacesSkipped}\n\nWarnings:\n${result.warnings.map((w) => `${w.spaceName}: ${w.message}`).join("\n")}`;
+    const blob = new Blob([diagText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ifc-diagnostics.txt";
+    a.click();
+    URL.revokeObjectURL(url);
   } finally {
     api.CloseModel(modelId);
   }
