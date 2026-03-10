@@ -10,7 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useBackend } from "../hooks/useBackend";
 import { useProjectStore } from "../store/projectStore";
 import { createProject, updateProject as updateProjectApi, ConflictError } from "../lib/backend";
-import { exportProject, importProject } from "../lib/importExport";
+import { exportProject, importProject, extractAndLinkConstructions } from "../lib/importExport";
 import { useToastStore } from "../store/toastStore";
 import {
   BUILDING_TYPE_LABELS,
@@ -119,6 +119,7 @@ export function ProjectSetup() {
       reader.onload = () => {
         try {
           const imported = importProject(reader.result as string);
+          extractAndLinkConstructions(imported.project);
           const { setProject, setResult } = useProjectStore.getState();
           setProject(imported.project);
           if (imported.result) {

@@ -20,7 +20,7 @@ import { renderPdfFirstPage } from "../components/modeller/pdf-underlay";
 import { useToastStore } from "../store/toastStore";
 import { useProjectStore } from "../store/projectStore";
 import { useAllConstructions } from "../hooks/useAllConstructions";
-import { importProject, exportProject } from "../lib/importExport";
+import { importProject, exportProject, extractAndLinkConstructions } from "../lib/importExport";
 import { FLOOR_LABELS } from "../components/modeller/exampleData";
 import { polygonArea, segmentsShareEdge, mergePolygons, removeCollinearVertices } from "../components/modeller";
 
@@ -461,6 +461,7 @@ export function Modeller() {
       reader.onload = () => {
         try {
           const imported = importProject(reader.result as string);
+          extractAndLinkConstructions(imported.project);
           useProjectStore.getState().setProject(imported.project);
           if (imported.result) {
             useProjectStore.getState().setResult(imported.result);

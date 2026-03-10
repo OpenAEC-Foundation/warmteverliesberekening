@@ -4,7 +4,10 @@
  * Export wraps the project + result in a versioned envelope.
  * Import accepts both the envelope format and raw Project JSON.
  */
-import type { Project, ProjectResult } from "../types";
+import type { ConstructionElement, Project, ProjectResult, VerticalPosition } from "../types";
+import type { CatalogueCategory } from "./constructionCatalogue";
+import type { ProjectConstruction } from "../components/modeller/types";
+import { useModellerStore } from "../components/modeller/modellerStore";
 
 const SCHEMA_ID = "isso51-project-v1";
 const EXPORT_VERSION = "1.0.0";
@@ -119,4 +122,108 @@ export function validateProject(data: unknown): Project {
   }
 
   return data as Project;
+}
+
+// ---------------------------------------------------------------------------
+// Construction extraction — dedup + link on import
+// ---------------------------------------------------------------------------
+
+/** Fingerprint for deduplication: same type = same construction. */
+function constructionFingerprint(c: ConstructionElement): string {
+  return `${c.description}|${c.u_value}|${c.material_type}|${c.vertical_position ?? "wall"}|${c.boundary_type}`;
+}
+
+/** Map vertical_position to CatalogueCategory. */
+function categoryFromPosition(vp: VerticalPosition | undefined): CatalogueCategory {
+  if (vp === "ceiling") return "daken";
+  if (vp === "floor") return "vloeren_plafonds";
+  return "wanden";
+}
+
+/**
+ * Extract unique construction types from a project's rooms and
+ * create ProjectConstruction entries in modellerStore.
+ *
+ * Each room's ConstructionElement gets a `project_construction_id`
+ * linking back to the ProjectConstruction.
+ *
+ * Call this after `importProject()` and before `setProject()`.
+ */
+export function extractAndLinkConstructions(project: Project): void {
+  const store = useModellerStore.getState();
+  const existing = store.projectConstructions;
+
+  // Map fingerprint → project construction ID (existing + new)
+  const fpToId = new Map<string, string>();
+
+  // Collect unique constructions from all rooms
+  const newConstructions: Omit<ProjectConstruction, "id">[] = [];
+
+  for (const room of project.rooms) {
+    for (const ce of room.constructions) {
+      const fp = constructionFingerprint(ce);
+
+      if (fpToId.has(fp)) {
+        // Already seen — just link
+        ce.project_construction_id = fpToId.get(fp)!;
+        continue;
+      }
+
+      // Check if an existing ProjectConstruction matches
+      const existingMatch = existing.find(
+        (pc) =>
+          pc.name === ce.description &&
+          pc.materialType === ce.material_type &&
+          pc.verticalPosition === (ce.vertical_position ?? "wall"),
+      );
+
+      if (existingMatch) {
+        fpToId.set(fp, existingMatch.id);
+        ce.project_construction_id = existingMatch.id;
+        continue;
+      }
+
+      // Create new project construction
+      const id = `proj-${crypto.randomUUID()}`;
+      fpToId.set(fp, id);
+      ce.project_construction_id = id;
+
+      newConstructions.push({
+        name: ce.description,
+        category: categoryFromPosition(ce.vertical_position),
+        materialType: ce.material_type,
+        verticalPosition: (ce.vertical_position ?? "wall") as VerticalPosition,
+        layers: ce.layers ? structuredClone(ce.layers) : [],
+      });
+    }
+  }
+
+  // Bulk-add new constructions to modellerStore
+  if (newConstructions.length > 0) {
+    store.importProjectConstructions(newConstructions);
+
+    // importProjectConstructions generates new IDs, so we need to remap.
+    // Re-read the store to get the actual IDs.
+    const updated = useModellerStore.getState().projectConstructions;
+
+    // Build name→id lookup from newly added entries
+    const nameToId = new Map<string, string>();
+    for (const pc of updated) {
+      nameToId.set(
+        `${pc.name}|${pc.materialType}|${pc.verticalPosition}`,
+        pc.id,
+      );
+    }
+
+    // Re-link construction elements to actual IDs
+    for (const room of project.rooms) {
+      for (const ce of room.constructions) {
+        const key = `${ce.description}|${ce.material_type}|${ce.vertical_position ?? "wall"}`;
+        const actualId = nameToId.get(key);
+        if (actualId) {
+          ce.project_construction_id = actualId;
+        }
+      }
+    }
+  }
 }

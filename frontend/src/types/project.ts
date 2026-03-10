@@ -97,6 +97,8 @@ export interface ConstructionElement {
   has_embedded_heating?: boolean;
   /** Optioneel: laag-opbouw voor Rc/U berekening. Niet naar Rust core gestuurd. */
   layers?: ConstructionElementLayer[];
+  /** Verwijzing naar ProjectConstruction in modellerStore. Niet naar Rust core gestuurd. */
+  project_construction_id?: string;
 }
 
 export interface Room {

@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { useModellerStore } from "../components/modeller/modellerStore";
 import type { ProjectConstruction } from "../components/modeller/types";
 import { useCatalogueStore } from "../store/catalogueStore";
+import { useProjectStore } from "../store/projectStore";
 import {
   CATALOGUE_CATEGORY_LABELS,
   type CatalogueCategory,
@@ -40,24 +41,25 @@ export function ProjectConstructions() {
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  // Count assignments for each project construction
-  const wallConstructions = useModellerStore((s) => s.wallConstructions);
-  const floorConstructions = useModellerStore((s) => s.floorConstructions);
-  const roofConstructions = useModellerStore((s) => s.roofConstructions);
+  // Rooms from project store — for showing linked rooms
+  const rooms = useProjectStore((s) => s.project.rooms);
 
-  const assignmentCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const id of Object.values(wallConstructions)) {
-      counts[id] = (counts[id] ?? 0) + 1;
+  // Map project construction ID → list of room names that use it
+  const linkedRooms = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const room of rooms) {
+      for (const ce of room.constructions) {
+        if (ce.project_construction_id) {
+          const list = map[ce.project_construction_id] ?? [];
+          if (!list.includes(room.name)) {
+            list.push(room.name);
+          }
+          map[ce.project_construction_id] = list;
+        }
+      }
     }
-    for (const id of Object.values(floorConstructions)) {
-      counts[id] = (counts[id] ?? 0) + 1;
-    }
-    for (const id of Object.values(roofConstructions)) {
-      counts[id] = (counts[id] ?? 0) + 1;
-    }
-    return counts;
-  }, [wallConstructions, floorConstructions, roofConstructions]);
+    return map;
+  }, [rooms]);
 
   // Group project constructions by category
   const projectGrouped = useMemo(() => {
@@ -154,15 +156,21 @@ export function ProjectConstructions() {
                   </h2>
                   <div className="space-y-2">
                     {entries.map((pc) => {
-                      const rcResult = calculateRc(pc.layers, pc.verticalPosition);
-                      const uValue = Math.round(rcResult.uValue * 1000) / 1000;
-                      const count = assignmentCounts[pc.id] ?? 0;
+                      const hasLayers = pc.layers.length > 0;
+                      const rcResult = hasLayers
+                        ? calculateRc(pc.layers, pc.verticalPosition)
+                        : null;
+                      const uValue = rcResult
+                        ? Math.round(rcResult.uValue * 1000) / 1000
+                        : null;
+                      const roomNames = linkedRooms[pc.id] ?? [];
 
                       return (
                         <div
                           key={pc.id}
-                          className="flex items-center gap-4 rounded border border-stone-200 bg-white px-4 py-3"
+                          className="rounded border border-stone-200 bg-white px-4 py-3"
                         >
+                          <div className="flex items-center gap-4">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-stone-800">
@@ -170,14 +178,13 @@ export function ProjectConstructions() {
                               </span>
                             </div>
                             <div className="mt-0.5 flex items-center gap-3 text-xs text-stone-500">
-                              <span>
-                                U = {uValue} W/(m{"\u00B2"}{"\u00B7"}K)
-                              </span>
-                              <span>{pc.layers.length} lagen</span>
-                              {count > 0 && (
-                                <span className="text-green-600">
-                                  {count}x toegewezen
+                              {uValue !== null && (
+                                <span>
+                                  U = {uValue} W/(m{"\u00B2"}{"\u00B7"}K)
                                 </span>
+                              )}
+                              {hasLayers && (
+                                <span>{pc.layers.length} lagen</span>
                               )}
                               {pc.catalogueSourceId && (
                                 <span className="text-stone-400">
@@ -190,6 +197,18 @@ export function ProjectConstructions() {
                                 </span>
                               )}
                             </div>
+                            {roomNames.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {roomNames.map((name) => (
+                                  <span
+                                    key={name}
+                                    className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600"
+                                  >
+                                    {name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
                             <a
@@ -224,6 +243,7 @@ export function ProjectConstructions() {
                                 Verwijderen
                               </button>
                             )}
+                          </div>
                           </div>
                         </div>
                       );
