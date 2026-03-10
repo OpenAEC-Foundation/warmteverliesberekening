@@ -11,7 +11,8 @@ import {
   createProject,
   deleteProject,
 } from "../lib/backend";
-import type { ProjectSummary, Project } from "../types";
+import { validateProject } from "../lib/importExport";
+import type { ProjectSummary } from "../types";
 
 export function Projects() {
   const navigate = useNavigate();
@@ -43,9 +44,10 @@ export function Projects() {
     async (id: string) => {
       try {
         const response = await fetchProject(id);
+        const projectData = validateProject(response.project_data);
         loadServerProject(
           id,
-          response.project_data as Project,
+          projectData,
           response.result_data as import("../types").ProjectResult | null,
           response.updated_at,
         );
@@ -72,7 +74,7 @@ export function Projects() {
     async (id: string) => {
       try {
         const response = await fetchProject(id);
-        const sourceData = response.project_data as Project;
+        const sourceData = validateProject(response.project_data);
         const name = `Kopie van ${response.name}`;
         await createProject(name, sourceData);
         await loadProjects();

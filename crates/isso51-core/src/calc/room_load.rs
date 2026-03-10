@@ -61,10 +61,10 @@ pub fn calculate_room(
     let phi_t = transmission::phi_transmission(h_t_total, theta_i, theta_e);
 
     // --- Infiltration ---
-    let qi_spec = tables::infiltration::qi_spec_per_exterior_area(building.qv10);
     let q_i = match building.infiltration_method {
         InfiltrationMethod::PerExteriorArea => {
             // ISSO 51:2023 Table 4.3: q_i = qi_spec × ΣA_exterior
+            let qi_spec = tables::infiltration::qi_spec_per_exterior_area(building.qv10);
             let total_exterior_area: f64 = room
                 .constructions
                 .iter()
@@ -74,7 +74,8 @@ pub fn calculate_room(
             infiltration::infiltration_flow_rate(qi_spec, total_exterior_area)
         }
         InfiltrationMethod::PerFloorArea => {
-            // ISSO 51:2024: q_i = qi_spec × A_floor
+            // ISSO 51:2024 Table 2.8: q_i = qi_spec_floor × A_floor
+            let qi_spec = tables::infiltration::qi_spec_per_floor_area(building.qv10);
             qi_spec * room.floor_area
         }
     };

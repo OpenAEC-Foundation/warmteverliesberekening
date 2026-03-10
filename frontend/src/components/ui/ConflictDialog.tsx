@@ -3,8 +3,9 @@ import { useCallback } from "react";
 import { Button } from "./Button";
 import { useProjectStore } from "../../store/projectStore";
 import { fetchProject } from "../../lib/backend";
+import { validateProject } from "../../lib/importExport";
 import { useToastStore } from "../../store/toastStore";
-import type { Project, ProjectResult } from "../../types";
+import type { ProjectResult } from "../../types";
 
 export function ConflictDialog() {
   const hasConflict = useProjectStore((s) => s.hasConflict);
@@ -15,9 +16,10 @@ export function ConflictDialog() {
     if (!activeProjectId) return;
     try {
       const response = await fetchProject(activeProjectId);
+      const projectData = validateProject(response.project_data);
       useProjectStore.getState().loadServerProject(
         activeProjectId,
-        response.project_data as Project,
+        projectData,
         response.result_data as ProjectResult | null,
         response.updated_at,
       );

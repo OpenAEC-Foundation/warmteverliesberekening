@@ -88,8 +88,9 @@ export function importProject(jsonString: string): ImportResult {
 
 /**
  * Validate that the data looks like a Project (basic structural checks).
+ * Exported so server responses can also be validated before casting.
  */
-function validateProject(data: unknown): Project {
+export function validateProject(data: unknown): Project {
   if (typeof data !== "object" || data === null) {
     throw new Error("Project data is geen geldig object");
   }

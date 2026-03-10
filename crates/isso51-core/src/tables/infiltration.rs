@@ -11,16 +11,15 @@
 /// # Returns
 /// q_i,spec in dm³/s per m² of exterior construction area.
 pub fn qi_spec_per_exterior_area(qv10: f64) -> f64 {
-    // ISSO 51 Table 4.3 (simplified lookup)
-    // qv,10 → qi,spec per m² exterior construction
+    // ISSO 51 Table 4.3: qi,spec in dm³/s per m² exterior construction
     if qv10 <= 50.0 {
-        0.08e-3 * 1000.0 // 0.08 × 10⁻³ m³/s → 0.08 dm³/s per m²
+        0.08
     } else if qv10 <= 100.0 {
-        0.16e-3 * 1000.0 // 0.16 × 10⁻³ m³/s → 0.16 dm³/s per m²
+        0.16
     } else if qv10 <= 150.0 {
-        0.24e-3 * 1000.0
+        0.24
     } else {
-        0.32e-3 * 1000.0
+        0.32
     }
 }
 
@@ -42,32 +41,6 @@ pub fn qi_spec_per_floor_area(qv10: f64) -> f64 {
         0.12
     } else {
         0.16
-    }
-}
-
-/// Ventilation requirement per m² floor area for living spaces.
-/// ISSO 51 Table 4.5 / Table 2.9.
-///
-/// # Returns
-/// Required ventilation in dm³/s per m² floor area.
-pub fn ventilation_requirement_living() -> f64 {
-    // 0.9 × 10⁻³ m³/s per m² = 0.9 dm³/s per m²
-    0.9
-}
-
-/// Ventilation requirement for wet rooms (kitchen, bathroom, toilet).
-/// ISSO 51 Table 2.10.
-///
-/// # Arguments
-/// * `is_kitchen_with_stove` - Kitchen with open gas appliance
-///
-/// # Returns
-/// Required ventilation in dm³/s.
-pub fn ventilation_requirement_wet_room(is_kitchen_with_stove: bool) -> f64 {
-    if is_kitchen_with_stove {
-        21.0 // dm³/s for kitchen with open stove
-    } else {
-        14.0 // dm³/s default for wet rooms (bathroom)
     }
 }
 

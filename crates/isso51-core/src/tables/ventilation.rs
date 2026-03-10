@@ -27,14 +27,14 @@ pub fn bbl_minimum_ventilation_rate(function: RoomFunction, floor_area: f64) -> 
     match function {
         // Verblijfsruimten: 0.9 dm³/s per m², minimum 7 dm³/s
         RoomFunction::LivingRoom | RoomFunction::Bedroom | RoomFunction::Attic => {
-            (0.9 * floor_area).max(7.0)
+            (BBL_QV_SPEC_LIVING * floor_area).max(BBL_QV_MIN_LIVING)
         }
         // Keuken: 21 dm³/s afvoer (kookdampen)
-        RoomFunction::Kitchen => 21.0,
+        RoomFunction::Kitchen => BBL_QV_KITCHEN,
         // Badkamer: 14 dm³/s afvoer
-        RoomFunction::Bathroom => 14.0,
+        RoomFunction::Bathroom => BBL_QV_BATHROOM,
         // Toilet: 7 dm³/s afvoer
-        RoomFunction::Toilet => 7.0,
+        RoomFunction::Toilet => BBL_QV_TOILET,
         // Doorstroomruimten: geen eigen ventilatie-eis
         RoomFunction::Hallway | RoomFunction::Landing | RoomFunction::Storage => 0.0,
         // Custom: geen automatische eis, gebruiker moet zelf specificeren

@@ -403,11 +403,6 @@ export function getMaterialById(id: string): Material | undefined {
   return MATERIAL_INDEX.get(id);
 }
 
-/** Alle materialen in een categorie. */
-export function getMaterialsByCategory(category: MaterialCategory): Material[] {
-  return MATERIALS_DATABASE.filter((m) => m.category === category);
-}
-
 /** Zoek materialen op naam + keywords (case-insensitive substring match). */
 export function searchMaterials(query: string): Material[] {
   if (!query.trim()) return MATERIALS_DATABASE;

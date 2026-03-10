@@ -64,11 +64,6 @@ const SHORT_NAMES: Record<string, string> = {
   "metselwerk-b1-rood": "B1",
 };
 
-/** Get short display name for a material id. */
-export function getShortMaterialName(materialId: string): string {
-  return SHORT_NAMES[materialId] ?? materialId;
-}
-
 /** Build a human-readable name from layer composition. */
 export function buildLayerName(layers: CatalogueLayer[]): string {
   return layers
@@ -589,14 +584,3 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
     isBuiltIn: true,
   },
 ];
-
-/** Group catalogue entries by category. */
-export function getCatalogueByCategory(): Map<CatalogueCategory, CatalogueEntry[]> {
-  const map = new Map<CatalogueCategory, CatalogueEntry[]>();
-  for (const entry of CONSTRUCTION_CATALOGUE) {
-    const list = map.get(entry.category) ?? [];
-    list.push(entry);
-    map.set(entry.category, list);
-  }
-  return map;
-}
