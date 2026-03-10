@@ -553,12 +553,7 @@ function tryExtractMesh(
 ): ExtractionResult | null {
   try {
     const flatMesh = api.GetFlatMesh(modelId, spaceId);
-    if (!flatMesh || flatMesh.geometries.size() === 0) {
-      console.log(`[IFC-DBG] space #${spaceId}: GetFlatMesh returned no geometries`);
-      return null;
-    }
-
-    console.log(`[IFC-DBG] space #${spaceId}: ${flatMesh.geometries.size()} geometries`);
+    if (!flatMesh || flatMesh.geometries.size() === 0) return null;
 
     // Collect all vertices and triangle indices, applying flatTransformation
     const allVertices: { x: number; y: number; z: number }[] = [];
@@ -580,25 +575,6 @@ function tryExtractMesh(
       // 4x4 column-major transformation matrix (local → global)
       const m = geom.flatTransformation;
       const baseIndex = allVertices.length;
-
-      // Debug: log transform matrix and raw vs transformed first vertex
-      if (g === 0) {
-        console.log(`[IFC-DBG] space #${spaceId} transform:`, [
-          [m[0], m[4], m[8], m[12]],
-          [m[1], m[5], m[9], m[13]],
-          [m[2], m[6], m[10], m[14]],
-          [m[3], m[7], m[11], m[15]],
-        ]);
-        if (vertexData.length >= VERTEX_STRIDE) {
-          console.log(`[IFC-DBG] space #${spaceId} raw vertex[0]:`,
-            vertexData[0], vertexData[1], vertexData[2]);
-          const tx = m[0]! * vertexData[0]! + m[4]! * vertexData[1]! + m[8]! * vertexData[2]! + m[12]!;
-          const ty = m[1]! * vertexData[0]! + m[5]! * vertexData[1]! + m[9]! * vertexData[2]! + m[13]!;
-          const tz = m[2]! * vertexData[0]! + m[6]! * vertexData[1]! + m[10]! * vertexData[2]! + m[14]!;
-          console.log(`[IFC-DBG] space #${spaceId} transformed vertex[0]:`, tx, ty, tz);
-        }
-        console.log(`[IFC-DBG] space #${spaceId} vertices: ${vertexData.length / VERTEX_STRIDE}, indices: ${indexData.length}`);
-      }
 
       for (let v = 0; v + 2 < vertexData.length; v += VERTEX_STRIDE) {
         const lx = vertexData[v]!;
@@ -622,20 +598,19 @@ function tryExtractMesh(
 
     if (allVertices.length < MIN_POLYGON_POINTS) return null;
 
-    // Find min/max Z for height
-    let minZ = Infinity;
-    let maxZ = -Infinity;
+    // web-ifc GetFlatMesh uses Y-up (WebGL convention): X,Z = floor plan, Y = height
+    let minY = Infinity;
+    let maxY = -Infinity;
     for (const v of allVertices) {
-      if (v.z < minZ) minZ = v.z;
-      if (v.z > maxZ) maxZ = v.z;
+      if (v.y < minY) minY = v.y;
+      if (v.y > maxY) maxY = v.y;
     }
-    // GetFlatMesh always returns meters — use MESH_UNIT_TO_MM (not unitToMm)
-    const height = (maxZ - minZ) * MESH_UNIT_TO_MM;
-    const zTol = Z_TOLERANCE_MM / MESH_UNIT_TO_MM; // 0.05m = 50mm
+    const height = (maxY - minY) * MESH_UNIT_TO_MM;
+    const yTol = Z_TOLERANCE_MM / MESH_UNIT_TO_MM; // 0.05m = 50mm
 
     // Try to extract accurate floor polygon outline from mesh triangles
-    const outline = extractFloorOutline(
-      allVertices, allIndices, minZ, MESH_UNIT_TO_MM, zTol,
+    const outline = extractFloorOutlineYUp(
+      allVertices, allIndices, minY, MESH_UNIT_TO_MM, yTol,
     );
     if (outline && outline.length >= MIN_POLYGON_POINTS) {
       return {
@@ -644,13 +619,17 @@ function tryExtractMesh(
       };
     }
 
-    // Fallback: convex hull of bottom vertices
+    // Fallback: convex hull of bottom vertices (Y = vertical)
     const bottomVerts = allVertices.filter(
-      (v) => Math.abs(v.z - minZ) < zTol,
+      (v) => Math.abs(v.y - minY) < yTol,
     );
     if (bottomVerts.length < MIN_POLYGON_POINTS) return null;
 
-    const points2D = bottomVerts.map((v) => ifcToModeller(v.x, v.y, MESH_UNIT_TO_MM));
+    // Project to XZ plane (floor plan), convert to mm
+    const points2D = bottomVerts.map((v) => ({
+      x: v.x * MESH_UNIT_TO_MM,
+      y: -v.z * MESH_UNIT_TO_MM,
+    }));
     const hull = convexHull2D(points2D);
 
     if (hull.length >= MIN_POLYGON_POINTS) {
@@ -670,20 +649,21 @@ function tryExtractMesh(
 // ---------------------------------------------------------------------------
 
 /**
- * Extract the floor polygon outline from triangulated mesh data.
- * Finds bottom-face triangles (all vertices at minZ), identifies boundary
+ * Extract the floor polygon outline from triangulated mesh data (Y-up).
+ * web-ifc GetFlatMesh uses Y-up: X,Z are the floor plan, Y is height.
+ * Finds bottom-face triangles (all vertices at minY), identifies boundary
  * edges (edges appearing in exactly one triangle), and chains them into
  * an ordered polygon. Preserves concave shapes like L-rooms.
  */
-function extractFloorOutline(
+function extractFloorOutlineYUp(
   vertices: { x: number; y: number; z: number }[],
   indices: number[],
-  minZ: number,
-  unitToMm: number,
-  zTol: number,
+  minY: number,
+  meshToMm: number,
+  yTol: number,
 ): Point2D[] | null {
   // Snap scale for position deduplication (~1mm precision)
-  const snapScale = unitToMm >= 100 ? 100 : 100_000;
+  const snapScale = meshToMm >= 100 ? 100 : 100_000;
 
   // 1. Find bottom-face triangles and collect edges by position key
   const edgeCounts = new Map<string, number>();
@@ -694,18 +674,19 @@ function extractFloorOutline(
     const v1 = vertices[indices[i + 1]!]!;
     const v2 = vertices[indices[i + 2]!]!;
 
-    // All 3 vertices must be at the floor level
+    // All 3 vertices must be at the floor level (Y = vertical)
     if (
-      Math.abs(v0.z - minZ) > zTol ||
-      Math.abs(v1.z - minZ) > zTol ||
-      Math.abs(v2.z - minZ) > zTol
+      Math.abs(v0.y - minY) > yTol ||
+      Math.abs(v1.y - minY) > yTol ||
+      Math.abs(v2.y - minY) > yTol
     ) {
       continue;
     }
 
-    const k0 = posKey(v0.x, v0.y, snapScale);
-    const k1 = posKey(v1.x, v1.y, snapScale);
-    const k2 = posKey(v2.x, v2.y, snapScale);
+    // Use XZ as floor plan coordinates
+    const k0 = posKey(v0.x, v0.z, snapScale);
+    const k1 = posKey(v1.x, v1.z, snapScale);
+    const k2 = posKey(v2.x, v2.z, snapScale);
 
     // Register 3 edges with canonical keys
     for (const [a, b] of [[k0, k1], [k1, k2], [k2, k0]] as [string, string][]) {
@@ -753,26 +734,30 @@ function extractFloorOutline(
 
   if (chain.length < MIN_POLYGON_POINTS) return null;
 
-  // 4. Map position keys back to actual coordinates (average of vertices)
-  const posAvg = new Map<string, { sx: number; sy: number; n: number }>();
+  // 4. Map position keys back to actual XZ coordinates (average of vertices)
+  const posAvg = new Map<string, { sx: number; sz: number; n: number }>();
   for (const v of vertices) {
-    if (Math.abs(v.z - minZ) > zTol) continue;
-    const key = posKey(v.x, v.y, snapScale);
+    if (Math.abs(v.y - minY) > yTol) continue;
+    const key = posKey(v.x, v.z, snapScale);
     const entry = posAvg.get(key);
     if (entry) {
       entry.sx += v.x;
-      entry.sy += v.y;
+      entry.sz += v.z;
       entry.n++;
     } else {
-      posAvg.set(key, { sx: v.x, sy: v.y, n: 1 });
+      posAvg.set(key, { sx: v.x, sz: v.z, n: 1 });
     }
   }
 
+  // Project XZ → modeller (X stays, Z → -Y for screen Y-down)
   const polygon: Point2D[] = [];
   for (const key of chain) {
     const avg = posAvg.get(key);
     if (!avg) continue;
-    polygon.push(ifcToModeller(avg.sx / avg.n, avg.sy / avg.n, unitToMm));
+    polygon.push({
+      x: (avg.sx / avg.n) * meshToMm,
+      y: -(avg.sz / avg.n) * meshToMm,
+    });
   }
 
   // 5. Remove collinear points
@@ -1026,10 +1011,7 @@ function getSpaceName(
 // ---------------------------------------------------------------------------
 
 export async function importIfcFile(file: File): Promise<IfcImportResult> {
-  console.log("[IFC-DBG] === importIfcFile v5 START ===", file.name, file.size);
-  alert(`IFC import v5 gestart: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`);
   const api = await getIfcApi();
-  console.log("[IFC-DBG] IfcAPI ready");
 
   const buffer = await file.arrayBuffer();
   const data = new Uint8Array(buffer);
@@ -1037,7 +1019,6 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
   const modelId = api.OpenModel(data, {
     COORDINATE_TO_ORIGIN: true,
   });
-  console.log("[IFC-DBG] model opened, modelId:", modelId);
 
   const result: IfcImportResult = {
     rooms: [],
@@ -1048,76 +1029,32 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
   try {
     // Detect length unit (meters, mm, etc.) → conversion factor to mm
     const unitToMm = detectUnitToMm(api, modelId);
-    console.log("[IFC-DBG] unitToMm:", unitToMm);
 
     // Extract storey structure
     const storeyMap = extractStoreys(api, modelId);
-    console.log("[IFC-DBG] storeys:", storeyMap.size);
 
     // Find all IfcSpace entities
     const spaceIds = api.GetLineIDsWithType(modelId, IFCSPACE);
     result.stats.spacesFound = spaceIds.size();
-    console.log("[IFC-DBG] IfcSpace entities found:", spaceIds.size());
-
-    // Diagnostic log for alert
-    const diagLines: string[] = [`unitToMm=${unitToMm}, spaces=${spaceIds.size()}`];
 
     for (let i = 0; i < spaceIds.size(); i++) {
       const spaceId = spaceIds.get(i);
       const spaceName = getSpaceName(api, modelId, spaceId);
 
       // Try extraction strategies in order.
+      // Mesh first: uses flatTransformation for correct global positioning.
+      // Profile/Brep are fallbacks for spaces without mesh geometry.
       let extracted: ExtractionResult | null = null;
-      let strategy = "none";
-      let meshErr = "";
-      let profileErr = "";
-      let brepErr = "";
 
-      try {
-        extracted = tryExtractMesh(api, modelId, spaceId);
-        if (extracted) strategy = "mesh";
-      } catch (e) {
-        meshErr = String(e);
+      extracted = tryExtractMesh(api, modelId, spaceId);
+
+      if (!extracted) {
+        extracted = tryExtractProfile(api, modelId, spaceId, unitToMm);
       }
 
       if (!extracted) {
-        try {
-          extracted = tryExtractProfile(api, modelId, spaceId, unitToMm);
-          if (extracted) strategy = "profile";
-        } catch (e) {
-          profileErr = String(e);
-        }
+        extracted = tryExtractBrep(api, modelId, spaceId, unitToMm);
       }
-
-      if (!extracted) {
-        try {
-          extracted = tryExtractBrep(api, modelId, spaceId, unitToMm);
-          if (extracted) strategy = "brep";
-        } catch (e) {
-          brepErr = String(e);
-        }
-      }
-
-      const errors = [
-        meshErr && `mesh:${meshErr}`,
-        profileErr && `prof:${profileErr}`,
-        brepErr && `brep:${brepErr}`,
-      ].filter(Boolean).join(" | ");
-
-      let polyInfo = "";
-      if (extracted) {
-        const xs = extracted.polygon.map((p) => p.x);
-        const ys = extracted.polygon.map((p) => p.y);
-        const minX = Math.min(...xs).toFixed(0);
-        const maxX = Math.max(...xs).toFixed(0);
-        const minY = Math.min(...ys).toFixed(0);
-        const maxY = Math.max(...ys).toFixed(0);
-        const a = polygonAreaMm2(extracted.polygon);
-        polyInfo = ` pts=${extracted.polygon.length} bbox=[${minX},${minY}]-[${maxX},${maxY}] area=${(a / 1e6).toFixed(2)}m2`;
-      }
-      const diagLine = `${spaceName}: ${strategy}${polyInfo}${errors ? ` ERR[${errors}]` : ""}`;
-      diagLines.push(diagLine);
-      console.log(`[IFC-DBG] ${diagLine}`);
 
       if (!extracted) {
         result.warnings.push({
@@ -1139,10 +1076,6 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
       }
 
       const area = polygonAreaMm2(extracted.polygon);
-      // Debug: log polygon centroid
-      const cx = extracted.polygon.reduce((s, p) => s + p.x, 0) / extracted.polygon.length;
-      const cy = extracted.polygon.reduce((s, p) => s + p.y, 0) / extracted.polygon.length;
-      console.log(`[IFC-DBG] "${spaceName}": centroid=(${cx.toFixed(0)}, ${cy.toFixed(0)}) area=${(area / 1e6).toFixed(2)}m2 pts=${extracted.polygon.length}`);
       if (area < MIN_ROOM_AREA_MM2) {
         result.warnings.push({
           spaceName,
@@ -1174,15 +1107,6 @@ export async function importIfcFile(file: File): Promise<IfcImportResult> {
       result.stats.spacesImported++;
     }
 
-    // Download diagnostics as text file (temporary debug)
-    const diagText = `IFC DIAGNOSTICS\n${diagLines.join("\n")}\n\nImported: ${result.stats.spacesImported}, Skipped: ${result.stats.spacesSkipped}\n\nWarnings:\n${result.warnings.map((w) => `${w.spaceName}: ${w.message}`).join("\n")}`;
-    const blob = new Blob([diagText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ifc-diagnostics.txt";
-    a.click();
-    URL.revokeObjectURL(url);
   } finally {
     api.CloseModel(modelId);
   }
