@@ -12,6 +12,7 @@ import type { ModellerTool, ModelRoom, ModelWindow, Point2D, Selection, SnapSett
 import { splitPolygon } from "../components/modeller";
 import { importIfcFile } from "../components/modeller/ifc-import";
 import { extractWallTypesFromFile, type IfcWallTypeInfo } from "../components/modeller/ifc-wall-types";
+import { isTauri, createBackend, type IfcSidecarResult } from "../lib/backend";
 import { IfcWallTypeReview } from "../components/modeller/IfcWallTypeReview";
 import { ProjectLibraryPanel } from "../components/modeller/ProjectLibraryPanel";
 import { CatalogueBrowserPanel } from "../components/modeller/CatalogueBrowserPanel";
@@ -342,74 +343,14 @@ export function Modeller() {
   }, [addToast]);
 
   const handleImportIfc = useCallback(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".ifc";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-
-      addToast(`IFC bestand "${file.name}" wordt geladen...`, "info");
-
-      try {
-        const result = await importIfcFile(file);
-
-        if (result.rooms.length === 0) {
-          addToast(
-            `Geen ruimten gevonden in "${file.name}". ${result.stats.spacesFound} IfcSpace entiteiten gevonden, ${result.stats.spacesSkipped} overgeslagen.`,
-            "info",
-          );
-          return;
-        }
-
-        // Generate IDs for imported rooms
-        const existingRooms = useModellerStore.getState().rooms;
-        const roomsWithIds: ModelRoom[] = [];
-        const usedIds = new Set(existingRooms.map((r) => r.id));
-
-        for (const room of result.rooms) {
-          let id: string;
-          let num = 1;
-          do {
-            id = `${room.floor}.${String(num).padStart(2, "0")}`;
-            num++;
-          } while (usedIds.has(id));
-          usedIds.add(id);
-          roomsWithIds.push({ ...room, id });
-        }
-
-        importModel(roomsWithIds);
-
-        const msg = `${result.stats.spacesImported} ruimten geimporteerd uit "${file.name}"`;
-        addToast(msg, "success");
-
-        if (result.warnings.length > 0) {
-          const warnMsg = result.warnings
-            .map((w) => `${w.spaceName}: ${w.message}`)
-            .join(", ");
-          addToast(`Waarschuwingen: ${warnMsg}`, "info");
-        }
-
-        // Phase 2: extract wall types for project construction import
-        try {
-          const wallTypes = await extractWallTypesFromFile(file);
-          if (wallTypes.length > 0) {
-            setIfcWallTypes(wallTypes);
-            addToast(
-              `${wallTypes.length} wandtype(n) gevonden — controleer de matching`,
-              "info",
-            );
-          }
-        } catch {
-          // Wall type extraction is optional — don't fail the import
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        addToast(`IFC import mislukt: ${message}`, "error");
-      }
-    };
-    input.click();
-  }, [addToast, importModel]);
+    if (isTauri()) {
+      // Native mode: use file dialog + sidecar
+      _handleImportIfcNative(addToast, importModel, importProjectConstructions, setIfcWallTypes);
+    } else {
+      // Web mode: use browser file picker + web-ifc
+      _handleImportIfcWeb(addToast, importModel, setIfcWallTypes);
+    }
+  }, [addToast, importModel, importProjectConstructions]);
 
   const handleExportIfc = useCallback(() => {
     const state = useModellerStore.getState();
@@ -891,6 +832,164 @@ function ProjectBrowser({
       </>)}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// IFC import helpers — dual-mode (native sidecar vs web-ifc)
+// ---------------------------------------------------------------------------
+
+/** Assign unique IDs to imported rooms (shared by both modes). */
+function _assignRoomIds(rooms: Omit<ModelRoom, "id">[]): ModelRoom[] {
+  const existingRooms = useModellerStore.getState().rooms;
+  const usedIds = new Set(existingRooms.map((r) => r.id));
+  const result: ModelRoom[] = [];
+
+  for (const room of rooms) {
+    let id: string;
+    let num = 1;
+    do {
+      id = `${room.floor}.${String(num).padStart(2, "0")}`;
+      num++;
+    } while (usedIds.has(id));
+    usedIds.add(id);
+    result.push({ ...room, id });
+  }
+  return result;
+}
+
+/** Native (Tauri) IFC import via Python sidecar. */
+async function _handleImportIfcNative(
+  addToast: (msg: string, type: "success" | "info" | "error") => void,
+  importModel: (rooms: ModelRoom[], windows?: ModelWindow[], doors?: import("../components/modeller/types").ModelDoor[]) => void,
+  _importProjectConstructions: (constructions: Omit<import("../components/modeller/types").ProjectConstruction, "id">[]) => void,
+  setIfcWallTypes: (types: IfcWallTypeInfo[] | null) => void,
+) {
+  try {
+    addToast("IFC bestand selecteren...", "info");
+
+    const backend = createBackend();
+    if (!backend.importIfc) {
+      addToast("IFC import niet beschikbaar in deze modus", "error");
+      return;
+    }
+
+    // Pass empty string — Rust command opens native file dialog
+    const result: IfcSidecarResult = await backend.importIfc("");
+
+    if (result.rooms.length === 0) {
+      addToast(
+        `Geen ruimten gevonden. ${result.stats.spacesFound} IfcSpace entiteiten, ${result.stats.spacesSkipped} overgeslagen.`,
+        "info",
+      );
+      return;
+    }
+
+    // Convert sidecar rooms (elevation/temperature can be null) → ModelRoom
+    const cleanRooms = result.rooms.map((r) => ({
+      ...r,
+      elevation: r.elevation ?? undefined,
+      temperature: r.temperature ?? undefined,
+    }));
+
+    const roomsWithIds = _assignRoomIds(cleanRooms);
+    importModel(roomsWithIds);
+
+    addToast(`${result.stats.spacesImported} ruimten geimporteerd`, "success");
+
+    if (result.warnings.length > 0) {
+      const warnMsg = result.warnings
+        .map((w) => `${w.spaceName}: ${w.message}`)
+        .join(", ");
+      addToast(`Waarschuwingen: ${warnMsg}`, "info");
+    }
+
+    // Wall types from sidecar — convert to IfcWallTypeInfo format
+    if (result.wallTypes.length > 0) {
+      const { matchIfcMaterials } = await import("../lib/ifcMaterialMatcher");
+      const converted: IfcWallTypeInfo[] = result.wallTypes.map((wt) => {
+        const matches = matchIfcMaterials(wt.originalMaterialNames);
+        return {
+          name: wt.name,
+          globalId: wt.globalId,
+          layers: wt.layers.map((layer, idx) => ({
+            ifcMaterialName: layer.materialName,
+            thickness: layer.thicknessMm,
+            match: matches[idx]!,
+          })),
+          originalMaterialNames: wt.originalMaterialNames,
+        };
+      });
+      setIfcWallTypes(converted);
+      addToast(
+        `${converted.length} wandtype(n) gevonden — controleer de matching`,
+        "info",
+      );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("Geen bestand geselecteerd")) return;
+    addToast(`IFC import mislukt: ${message}`, "error");
+  }
+}
+
+/** Web IFC import via browser file picker + web-ifc (existing flow). */
+function _handleImportIfcWeb(
+  addToast: (msg: string, type: "success" | "info" | "error") => void,
+  importModel: (rooms: ModelRoom[]) => void,
+  setIfcWallTypes: (types: IfcWallTypeInfo[] | null) => void,
+) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".ifc";
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    addToast(`IFC bestand "${file.name}" wordt geladen...`, "info");
+
+    try {
+      const result = await importIfcFile(file);
+
+      if (result.rooms.length === 0) {
+        addToast(
+          `Geen ruimten gevonden in "${file.name}". ${result.stats.spacesFound} IfcSpace entiteiten gevonden, ${result.stats.spacesSkipped} overgeslagen.`,
+          "info",
+        );
+        return;
+      }
+
+      const roomsWithIds = _assignRoomIds(result.rooms);
+      importModel(roomsWithIds);
+
+      const msg = `${result.stats.spacesImported} ruimten geimporteerd uit "${file.name}"`;
+      addToast(msg, "success");
+
+      if (result.warnings.length > 0) {
+        const warnMsg = result.warnings
+          .map((w) => `${w.spaceName}: ${w.message}`)
+          .join(", ");
+        addToast(`Waarschuwingen: ${warnMsg}`, "info");
+      }
+
+      // Phase 2: extract wall types for project construction import
+      try {
+        const wallTypes = await extractWallTypesFromFile(file);
+        if (wallTypes.length > 0) {
+          setIfcWallTypes(wallTypes);
+          addToast(
+            `${wallTypes.length} wandtype(n) gevonden — controleer de matching`,
+            "info",
+          );
+        }
+      } catch {
+        // Wall type extraction is optional — don't fail the import
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(`IFC import mislukt: ${message}`, "error");
+    }
+  };
+  input.click();
 }
 
 function wallDir(polygon: Point2D[], edgeIndex: number): string {

@@ -7,10 +7,61 @@ import type {
 } from "../types";
 import { API_PREFIX } from "./constants";
 
+/** IFC import result from the Python sidecar. */
+export interface IfcSidecarResult {
+  rooms: Array<{
+    name: string;
+    function: string;
+    polygon: Array<{ x: number; y: number }>;
+    floor: number;
+    height: number;
+    elevation?: number | null;
+    temperature?: number | null;
+  }>;
+  windows: Array<{
+    roomId: string;
+    wallIndex: number;
+    offset: number;
+    width: number;
+  }>;
+  doors: Array<{
+    roomId: string;
+    wallIndex: number;
+    offset: number;
+    width: number;
+    swing: "left" | "right";
+  }>;
+  wallTypes: Array<{
+    name: string;
+    globalId: string;
+    layers: Array<{
+      materialName: string;
+      thicknessMm: number;
+      match: string | null;
+    }>;
+    originalMaterialNames: string[];
+  }>;
+  warnings: Array<{ spaceName: string; message: string }>;
+  diagnostics: Array<{
+    spaceId: number;
+    spaceName: string;
+    strategy: string;
+    polygonPoints: number;
+    areaMm2: number;
+  }>;
+  stats: {
+    spacesFound: number;
+    spacesImported: number;
+    spacesSkipped: number;
+  };
+}
+
 /** Backend interface — same API for web (fetch) and Tauri (invoke). */
 export interface Backend {
   calculate(project: Project): Promise<ProjectResult>;
   getSchema(name: "project" | "result"): Promise<unknown>;
+  /** Import IFC via native sidecar (Tauri only). Returns null in web mode. */
+  importIfc?(filePath: string): Promise<IfcSidecarResult>;
 }
 
 /** Check if running inside Tauri. */
@@ -63,6 +114,12 @@ function createTauriBackend(): Backend {
     async getSchema(name) {
       const json = await invokeAsync<string>("get_schema", { which: name });
       return JSON.parse(json);
+    },
+
+    async importIfc(filePath: string) {
+      return invokeAsync<IfcSidecarResult>("import_ifc", {
+        filePath,
+      });
     },
   };
 }
