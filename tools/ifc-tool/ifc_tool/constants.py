@@ -50,3 +50,46 @@ DEFAULT_ROOM_FUNCTION: str = "custom"
 
 Z_TOLERANCE_MM: float = 5.0
 """Tolerance for grouping vertices by Z-coordinate (bottom face detection)."""
+
+# ---------------------------------------------------------------------------
+# Storey clustering
+# ---------------------------------------------------------------------------
+
+STOREY_CLUSTER_TOLERANCE_MM: float = 500.0
+"""Max elevation gap (mm) to merge storeys into one cluster (e.g. structural layers)."""
+
+# ---------------------------------------------------------------------------
+# Polygon simplification (IFC import cleanup)
+# ---------------------------------------------------------------------------
+
+SHORT_EDGE_THRESHOLD_MM: float = 100.0
+"""Edges shorter than this are removed by merging adjacent vertices."""
+
+DOUGLAS_PEUCKER_TOLERANCE_MM: float = 50.0
+"""Maximum perpendicular distance for Douglas-Peucker simplification."""
+
+RIGHT_ANGLE_SNAP_DEG: float = 5.0
+"""Angles within this tolerance of 90/180/270° are snapped to exact."""
+
+COLLINEAR_MERGE_DEG: float = 3.0
+"""Consecutive edges whose direction differs by less than this are merged."""
+
+# ---------------------------------------------------------------------------
+# Shared edge detection
+# ---------------------------------------------------------------------------
+
+SHARED_EDGE_MAX_DISTANCE_MM: float = 500.0
+"""Max perpendicular distance (mm) between two edges to consider them shared."""
+
+SHARED_EDGE_MIN_OVERLAP_MM: float = 200.0
+"""Minimum projected overlap (mm) along the shared direction."""
+
+SHARED_EDGE_PARALLEL_TOLERANCE_DEG: float = 5.0
+"""Maximum angle (degrees) between two edges to consider them parallel."""
+
+# ---------------------------------------------------------------------------
+# Gap closing (polygon expansion to wall centre-line)
+# ---------------------------------------------------------------------------
+
+GAP_CLOSE_AREA_TOLERANCE: float = 0.05
+"""Max relative area change (5 %) before gap closing is rejected for a room."""

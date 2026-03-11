@@ -112,6 +112,27 @@ class IfcWallTypeInfo(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Shared edge detection
+# ---------------------------------------------------------------------------
+
+
+class SharedEdgePair(BaseModel):
+    """A pair of edges from two rooms detected as a shared interior wall."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    room_a_index: int = Field(alias="roomAIndex")
+    wall_a_index: int = Field(alias="wallAIndex")
+    room_b_index: int = Field(alias="roomBIndex")
+    wall_b_index: int = Field(alias="wallBIndex")
+    distance_mm: float = Field(alias="distanceMm")
+    overlap_mm: float = Field(alias="overlapMm")
+    suggested_boundary: str = Field(
+        alias="suggestedBoundary", default="interior"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Import result — top-level output of the import command
 # ---------------------------------------------------------------------------
 
@@ -160,6 +181,9 @@ class IfcImportResult(BaseModel):
     doors: list[ModelDoor] = Field(default_factory=list)
     wall_types: list[IfcWallTypeInfo] = Field(
         default_factory=list, alias="wallTypes"
+    )
+    shared_edges: list[SharedEdgePair] = Field(
+        default_factory=list, alias="sharedEdges"
     )
     warnings: list[ImportWarning] = Field(default_factory=list)
     diagnostics: list[SpaceDiagnostic] = Field(default_factory=list)

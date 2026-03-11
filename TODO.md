@@ -92,7 +92,7 @@
 - [x] Context menu (2D + 3D)
 - [x] Project Browser
 - [x] IFC import (IfcSpace -> ModelRoom via web-ifc)
-- [ ] IFC import Fase 2: IfcWindow/IfcDoor
+- [~] IFC import Fase 2: IfcWindow/IfcDoor (hoogte + borstwering extractie klaar, visueel nog niet gebruikt)
 - [ ] IFC export
 - [ ] IFCX export/import UI koppelen
 - [ ] PDF onderlegger (pdf.js)
