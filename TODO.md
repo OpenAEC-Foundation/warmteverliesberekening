@@ -1,17 +1,68 @@
 # TODO
 
-## Deployment
-- [x] Authentik application aanmaken voor `warmteverlies`
-- [x] `frontend/.env.production` OIDC vars geactiveerd
-- [x] OIDC login flow end-to-end testen
-- [x] favicon toevoegen
-- [x] CI/CD GitHub Actions workflow
-- [x] Error handling: globale error banner in AppShell
+## Huidige focus: IFCX als universeel formaat + web-app IFC integratie
+
+Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementatieplan.
+
+---
+
+## Fase 1: IFC Parser (Python sidecar) — GROTENDEELS KLAAR
+- [x] Python project opzetten (`tools/ifc-tool/`) met IfcOpenShell
+- [x] Import: IfcSpace → polygonen, verdiepingen
+- [x] Storey clustering (nabije bouwlagen samenvoegen)
+- [x] Polygon simplificatie pipeline
+- [x] Shared edge detectie (binnenwanden herkennen)
+- [x] Gap closing (polygonen uitbreiden naar wandhartlijn)
+- [x] IfcWindow/IfcDoor extractie (hoogte, borstwering)
+- [x] IfcWallType + materiaallagen extractie
+- [x] PyInstaller bundeling
+- [x] Tauri sidecar integratie
+- [ ] Output converteren naar IFCX (i.p.v. bare JSON)
+- [ ] Export command: IFCX → IFC4 SPF
+
+## Fase 2: IFCX als universeel formaat
+- [ ] IFCX parser/writer crate in Rust (`crates/isso51-ifcx/`)
+- [ ] isso51:: namespace definitie (welke properties)
+- [ ] Mapper: bestaande Project types ↔ IFCX isso51:: namespace
+- [ ] isso51-core accepteert IFCX input, produceert IFCX output
+- [ ] REST API endpoint voor IFCX berekening
+- [ ] IFC parser output converteren naar IFCX
+
+## Fase 3: Web-app IFC integratie
+- [ ] IFC parser als server-side service (Docker)
+- [ ] REST endpoint: `POST /api/v1/ifc/import` (file upload → IFCX)
+- [ ] Frontend: IFC upload → server → IFCX → modeller store
+- [ ] Modeller toont geïmporteerde ruimtes in 2D/3D
+- [ ] Modeller → IFCX → isso51-core → resultaten
+
+## Fase 4: Space Boundaries & Export
+- [ ] 2nd level boundary lezer in IFC parser
+- [ ] 1st level → 2nd level splitter
+- [ ] Geometrie-based boundary calculator (Vabi-aanpak)
+- [ ] Boundary UI in modeller
+- [ ] IFC4 SPF export (met thermal psets)
+- [ ] IFCX export met isso51::calc:: resultaten
+
+## Fase 5: Herbruikbaarheid & distributie
+- [ ] isso51-core als DLL (C ABI via cbindgen)
+- [ ] isso51-core als WASM module
+- [ ] isso51-core als Python package (PyO3)
+- [ ] Modeller als standalone npm package
+- [ ] API documentatie + IFCX namespace specificatie
+
+---
 
 ## Bugs & correctheid
 - [ ] **PerFloorArea infiltratie bug** — `room_load.rs` gebruikt `qi_spec_per_exterior_area()` ipv `qi_spec_per_floor_area()` voor `InfiltrationMethod::PerFloorArea`
 - [ ] **BBL ventilatie magic numbers** — `bbl_minimum_ventilation_rate()` gebruikt literals ipv de gedefinieerde `BBL_QV_*` constanten
 - [ ] **Runtime validatie server-responses** — `Projects.tsx`, `ConflictDialog.tsx` en `importExport.ts` casten blind naar Project type zonder validatie
+
+## Verificatie & testing
+- [x] Vabi vrijstaande woning test fixture (9 kamers, 110 constructies, verwachte resultaten)
+- [x] DR Engineering woningbouw test fixture
+- [x] ISSO 51 portiekwoning test fixture
+- [ ] Referentieberekeningen cross-valideren met python-hvac (EN 12831)
+- [ ] Kwadratische sommatie unit test: sqrt(101² + 651²) = 659 W
 
 ## Code kwaliteit — Rust
 - [ ] Constanten definiëren: `RHO_CP_AIR = 1.2`, `GROUND_CORRECTION_FACTOR = 1.45`, `R_SI_*`, `R_SE_*`
@@ -20,88 +71,49 @@
 - [ ] Dead code opruimen: `ventilation_requirement_living()`, `ventilation_requirement_wet_room()`, ongebruikte error varianten
 - [ ] Infiltratie tabelnotatie vereenvoudigen (`0.08` ipv `0.08e-3 * 1000.0`)
 - [ ] VentilationConfig validatie toevoegen (bijv. heat_recovery_efficiency > 1.0)
-- [ ] `ConstructionType`/`ConstructionLayer`: implementeren of markeren als toekomstig
 
 ## Code kwaliteit — Frontend
 - [ ] `MATERIAL_TYPE_LABELS` centraliseren naar `constants.ts` (nu 3x gedupliceerd)
 - [ ] `niceMax()` utility centraliseren (nu 4x gedupliceerd in chart/svg bestanden)
 - [ ] `FUNCTION_COLORS` centraliseren (nu 3x gedupliceerd in modeller)
-- [ ] Report metadata duplicatie refactoren (`reportBuilder.ts` + `rcReportBuilder.ts`)
-- [ ] Report constanten: `REPORT_BRAND`, `REPORT_AUTHOR` naar constants.ts
-- [ ] `todayIso()` naar gedeelde utility
 - [ ] `Library.tsx` (1052 regels) splitsen in component-bestanden
 - [ ] `FloorCanvas.tsx` (1729 regels) splitsen: shapes, room rendering, drawing, utils
 - [ ] Dead code verwijderen: `ModellerToolbar.tsx`, `DrawingToolsPanel.tsx` (vervangen door Ribbon)
-- [ ] Dead code verwijderen: `getCatalogueByCategory()`, `getMaterialsByCategory()`, `getShortMaterialName()`
-- [ ] Tool definities + snap options centraliseren (Ribbon + DrawingToolsPanel duplicatie)
-- [ ] `ProjectBrowser` extraheren uit `Modeller.tsx` naar eigen bestand
-- [ ] `wallDirection` functie centraliseren in `geometry.ts` (nu in PropertiesPanel + Modeller)
-- [ ] `ConstructionPicker`/`ConstructionPickerInline` samenvoegen
 - [ ] Store snapshot mist constructie-assignments (undo/redo verliest wall/floor/roof toewijzingen)
-- [ ] Circle segments inconsistentie: `24` vs `48` in FloorCanvas.tsx
-- [ ] Annotatie tools: implementeren of verwijderen uit UI (tekst/maatvoering/leider zijn stubs)
 
-## App — features
+## App features
 - [x] OIDC login/logout op productie
-- [x] Projecten opslaan/laden (vereist OIDC login)
+- [x] Projecten opslaan/laden
 - [x] Vertrekken invoer + bewerken
 - [x] Resultaten weergave + grafieken
 - [x] JSON import/export
 - [x] Rc-calculator met laag-editor
 - [x] Glaser-analyse + diagram
-- [x] Jaarlijkse vochtbalans
 - [x] Constructiebibliotheek + materialendatabase
-- [x] PDF rapportgeneratie (warmteverlies + Rc)
+- [x] PDF rapportgeneratie
 - [x] Conflict detectie (optimistic locking)
-- [x] Auto-save
-- [x] Dark/light theme
-- [ ] Materialen: inline bewerken van bestaande materialen
-- [ ] Materialen: lambda nat waarden invullen voor standaardmaterialen
-- [ ] Materialen: zoekwoorden bij custom materialen
+- [x] Auto-save + dark/light theme
+- [ ] Materialen: inline bewerken, lambda nat, zoekwoorden
 
-## Roadmap — EASY modus (snelle berekening)
-- [ ] BAG-data import: oppervlak, bouwjaar, adres ophalen via postcode + huisnummer
-- [ ] Referentie-U-waarden per bouwjaar (forfaitair): automatisch constructies genereren
-- [ ] BENG/UNIEC rapport import (EP-Online koppeling)
-- [ ] Quick-calc wizard: 5-10 min berekening met minimale invoer
-
-## Roadmap — PRO features
-- [ ] ISSO 53 (utiliteitsgebouwen) naast ISSO 51 (woningen)
-- [ ] ISSO 57 (vloerverwarming dimensionering)
-- [ ] Vloerverwarming: lus-afstand, vloerbedekking, aanvoertemperatuur
-- [ ] Radiatorselectie: merken-database (Radson, Henrad, Vasco, Jaga, Stelrad)
-- [ ] Hydraulische balancering: circuits, leidinglengtes, debieten
-
-## Roadmap — platform / modeller
-- [x] 2D modeller: canvas met pan/zoom, grid, ruimte-polygonen, wanden, ramen, deuren
-- [x] 3D modeller: geextrudeerde ruimtes, wanden, ramen, section planes, U-waarde kleuring
-- [x] Ribbon toolbar (Revit-stijl) met Model/Annotatie/Beeld/Invoegen tabs
-- [x] IFCX (IFC5 JSON) als intern bestandsformaat (code aanwezig, niet aangesloten in UI)
-- [x] ISSO51 namespace extensies voor IFCX
-- [x] Teken-functionaliteit: rechthoek/polygoon/cirkel tekenen met snap + preview
-- [x] Raam + deur plaatsen tool
-- [x] Room splitsen + samenvoegen
-- [x] Room verplaatsen (drag) + vertex verplaatsen
-- [x] Dimensie bewerken + numerieke invoer
-- [x] Meten tool
-- [x] Constructiebibliotheek koppelen aan wanden/vloeren/daken
-- [x] Boundary type override per wand
-- [x] Onderlegger import (afbeelding)
-- [x] Zustand store met undo/redo
-- [x] Verdiepingen wisselen + ghost rooms
-- [x] Context menu (2D + 3D)
-- [x] Project Browser
-- [x] IFC import (IfcSpace -> ModelRoom via web-ifc)
-- [~] IFC import Fase 2: IfcWindow/IfcDoor (hoogte + borstwering extractie klaar, visueel nog niet gebruikt)
-- [ ] IFC export
-- [ ] IFCX export/import UI koppelen
-- [ ] PDF onderlegger (pdf.js)
-- [ ] DWG onderlegger import
-- [ ] Onderlegger positioneren/schalen/roteren
+## Modeller features
+- [x] 2D/3D modeller met pan/zoom, grid, polygonen, wanden, ramen, deuren
+- [x] Ribbon toolbar, teken-tools, snap, meten
+- [x] Room splitsen/samenvoegen/verplaatsen
+- [x] Constructiebibliotheek koppelen, boundary override
+- [x] Onderlegger import, undo/redo, verdiepingen, context menu
+- [x] IFC import (IfcSpace → ModelRoom)
+- [x] IFC Phase 2: window/door hoogte extractie
+- [x] IFC Phase 3: storey clustering, polygon simplificatie, shared edges, gap closing
+- [ ] Modeller data ↔ IFCX synchronisatie
+- [ ] PDF/DWG onderlegger
 - [ ] Schuine daken en dakkapellen
-- [ ] Modeller data <-> project store synchronisatie
-- [ ] Snap: perpendicular + underlay modes implementeren
-- [ ] Code-splitting web-ifc (5.8MB main bundle)
-- [ ] API voor derden: berekening als service
+
+## Roadmap — toekomst
+- [ ] BAG-data import (postcode + huisnummer)
+- [ ] Quick-calc wizard (5-10 min berekening)
+- [ ] ISSO 53 (utiliteitsgebouwen)
+- [ ] ISSO 57 (vloerverwarming)
+- [ ] Radiatorselectie + hydraulische balancering
+- [ ] R3F viewer migratie (ThatOpen → React Three Fiber)
 - [ ] Multi-user: projecten delen, rollen
 - [ ] Template-projecten: veelvoorkomende woningtypes

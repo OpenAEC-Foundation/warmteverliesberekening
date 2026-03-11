@@ -526,85 +526,164 @@ Naast standaard IFC property sets, exporteren we ISSO 51-specifieke resultaten:
 
 ---
 
-## 10. Implementatieplan
+## 10. Platform Architectuur (bijgewerkt 2026-03-12)
 
-### Fase 1: Python IFC Sidecar (kerninfrastructuur)
+### Kernprincipe: Modulaire componenten + IFCX
 
-**Doel:** IfcOpenShell-gebaseerde IFC import/export als Tauri sidecar
-
-| Stap | Taak | Geschatte inspanning |
-|------|------|---------------------|
-| 1.1 | Python project opzetten (`ifc-tool/`) met IfcOpenShell | Klein |
-| 1.2 | Import command: IFC → JSON (spaces, boundaries, wall types, windows, doors) | Groot |
-| 1.3 | Export command: JSON → IFC4 (spatial hierarchy, spaces, thermal psets) | Groot |
-| 1.4 | PyInstaller bundeling als sidecar binary | Medium |
-| 1.5 | Tauri sidecar integratie (Rust commands) | Medium |
-| 1.6 | Testen met diverse IFC-bestanden uit de praktijk | Medium |
-
-**Deliverable:** `ifc-tool.exe` sidecar die `import` en `export` commands afhandelt.
-
-### Fase 2: Frontend Integratie Nieuwe IFC-Pipeline
-
-**Doel:** Nieuwe sidecar-gebaseerde import koppelen aan bestaande UI en stores
-
-| Stap | Taak | Geschatte inspanning |
-|------|------|---------------------|
-| 2.1 | Tauri command `import_ifc` in frontend aanroepen (vervangt web-ifc pad) | Medium |
-| 2.2 | JSON output van sidecar mappen naar ModelRoom/ModelWindow/ModelDoor | Medium |
-| 2.3 | Nieuwe import-optie in Modeller UI (naast bestaande, feature toggle) | Klein |
-| 2.4 | Sidecar output testen met bestaande 3D viewer (ThatOpen blijft) | Medium |
-| 2.5 | IFCX export verrijken met sidecar-geëxtraheerde boundaries | Medium |
-
-**Deliverable:** Werkende IFC-import via IfcOpenShell sidecar, getoond in de bestaande viewer.
-
-> **NB:** De huidige 3D viewer (ThatOpen + Three.js) blijft intact. R3F-migratie is een aparte toekomstige verbetering.
-
-### Fase 3: Space Boundary Implementatie
-
-**Doel:** Gelaagde boundary-extractie voor ISSO 51
-
-| Stap | Taak | Geschatte inspanning |
-|------|------|---------------------|
-| 3.1 | 2nd level boundary lezer in Python sidecar | Medium |
-| 3.2 | 1st level → 2nd level splitter | Groot |
-| 3.3 | Geometrie-based boundary calculator (Vabi-aanpak) | Zeer groot |
-| 3.4 | Boundary UI in frontend (tabel, override, visualisatie) | Groot |
-| 3.5 | Koppeling boundaries → ProjectConstruction → berekening | Medium |
-
-**Deliverable:** Werkende boundary-pipeline van IFC → berekening.
-
-### Fase 4: Window/Door Extractie & Export Verrijking
-
-**Doel:** Complete IFC round-trip
-
-| Stap | Taak | Geschatte inspanning |
-|------|------|---------------------|
-| 4.1 | IfcWindow/IfcDoor extractie in Python sidecar | Medium |
-| 4.2 | Window/door → ModelWindow/ModelDoor mapping | Medium |
-| 4.3 | IFC export met volledige thermal property sets | Medium |
-| 4.4 | IFC export met IfcRelSpaceBoundary2ndLevel | Groot |
-| 4.5 | IFCX export bijwerken met nieuwe data | Klein |
-
-**Deliverable:** Complete IFC import + export met thermische resultaten.
-
-### Aanbevolen volgorde
-
-Fase 1 → Fase 2 → Fase 3 → Fase 4 (sequentieel, elk bouwt voort op het vorige).
+Alle componenten zijn **onafhankelijk herbruikbaar** en communiceren via **IFCX (IFC5 JSON)**.
+IFCX is gekozen omdat het al JSON is en custom namespaces ondersteunt.
 
 ```
-Fase 1:  Python sidecar opzetten + IFC import/export commands
-Fase 2:  Frontend integratie (sidecar → stores → bestaande viewer)
-Fase 3:  Space boundary implementatie (gelaagde fallback)
-Fase 4:  Window/door extractie + dual-format export verrijking
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│  IFC Parser  │     │  2D/3D       │     │  Andere tools   │
+│  (Python)    │     │  Modeller    │     │  (Vabi, BAG...) │
+└──────┬───────┘     └──────┬───────┘     └──────┬──────────┘
+       │                    │                     │
+       ▼                    ▼                     ▼
+     IFCX                 IFCX                  IFCX
+       │                    │                     │
+       └────────────────────┼─────────────────────┘
+                            ▼
+                 ┌─────────────────────┐
+                 │   isso51-core       │
+                 │   (Rust engine)     │
+                 │                     │
+                 │   DLL / WASM / PyO3 │
+                 │   / REST API        │
+                 └──────────┬──────────┘
+                            ▼
+                    IFCX + isso51::calc::
 ```
 
-### Toekomstig (niet in scope): R3F Viewer Migratie
+### Componenten
 
-Als de nieuwe IFC-pipeline stabiel is, kan de ThatOpen viewer vervangen worden door React Three Fiber. Dit is een aparte verbetering die geen invloed heeft op de IFC-functionaliteit:
-- Voeg `@react-three/fiber` + `@react-three/drei` toe
-- Herschrijf `FloorCanvas3D.tsx` als declaratieve R3F `<Canvas>` component
-- Verwijder `@thatopen/*` en `web-ifc` als dependencies
-- Verwijder postinstall WASM-kopieerscript
+| Component | Technologie | Herbruikbaar als | Communicatie |
+|-----------|-------------|-----------------|--------------|
+| **isso51-core** | Rust | Lib, DLL, WASM, PyO3, REST API | IFCX in/uit |
+| **IFC Parser** | Python (IfcOpenShell) | CLI, microservice, Tauri sidecar | .ifc → IFCX |
+| **2D/3D Modeller** | React/TypeScript | React component, standalone app | IFCX in/uit |
+| **Web App** | React + Rust API | — | Orchestratie |
+| **Desktop App** | Tauri | — | Bundelt alles |
+
+### IFCX Namespaces
+
+| Namespace | Eigenaar | Inhoud |
+|-----------|----------|--------|
+| `ifc::` | IFC standaard | Spatial hierarchy, geometrie, materialen |
+| `modeller::` | Modeller | Polygonen, hoogtes, wanden, ramen, deuren |
+| `isso51::` | Rekencore input | Ruimtefuncties, constructies, U-waarden, ventilatie |
+| `isso51::calc::` | Rekencore output | Transmissie, ventilatie, opwarmtoeslag, totalen |
+
+### isso51-core: puur rekenwerk
+
+- **Geen** IFC/modeller/UI dependency
+- Leest `isso51::` namespace uit IFCX
+- Schrijft `isso51::calc::` namespace terug
+- Bestaande `project.schema.json` / `result.schema.json` worden gemigreerd naar IFCX
+- Kan als DLL in andere software geïntegreerd worden
+
+### IFC Parser: apart component
+
+- Python + IfcOpenShell, draait als **apart proces**
+- Desktop: Tauri sidecar (`ifc-tool.exe`)
+- Web: server-side microservice of subprocess
+- Output: IFCX (niet bare JSON)
+- Niet onderdeel van isso51-core
+
+### 2D/3D Modeller: herbruikbare UI
+
+- React component die in de browser draait
+- Werkt met IFCX als dataformaat
+- Kan geëmbed worden in andere apps
+- Toont IFC import resultaten in 2D/3D
+- Architecturaal los van warmteverlies-berekening
+
+---
+
+## 11. Implementatieplan (bijgewerkt 2026-03-12)
+
+### Fase 1: IFC Parser (Python sidecar) ✅ GROTENDEELS KLAAR
+
+**Doel:** IfcOpenShell-gebaseerde IFC import als standalone tool
+
+| Stap | Taak | Status |
+|------|------|--------|
+| 1.1 | Python project opzetten (`ifc-tool/`) met IfcOpenShell | ✅ Klaar |
+| 1.2 | Import: IfcSpace → polygonen, verdiepingen | ✅ Klaar |
+| 1.3 | Storey clustering (nabije bouwlagen samenvoegen) | ✅ Klaar |
+| 1.4 | Polygon simplificatie pipeline | ✅ Klaar |
+| 1.5 | Shared edge detectie (binnenwanden herkennen) | ✅ Klaar |
+| 1.6 | Gap closing (polygonen uitbreiden naar wandhartlijn) | ✅ Klaar |
+| 1.7 | IfcWindow/IfcDoor extractie (hoogte, borstwering) | ✅ Klaar |
+| 1.8 | IfcWallType + materiaallagen extractie | ✅ Klaar |
+| 1.9 | PyInstaller bundeling als sidecar binary | ✅ Klaar |
+| 1.10 | Tauri sidecar integratie (Rust commands) | ✅ Klaar |
+| 1.11 | Output converteren naar IFCX (i.p.v. bare JSON) | ❌ Open |
+| 1.12 | Export command: IFCX → IFC4 SPF | ❌ Open |
+
+### Fase 2: IFCX als universeel formaat
+
+**Doel:** IFCX reader/writer in Rust + migratie bestaande schemas
+
+| Stap | Taak |
+|------|------|
+| 2.1 | IFCX parser/writer crate in Rust (`crates/isso51-ifcx/`) |
+| 2.2 | isso51:: namespace definitie (welke properties) |
+| 2.3 | Mapper: bestaande Project types ↔ IFCX isso51:: namespace |
+| 2.4 | isso51-core accepteert IFCX input, produceert IFCX output |
+| 2.5 | REST API endpoint voor IFCX berekening |
+| 2.6 | IFC parser output converteren naar IFCX |
+
+**Deliverable:** isso51-core leest/schrijft IFCX.
+
+### Fase 3: Web-app IFC integratie
+
+**Doel:** IFC import werkend in de web-app met modeller visualisatie
+
+| Stap | Taak |
+|------|------|
+| 3.1 | IFC parser als server-side service (Docker container of subprocess) |
+| 3.2 | REST endpoint: `POST /api/v1/ifc/import` (file upload → IFCX) |
+| 3.3 | Frontend: IFC upload → server → IFCX → modeller store |
+| 3.4 | Modeller toont geïmporteerde ruimtes in 2D/3D |
+| 3.5 | Gebruiker koppelt constructies, past boundaries aan |
+| 3.6 | Modeller → IFCX → isso51-core → resultaten |
+
+**Deliverable:** Werkende IFC import + berekening in de web-app.
+
+### Fase 4: Space Boundaries & Export
+
+**Doel:** Gelaagde boundary-extractie + complete round-trip
+
+| Stap | Taak |
+|------|------|
+| 4.1 | 2nd level boundary lezer in IFC parser |
+| 4.2 | 1st level → 2nd level splitter |
+| 4.3 | Geometrie-based boundary calculator (Vabi-aanpak) |
+| 4.4 | Boundary UI in modeller (tabel, override, visualisatie) |
+| 4.5 | IFC4 SPF export via IfcOpenShell (met thermal psets) |
+| 4.6 | IFCX export met volledige isso51::calc:: resultaten |
+
+**Deliverable:** Complete IFC import → berekening → export pipeline.
+
+### Fase 5: Herbruikbaarheid & distributie
+
+**Doel:** Componenten onafhankelijk inzetbaar maken
+
+| Stap | Taak |
+|------|------|
+| 5.1 | isso51-core als DLL (C ABI via cbindgen) |
+| 5.2 | isso51-core als WASM module |
+| 5.3 | isso51-core als Python package (PyO3) |
+| 5.4 | Modeller als standalone npm package |
+| 5.5 | API documentatie + IFCX namespace specificatie |
+
+### Toekomstig (niet in scope)
+
+- R3F viewer migratie (ThatOpen → React Three Fiber)
+- ISSO 53 (utiliteitsgebouwen)
+- ISSO 57 (vloerverwarming dimensionering)
+- Radiatorselectie + hydraulische balancering
 
 ---
 
