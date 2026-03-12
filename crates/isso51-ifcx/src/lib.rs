@@ -5,7 +5,7 @@
 //!
 //! ## Usage
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use isso51_ifcx::{project_from_ifcx, result_to_ifcx, calculate_ifcx};
 //!
 //! // Parse an IFCX document and extract a Project
@@ -28,6 +28,14 @@ pub use error::{IfcxError, Result};
 pub use from_ifcx::project_from_ifcx;
 pub use to_ifcx::{project_to_ifcx, result_to_ifcx};
 
+/// Generate the JSON schema for the `IfcxDocument` type.
+///
+/// Includes all isso51:: namespace types via schemars.
+pub fn ifcx_schema() -> String {
+    let schema = schemars::schema_for!(IfcxDocument);
+    serde_json::to_string_pretty(&schema).unwrap_or_default()
+}
+
 /// Full pipeline: parse IFCX → calculate → return result overlay IFCX.
 ///
 /// Takes an IFCX document containing isso51:: input data,
@@ -43,7 +51,6 @@ pub fn calculate_ifcx(doc: &IfcxDocument) -> Result<IfcxDocument> {
 mod tests {
     use super::*;
     use isso51_core::model::*;
-    use isso51_core::result::ProjectResult;
 
     /// Create a minimal Project for testing roundtrips.
     fn test_project() -> Project {
@@ -161,8 +168,10 @@ mod tests {
         assert_eq!(r.floor_area, 30.0);
         assert_eq!(r.height, 2.6);
         assert_eq!(r.constructions.len(), 2);
-        assert_eq!(r.constructions[0].u_value, 0.22);
-        assert_eq!(r.constructions[1].u_value, 1.1);
+        // HashMap iteration order is non-deterministic, so check both values exist.
+        let mut u_values: Vec<f64> = r.constructions.iter().map(|c| c.u_value).collect();
+        u_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(u_values, vec![0.22, 1.1]);
     }
 
     #[test]
@@ -228,5 +237,205 @@ mod tests {
             merged.attributes.contains_key(namespace::ns::CALC_RESULT),
             "Composed entry should have isso51::calc::result"
         );
+    }
+
+    #[test]
+    fn test_adjacent_room_roundtrip() {
+        let mut project = test_project();
+
+        // Add a second room (Slaapkamer).
+        let bedroom = Room {
+            id: "r2".to_string(),
+            name: "Slaapkamer".to_string(),
+            function: RoomFunction::Bedroom,
+            custom_temperature: None,
+            floor_area: 15.0,
+            height: 2.6,
+            constructions: vec![
+                construction::ConstructionElement {
+                    id: "c1".to_string(),
+                    description: "Buitenwand".to_string(),
+                    area: 8.0,
+                    u_value: 0.22,
+                    boundary_type: enums::BoundaryType::Exterior,
+                    material_type: enums::MaterialType::Masonry,
+                    temperature_factor: None,
+                    adjacent_room_id: None,
+                    adjacent_temperature: None,
+                    vertical_position: enums::VerticalPosition::Wall,
+                    use_forfaitaire_thermal_bridge: true,
+                    custom_delta_u_tb: None,
+                    ground_params: None,
+                    has_embedded_heating: false,
+                },
+                construction::ConstructionElement {
+                    id: "c2".to_string(),
+                    description: "Binnenwand naar woonkamer".to_string(),
+                    area: 6.0,
+                    u_value: 1.5,
+                    boundary_type: enums::BoundaryType::AdjacentRoom,
+                    material_type: enums::MaterialType::Masonry,
+                    temperature_factor: None,
+                    adjacent_room_id: Some("r1".to_string()), // → woonkamer
+                    adjacent_temperature: None,
+                    vertical_position: enums::VerticalPosition::Wall,
+                    use_forfaitaire_thermal_bridge: false,
+                    custom_delta_u_tb: None,
+                    ground_params: None,
+                    has_embedded_heating: false,
+                },
+            ],
+            heating_system: HeatingSystem::RadiatorLt,
+            ventilation_rate: Some(14.0),
+            has_mechanical_exhaust: false,
+            has_mechanical_supply: false,
+            fraction_outside_air: 1.0,
+            supply_air_temperature: None,
+            internal_air_temperature: None,
+            clamp_positive: true,
+        };
+        project.rooms.push(bedroom);
+
+        // Add reciprocal wall on woonkamer pointing to slaapkamer.
+        project.rooms[0]
+            .constructions
+            .push(construction::ConstructionElement {
+                id: "c3".to_string(),
+                description: "Binnenwand naar slaapkamer".to_string(),
+                area: 6.0,
+                u_value: 1.5,
+                boundary_type: enums::BoundaryType::AdjacentRoom,
+                material_type: enums::MaterialType::Masonry,
+                temperature_factor: None,
+                adjacent_room_id: Some("r2".to_string()), // → slaapkamer
+                adjacent_temperature: None,
+                vertical_position: enums::VerticalPosition::Wall,
+                use_forfaitaire_thermal_bridge: false,
+                custom_delta_u_tb: None,
+                ground_params: None,
+                has_embedded_heating: false,
+            });
+
+        // Roundtrip
+        let doc = project_to_ifcx(&project);
+        let restored = project_from_ifcx(&doc).unwrap();
+
+        // Verify adjacent_room_id survived the roundtrip.
+        let woonkamer = &restored.rooms[0];
+        let slaapkamer = &restored.rooms[1];
+
+        // Find the adjacent room construction on slaapkamer.
+        let adj_constr = slaapkamer
+            .constructions
+            .iter()
+            .find(|c| c.boundary_type == enums::BoundaryType::AdjacentRoom)
+            .expect("Slaapkamer should have an AdjacentRoom construction");
+        assert_eq!(
+            adj_constr.adjacent_room_id.as_deref(),
+            Some(woonkamer.id.as_str()),
+            "Slaapkamer's adjacent wall should point to woonkamer"
+        );
+
+        // Reciprocal: woonkamer's adjacent wall should point to slaapkamer.
+        let adj_constr_wk = woonkamer
+            .constructions
+            .iter()
+            .find(|c| c.boundary_type == enums::BoundaryType::AdjacentRoom)
+            .expect("Woonkamer should have an AdjacentRoom construction");
+        assert_eq!(
+            adj_constr_wk.adjacent_room_id.as_deref(),
+            Some(slaapkamer.id.as_str()),
+            "Woonkamer's adjacent wall should point to slaapkamer"
+        );
+    }
+
+    #[test]
+    fn test_ground_params_roundtrip() {
+        let mut project = test_project();
+
+        // Add a floor construction with ground params.
+        project.rooms[0]
+            .constructions
+            .push(construction::ConstructionElement {
+                id: "c3".to_string(),
+                description: "Begane grond vloer".to_string(),
+                area: 30.0,
+                u_value: 0.3,
+                boundary_type: enums::BoundaryType::Ground,
+                material_type: enums::MaterialType::Masonry,
+                temperature_factor: None,
+                adjacent_room_id: None,
+                adjacent_temperature: None,
+                vertical_position: enums::VerticalPosition::Floor,
+                use_forfaitaire_thermal_bridge: false,
+                custom_delta_u_tb: None,
+                ground_params: Some(construction::GroundParameters {
+                    u_equivalent: 0.25,
+                    ground_water_factor: 1.15,
+                    fg2: 0.45,
+                }),
+                has_embedded_heating: false,
+            });
+
+        // Roundtrip
+        let doc = project_to_ifcx(&project);
+        let restored = project_from_ifcx(&doc).unwrap();
+
+        let floor = restored.rooms[0]
+            .constructions
+            .iter()
+            .find(|c| c.boundary_type == enums::BoundaryType::Ground)
+            .expect("Should have a Ground construction");
+
+        let gp = floor.ground_params.as_ref().expect("Should have ground_params");
+        assert!((gp.u_equivalent - 0.25).abs() < 1e-10);
+        assert!((gp.ground_water_factor - 1.15).abs() < 1e-10);
+        assert!((gp.fg2 - 0.45).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_project_info_roundtrip() {
+        let mut project = test_project();
+        project.info.project_number = Some("2025-042".to_string());
+        project.info.address = Some("Keizersgracht 123, Amsterdam".to_string());
+        project.info.client = Some("Woningcorporatie XYZ".to_string());
+        project.info.date = Some("2025-03-15".to_string());
+        project.info.engineer = Some("Ir. J. de Vries".to_string());
+        project.info.notes = Some("Renovatie bestaand portiekblok".to_string());
+
+        // Roundtrip
+        let doc = project_to_ifcx(&project);
+        let restored = project_from_ifcx(&doc).unwrap();
+
+        assert_eq!(
+            restored.info.project_number.as_deref(),
+            Some("2025-042")
+        );
+        assert_eq!(
+            restored.info.address.as_deref(),
+            Some("Keizersgracht 123, Amsterdam")
+        );
+        assert_eq!(
+            restored.info.client.as_deref(),
+            Some("Woningcorporatie XYZ")
+        );
+        assert_eq!(restored.info.date.as_deref(), Some("2025-03-15"));
+        assert_eq!(
+            restored.info.engineer.as_deref(),
+            Some("Ir. J. de Vries")
+        );
+        assert_eq!(
+            restored.info.notes.as_deref(),
+            Some("Renovatie bestaand portiekblok")
+        );
+    }
+
+    #[test]
+    fn test_ifcx_schema_generation() {
+        let schema = ifcx_schema();
+        assert!(!schema.is_empty());
+        let parsed: serde_json::Value = serde_json::from_str(&schema).unwrap();
+        // Should reference IfcxDocument as root type
+        assert!(parsed.get("title").is_some() || parsed.get("$ref").is_some());
     }
 }

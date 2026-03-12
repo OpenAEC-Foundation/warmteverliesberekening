@@ -13,7 +13,8 @@ use isso51_core::model::{
 use crate::document::{ifc_class, IfcxDataEntry, IfcxDocument};
 use crate::error::{IfcxError, Result};
 use crate::namespace::{
-    ns, Isso51Building, Isso51Conditions, Isso51Construction, Isso51Room, Isso51Ventilation,
+    ns, Isso51Building, Isso51Conditions, Isso51Construction, Isso51GroundParams,
+    Isso51ProjectInfo, Isso51Room, Isso51Ventilation,
 };
 
 /// Extract an isso51-core `Project` from an IFCX document.
@@ -78,6 +79,45 @@ pub fn project_from_ifcx(doc: &IfcxDocument) -> Result<Project> {
         rooms.push(room);
     }
 
+    // Second pass: resolve adjacent_room_path → adjacent_room_id.
+    // Build a lookup from space path → assigned room id (owned Strings to avoid borrow conflict).
+    let space_path_to_room_id: HashMap<String, String> = space_entries
+        .iter()
+        .zip(rooms.iter())
+        .map(|(space, room)| (space.path.clone(), room.id.clone()))
+        .collect();
+
+    // Collect pending updates: (room_idx, constr_idx, adjacent_room_id).
+    let mut updates: Vec<(usize, usize, String)> = Vec::new();
+    for (room_idx, space) in space_entries.iter().enumerate() {
+        let mut constr_idx = 0;
+        for (_child_name, child_path) in &space.children {
+            if let Some(child_entry) = entry_map.get(child_path.as_str()) {
+                if let Some(constr) =
+                    child_entry.get_attr::<Isso51Construction>(ns::CONSTRUCTION)
+                {
+                    if let Some(ref adj_path) = constr.adjacent_room_path {
+                        if let Some(adj_room_id) = space_path_to_room_id.get(adj_path) {
+                            updates.push((room_idx, constr_idx, adj_room_id.clone()));
+                        }
+                    }
+                    constr_idx += 1;
+                }
+            }
+        }
+    }
+
+    // Apply updates.
+    for (room_idx, constr_idx, adj_room_id) in updates {
+        if constr_idx < rooms[room_idx].constructions.len() {
+            rooms[room_idx].constructions[constr_idx].adjacent_room_id = Some(adj_room_id);
+        }
+    }
+
+    // Extract optional project info metadata.
+    let project_info_data: Option<Isso51ProjectInfo> =
+        project_entry.get_attr(ns::PROJECT_INFO);
+
     // Map to isso51-core types
     let project = Project {
         info: ProjectInfo {
@@ -86,12 +126,24 @@ pub fn project_from_ifcx(doc: &IfcxDocument) -> Result<Project> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("IFCX Import")
                 .to_string(),
-            project_number: None,
-            address: None,
-            client: None,
-            date: None,
-            engineer: None,
-            notes: None,
+            project_number: project_info_data
+                .as_ref()
+                .and_then(|pi| pi.project_number.clone()),
+            address: project_info_data
+                .as_ref()
+                .and_then(|pi| pi.address.clone()),
+            client: project_info_data
+                .as_ref()
+                .and_then(|pi| pi.client.clone()),
+            date: project_info_data
+                .as_ref()
+                .and_then(|pi| pi.date.clone()),
+            engineer: project_info_data
+                .as_ref()
+                .and_then(|pi| pi.engineer.clone()),
+            notes: project_info_data
+                .as_ref()
+                .and_then(|pi| pi.notes.clone()),
         },
         building: map_building(&building_data),
         climate: map_conditions(&conditions),
@@ -128,6 +180,7 @@ fn space_to_room(
                     &constr,
                     child_name,
                     constructions.len(),
+                    child_entry,
                 ));
             }
         }
@@ -156,8 +209,22 @@ fn space_to_room(
     })
 }
 
-fn map_construction(constr: &Isso51Construction, name: &str, index: usize) -> ConstructionElement {
+fn map_construction(
+    constr: &Isso51Construction,
+    name: &str,
+    index: usize,
+    child_entry: &IfcxDataEntry,
+) -> ConstructionElement {
     use isso51_core::model::enums::*;
+
+    // Read ground params from separate namespace key if present.
+    let ground_params = child_entry
+        .get_attr::<Isso51GroundParams>(ns::GROUND)
+        .map(|gp| isso51_core::model::construction::GroundParameters {
+            u_equivalent: gp.u_equivalent,
+            ground_water_factor: gp.ground_water_factor,
+            fg2: gp.fg2,
+        });
 
     ConstructionElement {
         id: format!("c{}", index + 1),
@@ -180,7 +247,7 @@ fn map_construction(constr: &Isso51Construction, name: &str, index: usize) -> Co
             .unwrap_or(VerticalPosition::Wall),
         use_forfaitaire_thermal_bridge: constr.use_forfaitaire_thermal_bridge,
         custom_delta_u_tb: constr.custom_delta_u_tb,
-        ground_params: None,
+        ground_params,
         has_embedded_heating: constr.has_embedded_heating,
     }
 }

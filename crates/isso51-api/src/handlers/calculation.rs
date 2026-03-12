@@ -56,6 +56,7 @@ pub async fn calculate(body: String) -> impl IntoResponse {
 const AVAILABLE_SCHEMAS: &[(&str, &str)] = &[
     ("project", "Project input schema"),
     ("result", "Calculation result schema"),
+    ("ifcx", "IFCX document schema (IFC5 + isso51:: namespace)"),
 ];
 
 /// GET /schemas — List available schemas.
@@ -81,6 +82,7 @@ pub async fn get_schema(Path(name): Path<String>) -> impl IntoResponse {
     let schema = match name.as_str() {
         "project" => Some(isso51_core::project_schema()),
         "result" => Some(isso51_core::result_schema()),
+        "ifcx" => Some(isso51_ifcx::ifcx_schema()),
         _ => None,
     };
 

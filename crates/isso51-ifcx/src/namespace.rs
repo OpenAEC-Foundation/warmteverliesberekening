@@ -4,6 +4,7 @@
 //! input data and calculation results. Custom namespaces are explicitly
 //! supported by the IFC5 spec.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -21,8 +22,14 @@ pub mod ns {
     /// Construction properties on wall/slab/roof elements.
     pub const CONSTRUCTION: &str = "isso51::construction";
 
+    /// Ground parameters on construction elements (BoundaryType::Ground).
+    pub const GROUND: &str = "isso51::construction::ground";
+
     /// Material layers on construction elements.
     pub const LAYERS: &str = "isso51::construction::layers";
+
+    /// Project metadata (number, address, client, etc.) on IfcProject.
+    pub const PROJECT_INFO: &str = "isso51::project_info";
 
     /// Design conditions (climate) on project.
     pub const CONDITIONS: &str = "isso51::conditions";
@@ -51,7 +58,7 @@ pub mod ns {
 // ---------------------------------------------------------------------------
 
 /// Building-level input properties.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51Building {
     pub building_type: String,
     pub qv10: f64,
@@ -66,7 +73,7 @@ pub struct Isso51Building {
 }
 
 /// Room-level input properties.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51Room {
     pub function: String,
     pub floor_area: f64,
@@ -87,7 +94,7 @@ fn default_one() -> f64 {
 }
 
 /// Construction element properties on a wall/slab/roof entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51Construction {
     pub description: String,
     pub area: f64,
@@ -106,7 +113,7 @@ pub struct Isso51Construction {
 }
 
 /// Material layer in a construction.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51MaterialLayer {
     pub name: String,
     /// Thickness in mm.
@@ -118,8 +125,42 @@ pub struct Isso51MaterialLayer {
     pub r_value: f64,
 }
 
+/// Ground parameters for floor elements on grade.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Isso51GroundParams {
+    /// Equivalent U-value U_e,k in W/(m²·K).
+    pub u_equivalent: f64,
+    /// Ground water correction factor G_w (dimensionless).
+    pub ground_water_factor: f64,
+    /// Temperature correction factor f_g2 (dimensionless).
+    pub fg2: f64,
+}
+
+/// Project metadata stored on the IfcProject entry.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Isso51ProjectInfo {
+    /// Project number/reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_number: Option<String>,
+    /// Building address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    /// Client name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client: Option<String>,
+    /// Calculation date (ISO 8601).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+    /// Engineer performing the calculation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engineer: Option<String>,
+    /// Additional notes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
 /// Design conditions (climate).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51Conditions {
     /// Outdoor design temperature θ_e in °C.
     pub theta_e: f64,
@@ -132,7 +173,7 @@ pub struct Isso51Conditions {
 }
 
 /// Ventilation system configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51Ventilation {
     pub system_type: String,
     #[serde(default)]
@@ -145,7 +186,7 @@ pub struct Isso51Ventilation {
 // ---------------------------------------------------------------------------
 
 /// Per-space transmission result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51CalcTransmission {
     /// H_T in W/K.
     #[serde(rename = "H_T")]
@@ -155,7 +196,7 @@ pub struct Isso51CalcTransmission {
 }
 
 /// Per-space ventilation result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51CalcVentilation {
     /// H_V in W/K.
     #[serde(rename = "H_V")]
@@ -167,7 +208,7 @@ pub struct Isso51CalcVentilation {
 }
 
 /// Per-space reheat result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51CalcReheat {
     /// Φ_RH in W.
     pub phi_rh: f64,
@@ -176,7 +217,7 @@ pub struct Isso51CalcReheat {
 }
 
 /// Per-space total result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51CalcResult {
     /// Total design heat loss Φ_HL in W.
     pub phi_hl: f64,
@@ -195,7 +236,7 @@ pub struct Isso51CalcResult {
 }
 
 /// Building-level report summary.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Isso51Report {
     /// Connection capacity in W.
     pub connection_capacity: f64,

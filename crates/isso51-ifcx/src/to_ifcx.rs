@@ -2,14 +2,16 @@
 //!
 //! Produces IFCX overlays that can be composed with a geometry model.
 
+use std::collections::HashMap;
+
 use isso51_core::model::Project;
 use isso51_core::result::ProjectResult;
 
 use crate::document::{ifc_class, ns as ifc_ns, IfcxDataEntry, IfcxDocument};
 use crate::namespace::{
     ns, Isso51Building, Isso51CalcReheat, Isso51CalcResult, Isso51CalcTransmission,
-    Isso51CalcVentilation, Isso51Conditions, Isso51Construction, Isso51Report, Isso51Room,
-    Isso51Ventilation,
+    Isso51CalcVentilation, Isso51Conditions, Isso51Construction, Isso51GroundParams,
+    Isso51ProjectInfo, Isso51Report, Isso51Room, Isso51Ventilation,
 };
 
 /// Convert an isso51-core `Project` to an IFCX document with isso51:: namespace attributes.
@@ -43,6 +45,28 @@ pub fn project_to_ifcx(project: &Project) -> IfcxDocument {
             heat_recovery_efficiency: project.ventilation.heat_recovery_efficiency,
         },
     );
+
+    // Write project info metadata if any field is set.
+    let pi = &project.info;
+    if pi.project_number.is_some()
+        || pi.address.is_some()
+        || pi.client.is_some()
+        || pi.date.is_some()
+        || pi.engineer.is_some()
+        || pi.notes.is_some()
+    {
+        project_entry.set_attr(
+            ns::PROJECT_INFO,
+            &Isso51ProjectInfo {
+                project_number: pi.project_number.clone(),
+                address: pi.address.clone(),
+                client: pi.client.clone(),
+                date: pi.date.clone(),
+                engineer: pi.engineer.clone(),
+                notes: pi.notes.clone(),
+            },
+        );
+    }
 
     // IfcSite
     let site_path = uuid();
@@ -84,9 +108,20 @@ pub fn project_to_ifcx(project: &Project) -> IfcxDocument {
         .children
         .insert("Building".to_string(), building_path.clone());
 
+    // Pre-assign space paths so we can resolve adjacent_room_id → space path.
+    let room_space_paths: Vec<(String, String)> = project
+        .rooms
+        .iter()
+        .map(|room| (room.id.clone(), uuid()))
+        .collect();
+    let room_id_to_space_path: HashMap<&str, &str> = room_space_paths
+        .iter()
+        .map(|(id, path)| (id.as_str(), path.as_str()))
+        .collect();
+
     // IfcSpaces
-    for room in &project.rooms {
-        let space_path = uuid();
+    for (room_idx, room) in project.rooms.iter().enumerate() {
+        let space_path = room_space_paths[room_idx].1.clone();
         let mut space_entry = classify(&space_path, ifc_class::SPACE);
         set_ifc_prop(&mut space_entry, "Name", &room.name);
 
@@ -147,12 +182,28 @@ pub fn project_to_ifcx(project: &Project) -> IfcxDocument {
                     ),
                     temperature_factor: constr.temperature_factor,
                     adjacent_temperature: constr.adjacent_temperature,
-                    adjacent_room_path: None,
+                    adjacent_room_path: constr
+                        .adjacent_room_id
+                        .as_deref()
+                        .and_then(|id| room_id_to_space_path.get(id))
+                        .map(|p| p.to_string()),
                     use_forfaitaire_thermal_bridge: constr.use_forfaitaire_thermal_bridge,
                     custom_delta_u_tb: constr.custom_delta_u_tb,
                     has_embedded_heating: constr.has_embedded_heating,
                 },
             );
+
+            // Write ground params as separate namespace attribute if present.
+            if let Some(ref gp) = constr.ground_params {
+                constr_entry.set_attr(
+                    ns::GROUND,
+                    &Isso51GroundParams {
+                        u_equivalent: gp.u_equivalent,
+                        ground_water_factor: gp.ground_water_factor,
+                        fg2: gp.fg2,
+                    },
+                );
+            }
 
             space_entry
                 .children

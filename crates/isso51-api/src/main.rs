@@ -78,6 +78,7 @@ async fn main() {
     let public = Router::new()
         .route("/health", get(handlers::health))
         .route("/calculate", post(handlers::calculate))
+        .route("/calculate/ifcx", post(handlers::calculate_ifcx_handler))
         .route("/schemas", get(handlers::list_schemas))
         .route("/schemas/{name}", get(handlers::get_schema))
         .route("/report/generate", post(handlers::generate_report));

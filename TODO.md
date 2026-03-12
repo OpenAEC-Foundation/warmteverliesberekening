@@ -20,13 +20,17 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [ ] Output converteren naar IFCX (i.p.v. bare JSON)
 - [ ] Export command: IFCX → IFC4 SPF
 
-## Fase 2: IFCX als universeel formaat
-- [ ] IFCX parser/writer crate in Rust (`crates/isso51-ifcx/`)
-- [ ] isso51:: namespace definitie (welke properties)
-- [ ] Mapper: bestaande Project types ↔ IFCX isso51:: namespace
-- [ ] isso51-core accepteert IFCX input, produceert IFCX output
-- [ ] REST API endpoint voor IFCX berekening
-- [ ] IFC parser output converteren naar IFCX
+## Fase 2: IFCX als universeel formaat — KLAAR
+- [x] IFCX parser/writer crate in Rust (`crates/isso51-ifcx/`)
+- [x] isso51:: namespace definitie (welke properties)
+- [x] Mapper: bestaande Project types ↔ IFCX isso51:: namespace
+- [x] isso51-core accepteert IFCX input, produceert IFCX output
+- [x] REST API endpoint voor IFCX berekening (`POST /api/v1/calculate/ifcx`)
+- [x] IFCX JSON schema in schema-endpoint (`GET /api/v1/schemas/ifcx`)
+- [x] Adjacent room resolving (second pass, bidirectioneel)
+- [x] Ground parameters mapping (`isso51::construction::ground`)
+- [x] ProjectInfo metadata mapping (`isso51::project_info`)
+- [ ] IFC parser output converteren naar IFCX (→ verplaatst naar Fase 3)
 
 ## Fase 3: Web-app IFC integratie
 - [ ] IFC parser als server-side service (Docker)

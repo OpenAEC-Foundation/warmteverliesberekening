@@ -4,11 +4,12 @@
 //! An IFCX document is a flat list of data entries identified by path,
 //! with typed attributes grouped by namespace.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Top-level IFCX document.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct IfcxDocument {
     pub header: IfcxHeader,
     pub imports: Vec<IfcxImport>,
@@ -18,7 +19,7 @@ pub struct IfcxDocument {
 }
 
 /// Document header with metadata.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IfcxHeader {
     pub id: String,
@@ -29,7 +30,7 @@ pub struct IfcxHeader {
 }
 
 /// Schema import reference.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct IfcxImport {
     pub uri: String,
 }
@@ -39,7 +40,7 @@ pub struct IfcxImport {
 /// Each entry is identified by a unique `path` (typically a UUID).
 /// `children` maps named slots to other entry paths.
 /// `attributes` holds namespaced data (e.g. `bsi::ifc::class`, `isso51::calc::result`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct IfcxDataEntry {
     pub path: String,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]

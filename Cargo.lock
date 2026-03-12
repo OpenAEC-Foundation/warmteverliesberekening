@@ -1785,6 +1785,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "isso51-core",
+ "isso51-ifcx",
  "jsonwebtoken",
  "reqwest 0.12.28",
  "serde",
@@ -1821,6 +1822,19 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-shell",
+]
+
+[[package]]
+name = "isso51-ifcx"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "isso51-core",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
 ]
 
 [[package]]

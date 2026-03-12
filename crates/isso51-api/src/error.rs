@@ -74,6 +74,39 @@ impl IntoResponse for ApiError {
     }
 }
 
+/// Map `isso51_ifcx::IfcxError` to an HTTP response.
+pub fn into_ifcx_response(err: isso51_ifcx::IfcxError) -> Response {
+    use isso51_ifcx::IfcxError;
+
+    let (status, error_type, detail) = match err {
+        IfcxError::MissingEntry(entry) => (
+            StatusCode::BAD_REQUEST,
+            "missing_entry",
+            format!("Missing required IFC entry: {entry}"),
+        ),
+        IfcxError::MissingAttribute(entry, attr) => (
+            StatusCode::BAD_REQUEST,
+            "missing_attribute",
+            format!("Missing required attribute '{attr}' on {entry}"),
+        ),
+        IfcxError::Json(e) => (
+            StatusCode::BAD_REQUEST,
+            "json_error",
+            e.to_string(),
+        ),
+        IfcxError::Calc(calc_err) => {
+            return into_calc_response(calc_err);
+        }
+    };
+
+    let body = ErrorBody {
+        error: error_type.to_string(),
+        detail,
+    };
+
+    (status, axum::Json(body)).into_response()
+}
+
 /// Map `isso51_core::error::Isso51Error` to an HTTP response.
 pub fn into_calc_response(err: isso51_core::error::Isso51Error) -> Response {
     use isso51_core::error::Isso51Error;
