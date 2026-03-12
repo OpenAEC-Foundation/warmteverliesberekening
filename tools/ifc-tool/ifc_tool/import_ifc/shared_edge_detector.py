@@ -244,6 +244,42 @@ def _edge_overlap(
     return max(0.0, overlap)
 
 
+def _outward_normal(
+    p1: Point2D,
+    p2: Point2D,
+    centroid: tuple[float, float],
+) -> tuple[float, float]:
+    """Compute the outward normal of an edge, independent of winding direction.
+
+    Uses the polygon centroid to determine which side is "outward":
+    the normal that points away from the centroid is the outward one.
+
+    Returns:
+        Normalised outward normal ``(nx, ny)``.
+    """
+    dx = p2.x - p1.x
+    dy = p2.y - p1.y
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        return (0.0, 0.0)
+
+    # Candidate normal: (dy, -dx) / length
+    nx = dy / length
+    ny = -dx / length
+
+    # Edge midpoint
+    mid_x = (p1.x + p2.x) / 2
+    mid_y = (p1.y + p2.y) / 2
+
+    # If the candidate points toward the centroid, flip it
+    to_centroid_x = centroid[0] - mid_x
+    to_centroid_y = centroid[1] - mid_y
+    if nx * to_centroid_x + ny * to_centroid_y > 0:
+        nx, ny = -nx, -ny
+
+    return (nx, ny)
+
+
 def _normals_face_each_other(
     a1: Point2D,
     a2: Point2D,
@@ -254,22 +290,14 @@ def _normals_face_each_other(
 ) -> bool:
     """Check that the outward normals of the two edges face each other.
 
-    For a CCW polygon, the outward normal of edge (a1 -> a2) is (dy, -dx).
-    We verify that normal_A points from room A toward room B, and
-    normal_B points from room B toward room A.
+    Uses centroid-based outward normal calculation so this works correctly
+    regardless of polygon winding direction (CCW or CW).
 
     The check: dot(normal_A, midA -> midB) > 0  AND
                dot(normal_B, midB -> midA) > 0.
     """
-    # Edge A: direction and outward normal
-    dx_a = a2.x - a1.x
-    dy_a = a2.y - a1.y
-    normal_a = (dy_a, -dx_a)  # outward for CCW
-
-    # Edge B: direction and outward normal
-    dx_b = b2.x - b1.x
-    dy_b = b2.y - b1.y
-    normal_b = (dy_b, -dx_b)
+    normal_a = _outward_normal(a1, a2, centroid_a)
+    normal_b = _outward_normal(b1, b2, centroid_b)
 
     # Midpoints
     mid_a = ((a1.x + a2.x) / 2, (a1.y + a2.y) / 2)

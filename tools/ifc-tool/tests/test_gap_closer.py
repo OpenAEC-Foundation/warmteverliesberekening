@@ -350,6 +350,61 @@ class TestAreaSafetyCheck:
         assert area_change < 0.05
 
 
+class TestCWPolygonsGapClose:
+    """CW polygons should shift edges outward, not inward."""
+
+    def test_cw_edges_shift_outward(self) -> None:
+        """CW rectangles with 200mm gap — edges should move toward each other."""
+        # CW rectangles (reversed winding)
+        cw_a = list(reversed(_rect(0, 0, 3000, 3000)))
+        cw_b = list(reversed(_rect(3200, 0, 3000, 3000)))
+
+        room_a = _make_room(cw_a, name="Room A CW")
+        room_b = _make_room(cw_b, name="Room B CW")
+
+        # Find the wall indices for the shared edges in CW winding.
+        # CW rect A: (0,3000) → (3000,3000) → (3000,0) → (0,0)
+        #   Edge 1: (3000,3000)→(3000,0) = right wall
+        # CW rect B: (3200,3000) → (6200,3000) → (6200,0) → (3200,0)
+        #   Edge 3: (3200,0)→(3200,3000) = left wall
+        # Actually, reversed _rect(3200, 0, 3000, 3000):
+        #   Original CCW: (3200,0) → (6200,0) → (6200,3000) → (3200,3000)
+        #   Reversed CW:  (3200,3000) → (6200,3000) → (6200,0) → (3200,0)
+        #   Edge 3: (3200,0)→(3200,3000) = left wall
+
+        # Use detect to find the correct wall indices
+        from ifc_tool.import_ifc.shared_edge_detector import detect_shared_edges
+
+        pairs = detect_shared_edges([room_a, room_b])
+        assert len(pairs) == 1
+        pair = pairs[0]
+
+        result = close_gaps([room_a, room_b], [pair])
+
+        # The right wall of A should move +100mm (outward toward B)
+        # The left wall of B should move -100mm (outward toward A)
+        # They should meet at x=3100
+        poly_a = result[0].polygon
+        poly_b = result[1].polygon
+
+        # Find the x-coordinates of the shared edge vertices after shift.
+        # For room A, the right-wall vertices should be at ~3100.
+        right_wall_a_xs = [
+            p.x for p in poly_a if abs(p.x - 3100.0) < 10.0
+        ]
+        assert len(right_wall_a_xs) >= 2, (
+            f"Expected right wall at ~3100, got polygon: {[(p.x, p.y) for p in poly_a]}"
+        )
+
+        # For room B, the left-wall vertices should be at ~3100.
+        left_wall_b_xs = [
+            p.x for p in poly_b if abs(p.x - 3100.0) < 10.0
+        ]
+        assert len(left_wall_b_xs) >= 2, (
+            f"Expected left wall at ~3100, got polygon: {[(p.x, p.y) for p in poly_b]}"
+        )
+
+
 class TestEmptyInput:
     """Edge cases with empty rooms or pairs."""
 

@@ -130,6 +130,16 @@ def _copy_room(room: ModelRoom) -> ModelRoom:
     )
 
 
+def _centroid(polygon: list[Point2D]) -> tuple[float, float]:
+    """Compute the centroid of a polygon."""
+    n = len(polygon)
+    if n == 0:
+        return (0.0, 0.0)
+    cx = sum(p.x for p in polygon) / n
+    cy = sum(p.y for p in polygon) / n
+    return (cx, cy)
+
+
 def _edge_outward_shift(
     polygon: list[Point2D],
     wall_index: int,
@@ -137,8 +147,8 @@ def _edge_outward_shift(
 ) -> tuple[float, float] | None:
     """Compute the outward shift vector for a polygon edge.
 
-    The outward normal of edge ``(p_i -> p_{i+1})`` for a CCW polygon is
-    ``(dy, -dx)`` (normalised), multiplied by *distance*.
+    Uses the polygon centroid to determine the outward direction,
+    making this independent of winding direction (CCW or CW).
 
     Returns:
         ``(shift_x, shift_y)`` or ``None`` for degenerate edges.
@@ -154,9 +164,20 @@ def _edge_outward_shift(
     if length < 1e-9:
         return None
 
-    # Outward normal for CCW polygon: (dy, -dx) / length
+    # Candidate normal: (dy, -dx) / length
     nx = dy / length
     ny = -dx / length
+
+    # Use centroid to determine outward direction
+    cx, cy = _centroid(polygon)
+    mid_x = (p1.x + p2.x) / 2
+    mid_y = (p1.y + p2.y) / 2
+
+    # If the candidate normal points toward the centroid, flip it
+    to_centroid_x = cx - mid_x
+    to_centroid_y = cy - mid_y
+    if nx * to_centroid_x + ny * to_centroid_y > 0:
+        nx, ny = -nx, -ny
 
     return (nx * distance, ny * distance)
 

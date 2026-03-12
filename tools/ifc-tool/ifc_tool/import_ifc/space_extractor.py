@@ -18,6 +18,7 @@ from ifc_tool.constants import (
 )
 from ifc_tool.import_ifc.function_mapper import match_room_function
 from ifc_tool.import_ifc.geometry import (
+    ensure_ccw,
     extract_floor_polygon,
     polygon_area,
     simplify_polygon,
@@ -182,9 +183,11 @@ def _extract_single_space(
     elevation = storey_info.elevation_mm if storey_info else None
 
     # Transform polygon: IFC Y-up → screen Y-down
+    # The Y-flip reverses winding direction (CCW → CW), so re-ensure CCW.
     transformed = [
         Point2D(x=p.x, y=-p.y) for p in polygon
     ]
+    transformed = ensure_ccw(transformed)
 
     # Match room function from name
     function = match_room_function(space_name)

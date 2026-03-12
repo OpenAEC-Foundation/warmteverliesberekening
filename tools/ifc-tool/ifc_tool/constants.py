@@ -78,8 +78,11 @@ COLLINEAR_MERGE_DEG: float = 3.0
 # Shared edge detection
 # ---------------------------------------------------------------------------
 
-SHARED_EDGE_MAX_DISTANCE_MM: float = 500.0
-"""Max perpendicular distance (mm) between two edges to consider them shared."""
+SHARED_EDGE_MAX_DISTANCE_MM: float = 800.0
+"""Max perpendicular distance (mm) between two edges to consider them shared.
+
+Multi-layer walls (beton + isolatie + spouw + gevelbekleding) can be 400-600mm total.
+"""
 
 SHARED_EDGE_MIN_OVERLAP_MM: float = 200.0
 """Minimum projected overlap (mm) along the shared direction."""

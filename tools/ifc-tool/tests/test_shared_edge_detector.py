@@ -114,11 +114,12 @@ class TestParallelExteriorWalls:
 
 
 class TestGapTooLarge:
-    """Gap > 500mm should not be detected."""
+    """Gap > 800mm should not be detected."""
 
     def test_no_match_when_gap_exceeds_threshold(self) -> None:
         room_a = _make_room(_rect(0, 0, 3000, 3000), name="Room A")
-        room_b = _make_room(_rect(3600, 0, 3000, 3000), name="Room B")
+        # 900mm gap exceeds the 800mm threshold
+        room_b = _make_room(_rect(3900, 0, 3000, 3000), name="Room B")
 
         pairs = detect_shared_edges([room_a, room_b])
         assert len(pairs) == 0
@@ -195,6 +196,53 @@ class TestEmptyRooms:
 
     def test_no_pairs(self) -> None:
         assert detect_shared_edges([]) == []
+
+
+class TestCWPolygons:
+    """Clockwise polygons should also be detected correctly (winding-agnostic)."""
+
+    def test_cw_polygons_detect_shared_edge(self) -> None:
+        """Two CW rectangles with a 200mm gap → shared edge detected."""
+        # CW rectangle: reverse the CCW winding
+        cw_a = list(reversed(_rect(0, 0, 3000, 3000)))
+        cw_b = list(reversed(_rect(3200, 0, 3000, 3000)))
+
+        room_a = _make_room(cw_a, name="Room A CW")
+        room_b = _make_room(cw_b, name="Room B CW")
+
+        pairs = detect_shared_edges([room_a, room_b])
+
+        assert len(pairs) == 1
+        assert pairs[0].distance_mm == pytest.approx(200.0, abs=1.0)
+        assert pairs[0].overlap_mm == pytest.approx(3000.0, abs=1.0)
+
+    def test_mixed_winding_detect_shared_edge(self) -> None:
+        """One CCW and one CW polygon with a 200mm gap → shared edge detected."""
+        ccw_a = _rect(0, 0, 3000, 3000)  # CCW
+        cw_b = list(reversed(_rect(3200, 0, 3000, 3000)))  # CW
+
+        room_a = _make_room(ccw_a, name="Room A CCW")
+        room_b = _make_room(cw_b, name="Room B CW")
+
+        pairs = detect_shared_edges([room_a, room_b])
+
+        assert len(pairs) == 1
+        assert pairs[0].distance_mm == pytest.approx(200.0, abs=1.0)
+        assert pairs[0].overlap_mm == pytest.approx(3000.0, abs=1.0)
+
+
+class TestLargerGapWithinThreshold:
+    """Gaps between 500-800mm (multi-layer walls) should be detected."""
+
+    def test_600mm_gap_detected(self) -> None:
+        """A 600mm gap (thick multi-layer wall) is within the 800mm threshold."""
+        room_a = _make_room(_rect(0, 0, 3000, 3000), name="Room A")
+        room_b = _make_room(_rect(3600, 0, 3000, 3000), name="Room B")
+
+        pairs = detect_shared_edges([room_a, room_b])
+
+        assert len(pairs) == 1
+        assert pairs[0].distance_mm == pytest.approx(600.0, abs=1.0)
 
 
 class TestSharedEdgeSerialization:
