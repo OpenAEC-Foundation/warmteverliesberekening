@@ -5,7 +5,9 @@ All coordinates are in mm.
 
 from __future__ import annotations
 
+import logging
 import math
+from collections import defaultdict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -20,6 +22,8 @@ from ifc_tool.constants import (
     Z_TOLERANCE_MM,
 )
 from ifc_tool.models import Point2D
+
+logger = logging.getLogger(__name__)
 
 
 def polygon_area(points: list[Point2D]) -> float:
@@ -415,15 +419,21 @@ def simplify_polygon(points: list[Point2D]) -> list[Point2D]:
 def extract_floor_polygon(
     vertices: NDArray[np.float64],
     z_tolerance: float = Z_TOLERANCE_MM,
+    *,
+    faces: NDArray[np.int64] | None = None,
 ) -> tuple[list[Point2D], float]:
-    """Extract the floor polygon from 3D mesh vertices.
+    """Extract the floor polygon from a 3D mesh.
 
-    Finds vertices at the minimum Z level, projects to 2D XY,
-    and computes the convex hull. Returns (polygon, height_mm).
+    When *faces* are provided (Nx3 triangle indices), the actual boundary
+    edges of the bottom-face triangles are chained into an ordered polygon.
+    This preserves concave shapes exactly as they are in the IFC geometry.
+
+    Falls back to convex hull only when faces are not available.
 
     Args:
         vertices: Nx3 array of vertex coordinates in mm.
         z_tolerance: Tolerance for grouping bottom-face vertices.
+        faces: Optional Nx3 array of triangle face indices.
 
     Returns:
         Tuple of (floor polygon as Point2D list, room height in mm).
@@ -435,39 +445,130 @@ def extract_floor_polygon(
     z_max = float(np.max(vertices[:, 2]))
     height = z_max - z_min
 
-    # Select bottom-face vertices
+    if faces is not None and len(faces) > 0:
+        polygon = _extract_boundary_from_faces(
+            vertices, faces, z_min, z_tolerance
+        )
+        if len(polygon) >= 3:
+            return polygon, height
+
+    # Fallback: convex hull from bottom vertices
     bottom_mask = np.abs(vertices[:, 2] - z_min) < z_tolerance
-    bottom_verts = vertices[bottom_mask][:, :2]  # XY only
+    bottom_verts = vertices[bottom_mask][:, :2]
 
     if len(bottom_verts) < 3:
         return [], height
 
-    # Convex hull via gift wrapping (good enough for room polygons)
     hull = _convex_hull_2d(bottom_verts)
-
     points = [Point2D(x=float(p[0]), y=float(p[1])) for p in hull]
     return points, height
+
+
+def _extract_boundary_from_faces(
+    vertices: NDArray[np.float64],
+    faces: NDArray[np.int64],
+    z_min: float,
+    z_tolerance: float,
+) -> list[Point2D]:
+    """Extract ordered boundary polygon from bottom-face mesh triangles.
+
+    1. Find triangles where all 3 vertices are at z_min.
+    2. Collect all edges; boundary edges appear in exactly one triangle.
+    3. Chain boundary edges into an ordered polygon.
+    """
+    # Step 1: find bottom-face triangles
+    bottom_faces = []
+    for tri in faces:
+        zs = vertices[tri][:, 2]
+        if np.all(np.abs(zs - z_min) < z_tolerance):
+            bottom_faces.append(tri)
+
+    if not bottom_faces:
+        return []
+
+    # Step 2: count edge occurrences (boundary edges appear once)
+    # Use vertex indices rounded to a grid to handle near-duplicate vertices.
+    # First build a spatial index: round XY to 0.5mm grid → canonical index.
+    grid_resolution = VERTEX_DEDUP_TOLERANCE
+    coord_to_idx: dict[tuple[int, int], int] = {}
+    idx_to_coord: dict[int, tuple[float, float]] = {}
+    next_idx = 0
+
+    def _canonical(vi: int) -> int:
+        nonlocal next_idx
+        x, y = float(vertices[vi, 0]), float(vertices[vi, 1])
+        key = (round(x / grid_resolution), round(y / grid_resolution))
+        if key not in coord_to_idx:
+            coord_to_idx[key] = next_idx
+            idx_to_coord[next_idx] = (x, y)
+            next_idx += 1
+        return coord_to_idx[key]
+
+    edge_count: dict[tuple[int, int], int] = defaultdict(int)
+    for tri in bottom_faces:
+        ci = [_canonical(int(v)) for v in tri]
+        for a, b in [(0, 1), (1, 2), (2, 0)]:
+            edge = (min(ci[a], ci[b]), max(ci[a], ci[b]))
+            edge_count[edge] += 1
+
+    # Boundary edges: appear exactly once
+    boundary_edges: list[tuple[int, int]] = [
+        e for e, count in edge_count.items() if count == 1
+    ]
+
+    if len(boundary_edges) < 3:
+        return []
+
+    # Step 3: chain edges into ordered polygon
+    # Build adjacency: vertex → list of connected vertices
+    adjacency: dict[int, list[int]] = defaultdict(list)
+    for a, b in boundary_edges:
+        adjacency[a].append(b)
+        adjacency[b].append(a)
+
+    # Walk the boundary starting from the first edge
+    start = boundary_edges[0][0]
+    polygon_indices = [start]
+    visited: set[int] = {start}
+    current = start
+
+    for _ in range(len(boundary_edges) + 1):
+        neighbors = adjacency[current]
+        next_vertex = None
+        for n in neighbors:
+            if n not in visited:
+                next_vertex = n
+                break
+
+        if next_vertex is None:
+            break
+
+        polygon_indices.append(next_vertex)
+        visited.add(next_vertex)
+        current = next_vertex
+
+    if len(polygon_indices) < 3:
+        return []
+
+    # Convert to Point2D
+    points = [
+        Point2D(x=idx_to_coord[i][0], y=idx_to_coord[i][1])
+        for i in polygon_indices
+    ]
+    return points
 
 
 def _convex_hull_2d(
     points: NDArray[np.float64],
 ) -> NDArray[np.float64]:
-    """Simple convex hull using cross-product method.
-
-    For rooms with concave shapes, this is a reasonable
-    approximation — IfcSpace geometries are typically convex
-    or near-convex.
-    """
-    # Remove duplicates
+    """Convex hull using Andrew's monotone chain (fallback only)."""
     unique = np.unique(points, axis=0)
     if len(unique) < 3:
         return unique
 
-    # Sort by x then y
     idx = np.lexsort((unique[:, 1], unique[:, 0]))
     sorted_pts = unique[idx]
 
-    # Andrew's monotone chain
     lower: list[int] = []
     for i in range(len(sorted_pts)):
         while len(lower) >= 2 and _cross(
@@ -494,4 +595,6 @@ def _cross(
     b: NDArray[np.float64],
 ) -> float:
     """2D cross product of vectors OA and OB."""
-    return float((a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]))
+    return float(
+        (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    )

@@ -136,8 +136,9 @@ def _extract_single_space(
         logger.debug("No geometry for space %s: %s", space_name, exc)
         return None
 
-    # Get vertices from the shape
+    # Get vertices and faces from the shape
     verts_flat = shape.geometry.verts
+    faces_flat = shape.geometry.faces
     if len(verts_flat) == 0:
         return None
 
@@ -145,9 +146,10 @@ def _extract_single_space(
     # IfcOpenShell create_shape always returns coordinates in meters,
     # regardless of the file's native units, so multiply by 1000.
     vertices = np.array(verts_flat).reshape(-1, 3) * 1000.0
+    faces = np.array(faces_flat).reshape(-1, 3) if len(faces_flat) else None
 
-    # Extract floor polygon from bottom face
-    polygon, height = extract_floor_polygon(vertices)
+    # Extract floor polygon from bottom face mesh triangles
+    polygon, height = extract_floor_polygon(vertices, faces=faces)
 
     if len(polygon) < MIN_POLYGON_POINTS:
         logger.debug(

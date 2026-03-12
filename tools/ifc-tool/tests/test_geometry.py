@@ -124,6 +124,108 @@ class TestExtractFloorPolygon:
         assert len(polygon) == 4
         assert height == pytest.approx(2600.0)
 
+    def test_simple_box_with_faces(self) -> None:
+        """Box with triangulated faces → boundary extraction."""
+        vertices = np.array(
+            [
+                [0, 0, 0],        # 0
+                [4000, 0, 0],     # 1
+                [4000, 3000, 0],  # 2
+                [0, 3000, 0],     # 3
+                [0, 0, 2600],     # 4
+                [4000, 0, 2600],  # 5
+                [4000, 3000, 2600],  # 6
+                [0, 3000, 2600],  # 7
+            ],
+            dtype=np.float64,
+        )
+        # Triangulated faces for a box (2 triangles per face)
+        faces = np.array(
+            [
+                # Bottom face
+                [0, 1, 2],
+                [0, 2, 3],
+                # Top face
+                [4, 6, 5],
+                [4, 7, 6],
+                # Front face (y=0)
+                [0, 5, 1],
+                [0, 4, 5],
+                # Back face (y=3000)
+                [2, 7, 3],
+                [2, 6, 7],
+                # Left face (x=0)
+                [0, 3, 7],
+                [0, 7, 4],
+                # Right face (x=4000)
+                [1, 5, 6],
+                [1, 6, 2],
+            ],
+            dtype=np.int64,
+        )
+        polygon, height = extract_floor_polygon(vertices, faces=faces)
+        assert len(polygon) == 4
+        assert height == pytest.approx(2600.0)
+
+        # Check all 4 corners are present
+        xs = sorted(p.x for p in polygon)
+        ys = sorted(p.y for p in polygon)
+        assert xs[0] == pytest.approx(0.0)
+        assert xs[-1] == pytest.approx(4000.0)
+        assert ys[0] == pytest.approx(0.0)
+        assert ys[-1] == pytest.approx(3000.0)
+
+    def test_l_shaped_room_with_faces(self) -> None:
+        """L-shaped room → concave polygon preserved (NOT convex hull)."""
+        # L-shape floor: 6 vertices
+        #   (0,0)→(6000,0)→(6000,3000)→(3000,3000)→(3000,5000)→(0,5000)
+        vertices = np.array(
+            [
+                # Bottom (z=0)
+                [0, 0, 0],        # 0
+                [6000, 0, 0],     # 1
+                [6000, 3000, 0],  # 2
+                [3000, 3000, 0],  # 3
+                [3000, 5000, 0],  # 4
+                [0, 5000, 0],     # 5
+                # Top (z=2600)
+                [0, 0, 2600],     # 6
+                [6000, 0, 2600],  # 7
+                [6000, 3000, 2600],  # 8
+                [3000, 3000, 2600],  # 9
+                [3000, 5000, 2600],  # 10
+                [0, 5000, 2600],    # 11
+            ],
+            dtype=np.float64,
+        )
+        # Triangulated bottom face (4 triangles for L-shape)
+        faces = np.array(
+            [
+                # Bottom: triangulate L-shape
+                [0, 1, 2],
+                [0, 2, 3],
+                [0, 3, 4],
+                [0, 4, 5],
+                # Top (not relevant for floor extraction)
+                [6, 8, 7],
+                [6, 9, 8],
+                [6, 10, 9],
+                [6, 11, 10],
+            ],
+            dtype=np.int64,
+        )
+        polygon, height = extract_floor_polygon(vertices, faces=faces)
+
+        # Must have 6 vertices (L-shape), not 4 (convex hull)
+        assert len(polygon) == 6
+        assert height == pytest.approx(2600.0)
+
+        # The concave corner (3000, 3000) must be present
+        coords = [(round(p.x), round(p.y)) for p in polygon]
+        assert (3000, 3000) in coords, (
+            f"Concave corner missing, got: {coords}"
+        )
+
     def test_empty_vertices(self) -> None:
         vertices = np.array([], dtype=np.float64).reshape(0, 3)
         polygon, height = extract_floor_polygon(vertices)
