@@ -18,10 +18,11 @@ from ifc_tool.constants import (
 )
 from ifc_tool.import_ifc.function_mapper import match_room_function
 from ifc_tool.import_ifc.geometry import (
+    dedup_vertices,
     ensure_ccw,
     extract_floor_polygon,
     polygon_area,
-    simplify_polygon,
+    remove_collinear,
 )
 from ifc_tool.import_ifc.storey_resolver import StoreyInfo, get_space_storey
 from ifc_tool.models import (
@@ -156,8 +157,10 @@ def _extract_single_space(
         )
         return None
 
-    # Clean up & simplify polygon (removes IFC offset artifacts)
-    polygon = simplify_polygon(polygon)
+    # Minimal cleanup only — preserve the IFC geometry as-is.
+    # Only remove exact duplicates and truly collinear midpoints.
+    polygon = dedup_vertices(polygon)
+    polygon = remove_collinear(polygon)
 
     if len(polygon) < MIN_POLYGON_POINTS:
         return None
