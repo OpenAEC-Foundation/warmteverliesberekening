@@ -44,6 +44,14 @@ export interface IfcSidecarResult {
     }>;
     originalMaterialNames: string[];
   }>;
+  sharedEdges: Array<{
+    roomAIndex: number;
+    wallAIndex: number;
+    roomBIndex: number;
+    wallBIndex: number;
+    distanceMm: number;
+    overlapMm: number;
+  }>;
   warnings: Array<{ spaceName: string; message: string }>;
   diagnostics: Array<{
     spaceId: number;

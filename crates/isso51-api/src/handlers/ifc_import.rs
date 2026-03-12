@@ -167,7 +167,7 @@ async fn run_ifc_tool(
     ifc_path: &str,
 ) -> Result<serde_json::Value, String> {
     let output = tokio::process::Command::new(tool_path)
-        .args(["import", "--input", ifc_path])
+        .args(["import", "--input", ifc_path, "--no-close-gaps"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()

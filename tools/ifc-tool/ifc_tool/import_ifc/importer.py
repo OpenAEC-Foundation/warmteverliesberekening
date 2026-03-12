@@ -12,7 +12,7 @@ from pathlib import Path
 
 import ifcopenshell
 
-from ifc_tool.import_ifc.gap_closer import close_gaps
+from ifc_tool.import_ifc.gap_closer import close_gaps as close_gaps_fn
 from ifc_tool.import_ifc.opening_extractor import extract_openings
 from ifc_tool.import_ifc.shared_edge_detector import detect_shared_edges
 from ifc_tool.import_ifc.space_extractor import extract_spaces
@@ -24,11 +24,18 @@ from ifc_tool.models import IfcImportResult, ImportStats
 logger = logging.getLogger(__name__)
 
 
-def import_ifc(file_path: str | Path) -> IfcImportResult:
+def import_ifc(
+    file_path: str | Path,
+    *,
+    close_gaps: bool = True,
+) -> IfcImportResult:
     """Run the full IFC import pipeline.
 
     Args:
         file_path: Path to the .ifc file.
+        close_gaps: Expand polygons to wall centre-line.  When *False*,
+            shared edges are still detected but polygons keep their
+            original IfcSpace geometry (no overlap risk).
 
     Returns:
         IfcImportResult with rooms, windows, doors, wall types,
@@ -68,9 +75,12 @@ def import_ifc(file_path: str | Path) -> IfcImportResult:
     # Step 4: Detect shared interior edges between rooms
     shared_edges = detect_shared_edges(rooms)
 
-    # Step 4b: Close gaps — expand polygons to wall centre-line
-    rooms = close_gaps(rooms, shared_edges)
-    logger.info("Gap closing complete for %d rooms", len(rooms))
+    # Step 4b: Optionally close gaps — expand polygons to wall centre-line
+    if close_gaps:
+        rooms = close_gaps_fn(rooms, shared_edges)
+        logger.info("Gap closing complete for %d rooms", len(rooms))
+    else:
+        logger.info("Gap closing skipped (--no-close-gaps)")
 
     # Step 5: Extract openings (windows + doors)
     windows, doors, opening_warnings = extract_openings(

@@ -42,6 +42,11 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Enable verbose logging on stderr",
     )
+    import_parser.add_argument(
+        "--no-close-gaps",
+        action="store_true",
+        help="Skip gap closing (keep original IfcSpace geometry)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -62,7 +67,10 @@ def _run_import(args: argparse.Namespace) -> None:
     try:
         from ifc_tool.import_ifc.importer import import_ifc
 
-        result = import_ifc(args.input)
+        result = import_ifc(
+            args.input,
+            close_gaps=not args.no_close_gaps,
+        )
 
         # Output JSON to stdout
         output = result.model_dump(by_alias=True)
