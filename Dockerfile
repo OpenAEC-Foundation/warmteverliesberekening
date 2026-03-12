@@ -8,6 +8,7 @@ WORKDIR /build
 # Copy workspace and crate manifests first (Docker layer caching)
 COPY Cargo.toml Cargo.lock ./
 COPY crates/isso51-core/Cargo.toml crates/isso51-core/Cargo.toml
+COPY crates/isso51-ifcx/Cargo.toml crates/isso51-ifcx/Cargo.toml
 COPY crates/isso51-api/Cargo.toml crates/isso51-api/Cargo.toml
 
 # Remove src-tauri from workspace members (Tauri deps don't build here)
@@ -15,6 +16,7 @@ RUN sed -i '/"src-tauri"/d' Cargo.toml
 
 # Create dummy source files so cargo can resolve deps
 RUN mkdir -p crates/isso51-core/src && echo "pub fn dummy() {}" > crates/isso51-core/src/lib.rs \
+ && mkdir -p crates/isso51-ifcx/src && echo "pub fn dummy() {}" > crates/isso51-ifcx/src/lib.rs \
  && mkdir -p crates/isso51-api/src && echo "fn main() {}" > crates/isso51-api/src/main.rs
 
 # Pre-build dependencies (cached unless Cargo.toml/Cargo.lock change)
@@ -83,8 +85,19 @@ COPY --from=rust-builder /build/target/release/isso51-api /app/isso51-api
 # Copy frontend dist from Node builder
 COPY --from=node-builder /build/frontend/dist /app/static
 
+# Install Python + ifc-tool for server-side IFC import
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY tools/ifc-tool /tmp/ifc-tool-src
+RUN python3 -m venv /opt/ifc-tool-venv \
+ && /opt/ifc-tool-venv/bin/pip install --no-cache-dir /tmp/ifc-tool-src \
+ && rm -rf /tmp/ifc-tool-src
+
 # Create data directory for SQLite
-RUN mkdir -p /data && chown app:app /data
+RUN mkdir -p /data && chown app:app /data \
+ && chown -R app:app /opt/ifc-tool-venv
 VOLUME /data
 
 USER app

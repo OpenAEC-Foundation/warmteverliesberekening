@@ -8,7 +8,7 @@ description = "REST API for ISSO 51 heat loss calculations"
 [dependencies]
 isso51-core = { path = "../isso51-core" }
 isso51-ifcx = { path = "../isso51-ifcx" }
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -23,3 +23,4 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = "9"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 dotenvy = "0.15"
+tempfile = "3"

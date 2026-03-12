@@ -128,6 +128,30 @@ function createTauriBackend(): Backend {
 }
 
 // ---------------------------------------------------------------------------
+// Server-side IFC import (web mode — same pipeline as Tauri sidecar)
+// ---------------------------------------------------------------------------
+
+/** Upload an IFC file to the server for import via the Python sidecar. */
+export async function importIfcServer(file: File): Promise<IfcSidecarResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_PREFIX}/ifc/import`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(
+      (err as { detail?: string }).detail ?? `IFC import mislukt (HTTP ${res.status})`,
+    );
+  }
+
+  return res.json() as Promise<IfcSidecarResult>;
+}
+
+// ---------------------------------------------------------------------------
 // Authenticated API helpers (web only, uses OIDC access token)
 // ---------------------------------------------------------------------------
 

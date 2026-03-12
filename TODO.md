@@ -33,9 +33,9 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [ ] IFC parser output converteren naar IFCX (→ verplaatst naar Fase 3)
 
 ## Fase 3: Web-app IFC integratie
-- [ ] IFC parser als server-side service (Docker)
-- [ ] REST endpoint: `POST /api/v1/ifc/import` (file upload → IFCX)
-- [ ] Frontend: IFC upload → server → IFCX → modeller store
+- [x] IFC parser als server-side service (Docker)
+- [x] REST endpoint: `POST /api/v1/ifc/import` (file upload → JSON)
+- [x] Frontend: IFC upload → server → modeller store (met web-ifc fallback)
 - [ ] Modeller toont geïmporteerde ruimtes in 2D/3D
 - [ ] Modeller → IFCX → isso51-core → resultaten
 

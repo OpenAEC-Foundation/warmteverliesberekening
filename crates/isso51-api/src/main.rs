@@ -9,6 +9,7 @@ mod error;
 mod handlers;
 mod state;
 
+use axum::extract::DefaultBodyLimit;
 use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::routing::{get, post};
 use axum::Router;
@@ -72,6 +73,7 @@ async fn main() {
         jwks,
         config.reports_api_url.clone(),
         config.reports_api_key.clone(),
+        config.ifc_tool_path.clone(),
     );
 
     // --- Routes ---
@@ -100,6 +102,11 @@ async fn main() {
             post(handlers::calculate_and_save),
         );
 
+    // IFC import with 100 MB body limit (default is 2 MB).
+    let ifc_routes = Router::new()
+        .route("/import", post(handlers::import_ifc))
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024));
+
     // --- CORS ---
     let cors = CorsLayer::new()
         .allow_origin(
@@ -120,7 +127,10 @@ async fn main() {
 
     // --- App ---
     let mut app = Router::new()
-        .nest(config::API_PREFIX, public.merge(protected))
+        .nest(
+            config::API_PREFIX,
+            public.merge(protected).nest("/ifc", ifc_routes),
+        )
         .with_state(app_state)
         .layer(cors)
         .layer(TraceLayer::new_for_http());

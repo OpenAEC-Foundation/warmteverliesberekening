@@ -19,6 +19,8 @@ pub struct Config {
     pub reports_api_url: Option<String>,
     /// API key for the OpenAEC Reports API.
     pub reports_api_key: Option<String>,
+    /// Path to the `ifc-tool` executable for server-side IFC import.
+    pub ifc_tool_path: Option<String>,
 }
 
 impl Config {
@@ -45,6 +47,9 @@ impl Config {
                 .ok()
                 .filter(|s| !s.is_empty()),
             reports_api_key: env::var("REPORTS_API_KEY")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            ifc_tool_path: env::var("IFC_TOOL_PATH")
                 .ok()
                 .filter(|s| !s.is_empty()),
         }
