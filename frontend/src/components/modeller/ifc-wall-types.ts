@@ -21,13 +21,22 @@ const IFCWALLTYPE = WebIfc.IFCWALLTYPE;
 const IFCRELASSOCIATESMATERIAL = WebIfc.IFCRELASSOCIATESMATERIAL;
 const IFCPROJECT = WebIfc.IFCPROJECT;
 
-/** SI prefix → multiplier to meters (same as ifc-import.ts). */
+/**
+ * SI prefix → multiplier to meters.
+ * Keys are UPPERCASE without dots — we normalize the raw IFC prefix
+ * (which may be ".MILLI.", "MILLI", or "milli") before lookup.
+ */
 const SI_PREFIX_FACTOR: Record<string, number> = {
-  ".EXA.": 1e18, ".PETA.": 1e15, ".TERA.": 1e12, ".GIGA.": 1e9,
-  ".MEGA.": 1e6, ".KILO.": 1e3, ".HECTO.": 1e2, ".DECA.": 1e1,
-  ".DECI.": 1e-1, ".CENTI.": 1e-2, ".MILLI.": 1e-3, ".MICRO.": 1e-6,
-  ".NANO.": 1e-9, ".PICO.": 1e-12,
+  EXA: 1e18, PETA: 1e15, TERA: 1e12, GIGA: 1e9,
+  MEGA: 1e6, KILO: 1e3, HECTO: 1e2, DECA: 1e1,
+  DECI: 1e-1, CENTI: 1e-2, MILLI: 1e-3, MICRO: 1e-6,
+  NANO: 1e-9, PICO: 1e-12,
 };
+
+/** Normalize an IFC enum prefix: strip dots, uppercase. */
+function normalizePrefix(raw: string): string {
+  return raw.replace(/\./g, "").toUpperCase();
+}
 
 const DEFAULT_UNIT_TO_MM = 1000;
 
@@ -92,7 +101,7 @@ function detectUnitToMm(
 
       if (name === "METRE" || name === "METER") {
         if (!prefix) return 1000;
-        const factor = SI_PREFIX_FACTOR[prefix];
+        const factor = SI_PREFIX_FACTOR[normalizePrefix(prefix)];
         if (factor) return factor * 1000;
       }
 

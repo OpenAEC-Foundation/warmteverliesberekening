@@ -8,8 +8,54 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { ModelRoom, ModelWindow, ModelDoor, WallBoundaryType, ProjectConstruction } from "./types";
-import type { CatalogueEntry } from "../../lib/constructionCatalogue";
+import { buildLayerName, type CatalogueEntry } from "../../lib/constructionCatalogue";
 import { EXAMPLE_ROOMS, EXAMPLE_WINDOWS } from "./exampleData";
+
+// ---------------------------------------------------------------------------
+// Data migration helpers
+// ---------------------------------------------------------------------------
+
+/** Maximum realistic layer thickness in mm (2 meters). */
+const MAX_REALISTIC_THICKNESS_MM = 2000;
+
+/**
+ * Fix IFC-imported layer thicknesses that are 1000x too large.
+ *
+ * This happens when the IFC unit detector fails and defaults to
+ * meters→mm (×1000), but the file already uses mm. E.g. 160mm
+ * becomes 160000mm. We detect this by checking if ANY layer exceeds
+ * MAX_REALISTIC_THICKNESS_MM and all exceed it — then divide by 1000.
+ */
+function migrateProjectConstructions(
+  pcs: ProjectConstruction[],
+): ProjectConstruction[] {
+  return pcs.map((pc) => {
+    if (pc.layers.length === 0) return pc;
+
+    // Check if all non-zero layers exceed the threshold
+    const nonZero = pc.layers.filter((l) => l.thickness > 0);
+    if (nonZero.length === 0) return pc;
+
+    const allOversized = nonZero.every(
+      (l) => l.thickness > MAX_REALISTIC_THICKNESS_MM,
+    );
+    if (!allOversized) return pc;
+
+    // Fix: divide by 1000 and regenerate name
+    const fixedLayers = pc.layers.map((l) => ({
+      ...l,
+      thickness: l.thickness > 0
+        ? Math.round((l.thickness / 1000) * 10) / 10
+        : 0,
+    }));
+
+    return {
+      ...pc,
+      layers: fixedLayers,
+      name: buildLayerName(fixedLayers),
+    };
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Underlay
@@ -494,7 +540,7 @@ export const useModellerStore = create<ModellerStore>()(
     }),
     {
       name: "isso51-modeller",
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         rooms: state.rooms,
         windows: state.windows,
@@ -506,6 +552,15 @@ export const useModellerStore = create<ModellerStore>()(
         roofConstructions: state.roofConstructions,
         wallBoundaryTypes: state.wallBoundaryTypes,
       }),
+      migrate: (persisted, version) => {
+        const state = persisted as Record<string, unknown>;
+        if (version < 2 && Array.isArray(state.projectConstructions)) {
+          state.projectConstructions = migrateProjectConstructions(
+            state.projectConstructions as ProjectConstruction[],
+          );
+        }
+        return state as never;
+      },
     },
   ),
 );
