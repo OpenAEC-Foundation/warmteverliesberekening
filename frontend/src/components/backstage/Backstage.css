@@ -113,6 +113,28 @@
   color: var(--theme-backstage-item-shortcut-hover);
 }
 
+/* Sub-menu items (indented) */
+.backstage-sub-item {
+  padding-left: 56px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 12px !important;
+}
+
+.backstage-sub-item .backstage-item-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.backstage-sub-item .backstage-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.backstage-sub-item:disabled {
+  cursor: not-allowed;
+}
+
 /* Divider */
 .backstage-divider {
   height: 1px;

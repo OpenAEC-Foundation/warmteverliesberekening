@@ -3,6 +3,20 @@ import { persist } from "zustand/middleware";
 
 import type { ConstructionElement, Project, ProjectResult, Room } from "../types";
 
+// ---------------------------------------------------------------------------
+// Undo/Redo history
+// ---------------------------------------------------------------------------
+
+const MAX_HISTORY = 50;
+
+interface ProjectSnapshot {
+  project: Project;
+}
+
+function takeProjectSnapshot(state: { project: Project }): ProjectSnapshot {
+  return { project: structuredClone(state.project) };
+}
+
 /** Default project for a new calculation. */
 const DEFAULT_PROJECT: Project = {
   info: {
@@ -48,6 +62,11 @@ interface ProjectStore {
   /** Whether a save conflict was detected. */
   hasConflict: boolean;
 
+  /** Undo history (not persisted). */
+  _past: ProjectSnapshot[];
+  /** Redo history (not persisted). */
+  _future: ProjectSnapshot[];
+
   /** Update project data (partial merge). */
   updateProject: (partial: Partial<Project>) => void;
   /** Replace the entire project. */
@@ -90,11 +109,16 @@ interface ProjectStore {
   ) => void;
   /** Remove a construction from a room. */
   removeConstruction: (roomId: string, constructionId: string) => void;
+
+  /** Undo last project mutation. */
+  undo: () => void;
+  /** Redo last undone project mutation. */
+  redo: () => void;
 }
 
 export const useProjectStore = create<ProjectStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       project: DEFAULT_PROJECT,
       result: null,
       error: null,
@@ -103,19 +127,25 @@ export const useProjectStore = create<ProjectStore>()(
       activeProjectId: null,
       serverUpdatedAt: null,
       hasConflict: false,
+      _past: [],
+      _future: [],
 
       setActiveProjectId: (id) => set({ activeProjectId: id }),
       setServerUpdatedAt: (updatedAt) => set({ serverUpdatedAt: updatedAt }),
 
-      updateProject: (partial) =>
+      updateProject: (partial) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: { ...state.project, ...partial },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
 
       setProject: (project) =>
-        set({ project, isDirty: true, result: null, error: null, activeProjectId: null, serverUpdatedAt: null, hasConflict: false }),
+        set({ project, isDirty: true, result: null, error: null, activeProjectId: null, serverUpdatedAt: null, hasConflict: false, _past: [], _future: [] }),
 
       loadServerProject: (id, project, result, updatedAt) =>
         set({
@@ -127,6 +157,8 @@ export const useProjectStore = create<ProjectStore>()(
           isCalculating: false,
           serverUpdatedAt: updatedAt ?? null,
           hasConflict: false,
+          _past: [],
+          _future: [],
         }),
 
       setResult: (result) =>
@@ -151,9 +183,12 @@ export const useProjectStore = create<ProjectStore>()(
           activeProjectId: null,
           serverUpdatedAt: null,
           hasConflict: false,
+          _past: [],
+          _future: [],
         }),
 
-      addRoom: (room) =>
+      addRoom: (room) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: {
             ...state.project,
@@ -161,9 +196,13 @@ export const useProjectStore = create<ProjectStore>()(
           },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
 
-      updateRoom: (roomId, partial) =>
+      updateRoom: (roomId, partial) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: {
             ...state.project,
@@ -173,9 +212,13 @@ export const useProjectStore = create<ProjectStore>()(
           },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
 
-      removeRoom: (roomId) =>
+      removeRoom: (roomId) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: {
             ...state.project,
@@ -183,9 +226,13 @@ export const useProjectStore = create<ProjectStore>()(
           },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
 
-      addConstruction: (roomId, construction) =>
+      addConstruction: (roomId, construction) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: {
             ...state.project,
@@ -197,9 +244,13 @@ export const useProjectStore = create<ProjectStore>()(
           },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
 
-      updateConstruction: (roomId, constructionId, partial) =>
+      updateConstruction: (roomId, constructionId, partial) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: {
             ...state.project,
@@ -216,9 +267,13 @@ export const useProjectStore = create<ProjectStore>()(
           },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
 
-      removeConstruction: (roomId, constructionId) =>
+      removeConstruction: (roomId, constructionId) => {
+        const snap = takeProjectSnapshot(get());
         set((state) => ({
           project: {
             ...state.project,
@@ -235,7 +290,36 @@ export const useProjectStore = create<ProjectStore>()(
           },
           isDirty: true,
           error: null,
-        })),
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
+
+      undo: () => {
+        const state = get();
+        if (state._past.length === 0) return;
+        const currentSnap = takeProjectSnapshot(state);
+        const prev = state._past[state._past.length - 1]!;
+        set({
+          project: prev.project,
+          _past: state._past.slice(0, -1),
+          _future: [...state._future, currentSnap],
+          isDirty: true,
+        });
+      },
+
+      redo: () => {
+        const state = get();
+        if (state._future.length === 0) return;
+        const currentSnap = takeProjectSnapshot(state);
+        const next = state._future[state._future.length - 1]!;
+        set({
+          project: next.project,
+          _past: [...state._past, currentSnap],
+          _future: state._future.slice(0, -1),
+          isDirty: true,
+        });
+      },
     }),
     {
       name: "isso51-project",

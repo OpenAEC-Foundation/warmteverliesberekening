@@ -1,5 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+
+import { useAuth } from "../../hooks/useAuth";
+import { createProject, updateProject } from "../../lib/backend";
+import {
+  importProject,
+  exportProject,
+  extractAndLinkConstructions,
+} from "../../lib/importExport";
+import { useProjectStore } from "../../store/projectStore";
+import { useToastStore } from "../../store/toastStore";
+import { useModellerStore } from "../modeller/modellerStore";
 import "./Backstage.css";
 
 const ICONS = {
@@ -7,12 +18,12 @@ const ICONS = {
   open: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>',
   save: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4z"/><path d="M17 3v4a1 1 0 01-1 1H8"/><path d="M7 14h10v7H7z"/></svg>',
   saveAs: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4z"/><path d="M17 3v4a1 1 0 01-1 1H8"/><path d="M12 12v6m-3-3h6"/></svg>',
-  print: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
-  export: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
-  import: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  close: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6m0-6l-6 6"/></svg>',
   preferences: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   about: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
   exit: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
+  server: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
+  file: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>',
 };
 
 function MenuItem({
@@ -45,6 +56,36 @@ function MenuItem({
   );
 }
 
+function SubMenuItem({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      className="backstage-item backstage-sub-item"
+      onClick={onClick}
+      disabled={disabled}
+      style={{ opacity: disabled ? 0.4 : 1 }}
+    >
+      <span
+        className="backstage-item-icon"
+        style={{ width: 18, height: 18 }}
+        dangerouslySetInnerHTML={{ __html: icon }}
+      />
+      <span className="backstage-item-label" style={{ fontSize: 12 }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
 function Divider() {
   return <div className="backstage-divider" />;
 }
@@ -53,23 +94,48 @@ interface BackstageProps {
   open: boolean;
   onClose: () => void;
   onOpenSettings: () => void;
+  onNavigate?: (path: string) => void;
 }
 
-export default function Backstage({ open, onClose, onOpenSettings }: BackstageProps) {
+export default function Backstage({
+  open,
+  onClose,
+  onOpenSettings,
+  onNavigate,
+}: BackstageProps) {
   const { t } = useTranslation("backstage");
   const [activePanel, setActivePanel] = useState<string>("none");
+  const [openExpanded, setOpenExpanded] = useState(false);
+  const [saveAsExpanded, setSaveAsExpanded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { isLoggedIn } = useAuth();
+  const addToast = useToastStore((s) => s.addToast);
+
+  const project = useProjectStore((s) => s.project);
+  const result = useProjectStore((s) => s.result);
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const serverUpdatedAt = useProjectStore((s) => s.serverUpdatedAt);
+  const setProject = useProjectStore((s) => s.setProject);
+  const setActiveProjectId = useProjectStore((s) => s.setActiveProjectId);
+  const setServerUpdatedAt = useProjectStore((s) => s.setServerUpdatedAt);
+  const reset = useProjectStore((s) => s.reset);
+
+  const resetToExample = useModellerStore((s) => s.resetToExample);
 
   const actionAndClose = useCallback(
     (fn?: () => void) => {
       onClose();
       fn?.();
     },
-    [onClose]
+    [onClose],
   );
 
   useEffect(() => {
     if (!open) {
       setActivePanel("none");
+      setOpenExpanded(false);
+      setSaveAsExpanded(false);
       return;
     }
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -78,6 +144,140 @@ export default function Backstage({ open, onClose, onOpenSettings }: BackstagePr
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
+
+  // --- File actions ---
+
+  const handleNew = useCallback(() => {
+    reset();
+    resetToExample();
+    onClose();
+    onNavigate?.("/project");
+    addToast(t("newProject"), "info");
+  }, [reset, resetToExample, onClose, onNavigate, addToast, t]);
+
+  const handleOpenServer = useCallback(() => {
+    onClose();
+    onNavigate?.("/projects");
+  }, [onClose, onNavigate]);
+
+  const handleOpenLocal = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const { project: imported, result: importedResult } =
+          importProject(text);
+        extractAndLinkConstructions(imported);
+        setProject(imported);
+        if (importedResult) {
+          useProjectStore.getState().setResult(importedResult);
+        }
+        onClose();
+        onNavigate?.("/rooms");
+        addToast(t("opened"), "success");
+      } catch (err) {
+        addToast(
+          `${t("importError")}: ${err instanceof Error ? err.message : String(err)}`,
+          "error",
+        );
+      }
+
+      // Reset file input so the same file can be selected again
+      e.target.value = "";
+    },
+    [setProject, onClose, onNavigate, addToast, t],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (activeProjectId && isLoggedIn) {
+      // Server save — update existing project
+      try {
+        const resp = await updateProject(activeProjectId, {
+          project_data: project,
+          expected_updated_at: serverUpdatedAt ?? undefined,
+        });
+        setServerUpdatedAt(resp.updated_at);
+        onClose();
+        addToast(t("savedToServer"), "success");
+      } catch (err) {
+        addToast(
+          `${t("saveError")}: ${err instanceof Error ? err.message : String(err)}`,
+          "error",
+        );
+      }
+    } else if (isLoggedIn) {
+      // Server save — new project, prompt for name
+      const name = window.prompt(
+        t("projectNamePrompt"),
+        project.info.name || "",
+      );
+      if (!name) return;
+      try {
+        const resp = await createProject(name, project);
+        setActiveProjectId(resp.id);
+        onClose();
+        addToast(t("savedToServer"), "success");
+      } catch (err) {
+        addToast(
+          `${t("saveError")}: ${err instanceof Error ? err.message : String(err)}`,
+          "error",
+        );
+      }
+    } else {
+      // Not logged in — export locally
+      exportProject(project, result);
+      onClose();
+      addToast(t("savedLocally"), "success");
+    }
+  }, [
+    activeProjectId,
+    isLoggedIn,
+    project,
+    result,
+    serverUpdatedAt,
+    setActiveProjectId,
+    setServerUpdatedAt,
+    onClose,
+    addToast,
+    t,
+  ]);
+
+  const handleSaveAsServer = useCallback(async () => {
+    const name = window.prompt(
+      t("projectNamePrompt"),
+      project.info.name || "",
+    );
+    if (!name) return;
+    try {
+      const resp = await createProject(name, project);
+      setActiveProjectId(resp.id);
+      onClose();
+      addToast(t("savedToServer"), "success");
+    } catch (err) {
+      addToast(
+        `${t("saveError")}: ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+    }
+  }, [project, setActiveProjectId, onClose, addToast, t]);
+
+  const handleSaveAsLocal = useCallback(() => {
+    exportProject(project, result);
+    onClose();
+    addToast(t("savedLocally"), "success");
+  }, [project, result, onClose, addToast, t]);
+
+  const handleClose = useCallback(() => {
+    reset();
+    onClose();
+    addToast(t("closed"), "info");
+  }, [reset, onClose, addToast, t]);
 
   if (!open) return null;
 
@@ -104,45 +304,102 @@ export default function Backstage({ open, onClose, onOpenSettings }: BackstagePr
           <span>{t("file")}</span>
         </button>
         <div className="backstage-items">
+          {/* Nieuw */}
           <MenuItem
             icon={ICONS.new}
             label={t("new")}
             shortcut="Ctrl+N"
-            onClick={() => actionAndClose()}
+            onClick={handleNew}
           />
+
+          {/* Openen */}
           <MenuItem
             icon={ICONS.open}
             label={t("open")}
             shortcut="Ctrl+O"
-            onClick={() => actionAndClose()}
+            onClick={() => setOpenExpanded((v) => !v)}
           />
+          {openExpanded && (
+            <>
+              {isLoggedIn && (
+                <SubMenuItem
+                  icon={ICONS.server}
+                  label={t("fromServer")}
+                  onClick={handleOpenServer}
+                />
+              )}
+              <SubMenuItem
+                icon={ICONS.file}
+                label={t("localFile")}
+                onClick={handleOpenLocal}
+              />
+            </>
+          )}
+
+          {/* Opslaan */}
           <MenuItem
             icon={ICONS.save}
             label={t("save")}
             shortcut="Ctrl+S"
-            onClick={() => actionAndClose()}
+            onClick={handleSave}
           />
+
+          {/* Opslaan als */}
           <MenuItem
             icon={ICONS.saveAs}
             label={t("saveAs")}
             shortcut="Ctrl+Shift+S"
-            onClick={() => actionAndClose()}
+            onClick={() => setSaveAsExpanded((v) => !v)}
           />
+          {saveAsExpanded && (
+            <>
+              {isLoggedIn && (
+                <SubMenuItem
+                  icon={ICONS.server}
+                  label={t("toServer")}
+                  onClick={handleSaveAsServer}
+                />
+              )}
+              <SubMenuItem
+                icon={ICONS.file}
+                label={t("localExport")}
+                onClick={handleSaveAsLocal}
+              />
+            </>
+          )}
+
           <Divider />
+
+          {/* Sluiten */}
+          <MenuItem
+            icon={ICONS.close}
+            label={t("close")}
+            onClick={handleClose}
+          />
+
+          <Divider />
+
+          {/* Voorkeuren */}
           <MenuItem
             icon={ICONS.preferences}
             label={t("preferences")}
             shortcut="Ctrl+,"
             onClick={() => actionAndClose(onOpenSettings)}
           />
+
           <Divider />
+
+          {/* Over */}
           <MenuItem
             icon={ICONS.about}
             label={t("about")}
             active={activePanel === "about"}
             onClick={() => setActivePanel("about")}
           />
+
           <Divider />
+
+          {/* Afsluiten */}
           <MenuItem
             icon={ICONS.exit}
             label={t("exit")}
@@ -151,7 +408,9 @@ export default function Backstage({ open, onClose, onOpenSettings }: BackstagePr
               onClose();
               import("@tauri-apps/api/window")
                 .then(({ getCurrentWindow }) => getCurrentWindow().close())
-                .catch(() => { /* web mode — no-op */ });
+                .catch(() => {
+                  /* web mode — no-op */
+                });
             }}
           />
         </div>
@@ -159,6 +418,15 @@ export default function Backstage({ open, onClose, onOpenSettings }: BackstagePr
       <div className="backstage-content" onClick={handleContentClick}>
         {activePanel === "about" && <AboutPanel />}
       </div>
+
+      {/* Hidden file input for local open */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.isso51.json"
+        onChange={handleFileSelected}
+        style={{ display: "none" }}
+      />
     </div>
   );
 }
@@ -220,4 +488,3 @@ function AboutPanel() {
     </div>
   );
 }
-

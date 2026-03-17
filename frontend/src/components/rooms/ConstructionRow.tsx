@@ -1,12 +1,15 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useState, useMemo } from "react";
 
 import { BOUNDARY_TYPE_LABELS, VERTICAL_POSITION_LABELS } from "../../lib/constants";
+import { calculateRc } from "../../lib/rcCalculation";
 import type {
   BoundaryType,
   ConstructionElement,
   ConstructionElementLayer,
   VerticalPosition,
 } from "../../types";
+import { useModellerStore } from "../modeller/modellerStore";
+import type { ProjectConstruction } from "../modeller/types";
 import { LayerEditor } from "../construction/LayerEditor";
 import { BoundaryBadge } from "./BoundaryBadge";
 import { EditableCell } from "./EditableCell";
@@ -29,6 +32,10 @@ export const ConstructionCells = memo(function ConstructionCells({
 }: ConstructionCellsProps) {
   const [layerEditorOpen, setLayerEditorOpen] = useState(false);
 
+  const projectConstructions = useModellerStore(
+    (s) => s.projectConstructions,
+  );
+
   const handleArea = useCallback(
     (v: string) => onUpdate({ area: Number(v) || 0 }),
     [onUpdate],
@@ -49,16 +56,79 @@ export const ConstructionCells = memo(function ConstructionCells({
     [onUpdate],
   );
 
+  const handleSelectConstruction = useCallback(
+    (pcId: string) => {
+      if (pcId === "__manual__") {
+        // Ontkoppel — houd huidige waarden
+        onUpdate({ project_construction_id: undefined });
+        return;
+      }
+      const pc = projectConstructions.find(
+        (c: ProjectConstruction) => c.id === pcId,
+      );
+      if (!pc) return;
+      const rcResult =
+        pc.layers.length > 0
+          ? calculateRc(pc.layers, pc.verticalPosition)
+          : null;
+      onUpdate({
+        description: pc.name,
+        u_value: rcResult
+          ? Math.round(rcResult.uValue * 1000) / 1000
+          : construction.u_value,
+        material_type: pc.materialType,
+        vertical_position: pc.verticalPosition,
+        layers: pc.layers.map((l) => ({ ...l })),
+        project_construction_id: pc.id,
+      });
+    },
+    [projectConstructions, onUpdate, construction.u_value],
+  );
+
   const layerCount = construction.layers?.length ?? 0;
+  const isLinked = !!construction.project_construction_id;
+
+  // Build dropdown options
+  const dropdownValue = construction.project_construction_id ?? "__manual__";
+
+  // Group project constructions by category for the dropdown
+  const sortedConstructions = useMemo(
+    () =>
+      [...projectConstructions].sort((a, b) => a.name.localeCompare(b.name)),
+    [projectConstructions],
+  );
 
   return (
     <>
       <td className="px-2 py-1">
-        <EditableCell
-          value={construction.description}
-          onChange={(v) => onUpdate({ description: v })}
-          placeholder="Beschrijving..."
-        />
+        <div className="flex items-center gap-1">
+          <select
+            value={dropdownValue}
+            onChange={(e) => handleSelectConstruction(e.target.value)}
+            className={`min-w-0 flex-1 truncate rounded border px-1.5 py-0.5 text-xs ${
+              isLinked
+                ? "border-blue-200 bg-blue-50 text-blue-800"
+                : "border-stone-200 bg-white text-stone-700"
+            }`}
+            title={construction.description || "Kies constructie..."}
+          >
+            <option value="__manual__">
+              {construction.description || "Handmatig..."}
+            </option>
+            {sortedConstructions.map((pc) => (
+              <option key={pc.id} value={pc.id}>
+                {pc.name}
+              </option>
+            ))}
+          </select>
+          {!isLinked && (
+            <EditableCell
+              value={construction.description}
+              onChange={(v) => onUpdate({ description: v })}
+              placeholder="Beschrijving..."
+            />
+          )}
+        </div>
       </td>
       <td className="px-2 py-1">
         <div className="flex items-center gap-1.5">

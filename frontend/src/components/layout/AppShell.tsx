@@ -1,7 +1,13 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
+import { useAuth } from "../../hooks/useAuth";
+import { updateProject, createProject } from "../../lib/backend";
+import { exportProject } from "../../lib/importExport";
 import { useProjectStore } from "../../store/projectStore";
+import { useToastStore } from "../../store/toastStore";
 import { getSetting } from "../../tauriStore";
+import { useModellerStore } from "../modeller/modellerStore";
 import TitleBar from "../TitleBar";
 import Ribbon from "../ribbon/Ribbon";
 import StatusBar from "../StatusBar";
@@ -20,7 +26,11 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   useAutoSave();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isLoggedIn } = useAuth();
   const { error, clearError } = useProjectStore();
+  const addToast = useToastStore((s) => s.addToast);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backstageOpen, setBackstageOpen] = useState(false);
@@ -37,6 +47,110 @@ export function AppShell({ children }: AppShellProps) {
       .then(({ getCurrentWindow }) => getCurrentWindow().show())
       .catch(() => {});
   }, []);
+
+  // --- Global keyboard shortcuts ---
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Skip when user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      if (ctrl && !e.shiftKey && e.key === "n") {
+        e.preventDefault();
+        useProjectStore.getState().reset();
+        useModellerStore.getState().resetToExample();
+        navigate("/project");
+        addToast("Nieuw project", "info");
+        return;
+      }
+
+      if (ctrl && !e.shiftKey && e.key === "o") {
+        e.preventDefault();
+        setBackstageOpen(true);
+        return;
+      }
+
+      if (ctrl && !e.shiftKey && e.key === "s") {
+        e.preventDefault();
+        const state = useProjectStore.getState();
+        if (state.activeProjectId && isLoggedIn) {
+          updateProject(state.activeProjectId, {
+            project_data: state.project,
+            expected_updated_at: state.serverUpdatedAt ?? undefined,
+          })
+            .then((resp) => {
+              useProjectStore.getState().setServerUpdatedAt(resp.updated_at);
+              addToast("Opgeslagen op server", "success");
+            })
+            .catch((err) => {
+              addToast(
+                `Opslaan mislukt: ${err instanceof Error ? err.message : String(err)}`,
+                "error",
+              );
+            });
+        } else if (isLoggedIn) {
+          const name = window.prompt(
+            "Projectnaam:",
+            state.project.info.name || "",
+          );
+          if (name) {
+            createProject(name, state.project)
+              .then((resp) => {
+                useProjectStore.getState().setActiveProjectId(resp.id);
+                addToast("Opgeslagen op server", "success");
+              })
+              .catch((err) => {
+                addToast(
+                  `Opslaan mislukt: ${err instanceof Error ? err.message : String(err)}`,
+                  "error",
+                );
+              });
+          }
+        } else {
+          exportProject(state.project, state.result);
+          addToast("Lokaal opgeslagen", "success");
+        }
+        return;
+      }
+
+      if (ctrl && e.shiftKey && e.key === "S") {
+        e.preventDefault();
+        const state = useProjectStore.getState();
+        exportProject(state.project, state.result);
+        addToast("Lokaal opgeslagen", "success");
+        return;
+      }
+
+      // Undo/Redo
+      if (ctrl && !e.shiftKey && e.key === "z") {
+        e.preventDefault();
+        if (location.pathname === "/modeller") {
+          useModellerStore.getState().undo();
+        } else {
+          useProjectStore.getState().undo();
+        }
+        return;
+      }
+
+      if (ctrl && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
+        e.preventDefault();
+        if (location.pathname === "/modeller") {
+          useModellerStore.getState().redo();
+        } else {
+          useProjectStore.getState().redo();
+        }
+        return;
+      }
+    },
+    [navigate, isLoggedIn, addToast, location.pathname],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -73,6 +187,7 @@ export function AppShell({ children }: AppShellProps) {
         open={backstageOpen}
         onClose={() => setBackstageOpen(false)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onNavigate={navigate}
       />
       <SettingsDialog
         open={settingsOpen}
