@@ -128,25 +128,6 @@ export default function Backstage({ open, onClose, onOpenSettings }: BackstagePr
             shortcut="Ctrl+Shift+S"
             onClick={() => actionAndClose()}
           />
-          <MenuItem
-            icon={ICONS.print}
-            label={t("print")}
-            shortcut="Ctrl+P"
-            onClick={() => actionAndClose()}
-          />
-          <Divider />
-          <MenuItem
-            icon={ICONS.import}
-            label={t("import")}
-            active={activePanel === "import"}
-            onClick={() => setActivePanel("import")}
-          />
-          <MenuItem
-            icon={ICONS.export}
-            label={t("export")}
-            active={activePanel === "export"}
-            onClick={() => setActivePanel("export")}
-          />
           <Divider />
           <MenuItem
             icon={ICONS.preferences}
@@ -177,8 +158,6 @@ export default function Backstage({ open, onClose, onOpenSettings }: BackstagePr
       </div>
       <div className="backstage-content" onClick={handleContentClick}>
         {activePanel === "about" && <AboutPanel />}
-        {activePanel === "import" && <ImportPanel />}
-        {activePanel === "export" && <ExportPanel />}
       </div>
     </div>
   );
@@ -242,88 +221,3 @@ function AboutPanel() {
   );
 }
 
-function ImportPanel() {
-  const { t } = useTranslation("backstage");
-  return (
-    <div className="bs-export-panel">
-      <h2 className="bs-export-title">{t("importPanel.title")}</h2>
-      <div className="bs-export-cards">
-        <div className="bs-export-card">
-          <div className="bs-export-card-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-              <path d="M14 2v6h6" />
-              <path d="M12 18v-6m-3 3h6" />
-            </svg>
-          </div>
-          <div className="bs-export-card-info">
-            <h3>{t("importPanel.fromFile")}</h3>
-            <p>{t("importPanel.fromFileDesc")}</p>
-          </div>
-        </div>
-        <div className="bs-export-card">
-          <div className="bs-export-card-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </div>
-          <div className="bs-export-card-info">
-            <h3>{t("importPanel.fromTemplate")}</h3>
-            <p>{t("importPanel.fromTemplateDesc")}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ExportPanel() {
-  const { t } = useTranslation("backstage");
-  return (
-    <div className="bs-export-panel">
-      <h2 className="bs-export-title">{t("exportPanel.title")}</h2>
-      <div className="bs-export-cards">
-        <div className="bs-export-card">
-          <div className="bs-export-card-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-              <path d="M14 2v6h6" />
-            </svg>
-          </div>
-          <div className="bs-export-card-info">
-            <h3>{t("exportPanel.asPdf")}</h3>
-            <p>{t("exportPanel.asPdfDesc")}</p>
-          </div>
-        </div>
-        <div className="bs-export-card">
-          <div className="bs-export-card-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-          </div>
-          <div className="bs-export-card-info">
-            <h3>{t("exportPanel.asImage")}</h3>
-            <p>{t("exportPanel.asImageDesc")}</p>
-          </div>
-        </div>
-        <div className="bs-export-card">
-          <div className="bs-export-card-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-          </div>
-          <div className="bs-export-card-info">
-            <h3>{t("exportPanel.asHtml")}</h3>
-            <p>{t("exportPanel.asHtmlDesc")}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -1,27 +1,62 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
 import RibbonTab from "./RibbonTab";
-import HomeTab from "./HomeTab";
-import ViewTab from "./ViewTab";
-import ToolsTab from "./ToolsTab";
+import VertrekkenTab from "./VertrekkenTab";
+import ConstructiesTab from "./ConstructiesTab";
+import ModellerTab from "./ModellerTab";
+import ResultatenTab from "./ResultatenTab";
 import "./Ribbon.css";
 
 interface RibbonProps {
   onFileTabClick?: () => void;
 }
 
-const TABS = ["home", "view", "tools"] as const;
+const TABS = ["vertrekken", "constructies", "modeller", "resultaten"] as const;
 type TabId = (typeof TABS)[number];
+
+/** Map routes to their corresponding ribbon tab. */
+const ROUTE_TO_TAB: Record<string, TabId> = {
+  "/project": "vertrekken",
+  "/rooms": "vertrekken",
+  "/constructies": "constructies",
+  "/rc": "constructies",
+  "/library": "constructies",
+  "/materialen": "constructies",
+  "/modeller": "modeller",
+  "/results": "resultaten",
+};
+
+/** Map tabs to the default route when clicked. */
+const TAB_TO_ROUTE: Record<TabId, string> = {
+  vertrekken: "/rooms",
+  constructies: "/constructies",
+  modeller: "/modeller",
+  resultaten: "/results",
+};
 
 export default function Ribbon({ onFileTabClick }: RibbonProps) {
   const { t, i18n } = useTranslation("ribbon");
-  const [activeTab, setActiveTab] = useState<TabId>("home");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Determine active tab from current route
+  const tabFromRoute = ROUTE_TO_TAB[location.pathname] ?? "vertrekken";
+  const [activeTab, setActiveTab] = useState<TabId>(tabFromRoute);
   const [prevTab, setPrevTab] = useState<TabId | null>(null);
   const [animating, setAnimating] = useState(false);
   const [direction, setDirection] = useState<"left" | "right">("right");
   const tabsRef = useRef<HTMLDivElement>(null);
   const borderRef = useRef<HTMLDivElement>(null);
   const gapRef = useRef<HTMLDivElement>(null);
+
+  // Sync tab when route changes (e.g. sidebar navigation)
+  useEffect(() => {
+    const newTab = ROUTE_TO_TAB[location.pathname];
+    if (newTab && newTab !== activeTab) {
+      setActiveTab(newTab);
+    }
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateHighlight = useCallback(() => {
     const tabsEl = tabsRef.current;
@@ -62,11 +97,13 @@ export default function Ribbon({ onFileTabClick }: RibbonProps) {
     setPrevTab(activeTab);
     setActiveTab(newTab);
     setAnimating(true);
-  }, [activeTab]);
+
+    // Navigate to the default route for the new tab
+    navigate(TAB_TO_ROUTE[newTab]);
+  }, [activeTab, navigate]);
 
   useEffect(() => {
     updateHighlight();
-    // Re-measure after DOM updates (e.g. language change resizes tab text)
     requestAnimationFrame(updateHighlight);
   }, [activeTab, i18n.language, updateHighlight]);
 
@@ -86,9 +123,10 @@ export default function Ribbon({ onFileTabClick }: RibbonProps) {
 
   const renderContent = (tab: TabId) => {
     switch (tab) {
-      case "home": return <HomeTab />;
-      case "view": return <ViewTab />;
-      case "tools": return <ToolsTab />;
+      case "vertrekken": return <VertrekkenTab />;
+      case "constructies": return <ConstructiesTab />;
+      case "modeller": return <ModellerTab />;
+      case "resultaten": return <ResultatenTab />;
     }
   };
 

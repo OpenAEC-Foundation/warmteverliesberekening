@@ -4,11 +4,9 @@ import {
   FloorCanvas,
   FloorCanvas3D,
   PropertiesPanel,
-  DEFAULT_SNAP_SETTINGS,
 } from "../components/modeller";
-import { Ribbon } from "../components/modeller/Ribbon";
 import { useModellerStore } from "../components/modeller/modellerStore";
-import type { ModellerTool, ModelRoom, ModelWindow, Point2D, Selection, SnapSettings, ViewMode } from "../components/modeller";
+import type { ModellerTool, ModelRoom, ModelWindow, Point2D, Selection } from "../components/modeller";
 import { splitPolygon } from "../components/modeller";
 import { importIfcFile } from "../components/modeller/ifc-import";
 import { extractWallTypesFromFile, type IfcWallTypeInfo } from "../components/modeller/ifc-wall-types";
@@ -20,17 +18,23 @@ import { modelToIfcx } from "../components/modeller/ifcx-builder";
 import { renderPdfFirstPage } from "../components/modeller/pdf-underlay";
 import { useToastStore } from "../store/toastStore";
 import { useProjectStore } from "../store/projectStore";
+import { useModellerToolStore } from "../store/modellerToolStore";
 import { useAllConstructions } from "../hooks/useAllConstructions";
 import { importProject, exportProject, extractAndLinkConstructions } from "../lib/importExport";
 import { FLOOR_LABELS } from "../components/modeller/exampleData";
 import { polygonArea, segmentsShareEdge, mergePolygons, removeCollinearVertices } from "../components/modeller";
 
 export function Modeller() {
-  const [tool, setTool] = useState<ModellerTool>("select");
-  const [viewMode, setViewMode] = useState<ViewMode>("2d");
-  const [activeFloor, setActiveFloor] = useState(0);
+  // Tool state from shared store (also used by main Ribbon's ModellerTab)
+  const tool = useModellerToolStore((s) => s.tool);
+  const setTool = useModellerToolStore((s) => s.setTool);
+  const viewMode = useModellerToolStore((s) => s.viewMode);
+  const setViewMode = useModellerToolStore((s) => s.setViewMode);
+  const activeFloor = useModellerToolStore((s) => s.activeFloor);
+  const setActiveFloor = useModellerToolStore((s) => s.setActiveFloor);
+  const snap = useModellerToolStore((s) => s.snap);
+
   const [selection, setSelection] = useState<Selection>(null);
-  const [snap, setSnap] = useState<SnapSettings>(DEFAULT_SNAP_SETTINGS);
   const [isImporting, setIsImporting] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
@@ -474,29 +478,31 @@ export function Modeller() {
     setIfcWallTypes(null);
   }, []);
 
-  return (
-    <div className="flex h-screen flex-col">
-      <Ribbon
-        tool={tool}
-        viewMode={viewMode}
-        activeFloor={activeFloor}
-        snap={snap}
-        onToolChange={setTool}
-        onViewModeChange={setViewMode}
-        onFloorChange={setActiveFloor}
-        onSnapChange={setSnap}
-        onFitView={handleFitView}
-        onUndo={undo}
-        onRedo={redo}
-        onImportDwg={handleImportDwg}
-        onImportPdf={handleImportPdf}
-        onImportIfc={handleImportIfc}
-        onExportIfc={handleExportIfc}
-        onImportJson={handleImportJson}
-        onExportJson={handleExportJson}
-        onClearView={handleClearView}
-      />
+  // Listen for custom events dispatched by the main Ribbon's ModellerTab
+  useEffect(() => {
+    const handlers: Record<string, () => void> = {
+      "modeller:import-dwg": handleImportDwg,
+      "modeller:import-pdf": handleImportPdf,
+      "modeller:import-ifc": handleImportIfc,
+      "modeller:export-ifc": handleExportIfc,
+      "modeller:import-json": handleImportJson,
+      "modeller:export-json": handleExportJson,
+      "modeller:clear-view": handleClearView,
+      "modeller:fit-view": handleFitView,
+    };
+    const entries = Object.entries(handlers);
+    for (const [event, handler] of entries) {
+      window.addEventListener(event, handler);
+    }
+    return () => {
+      for (const [event, handler] of entries) {
+        window.removeEventListener(event, handler);
+      }
+    };
+  }, [handleImportDwg, handleImportPdf, handleImportIfc, handleExportIfc, handleImportJson, handleExportJson, handleClearView, handleFitView]);
 
+  return (
+    <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
         {/* Left: Project Browser */}
         <ProjectBrowser
@@ -567,19 +573,19 @@ export function Modeller() {
           {isImporting && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-stone-300 border-t-amber-500" />
-                <p className="text-sm font-medium text-stone-600">IFC wordt verwerkt...</p>
-                <p className="text-xs text-stone-400">Ruimten, ramen en deuren worden geextraheerd</p>
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
+                <p className="text-sm font-medium text-deep-forge">IFC wordt verwerkt...</p>
+                <p className="text-xs text-scaffold-gray">Ruimten, ramen en deuren worden geextraheerd</p>
               </div>
             </div>
           )}
 
           {/* 2D / 3D toggle — top left overlay */}
-          <div className="pointer-events-auto absolute left-3 top-3 z-20 flex overflow-hidden rounded-lg border border-stone-200 bg-white/95 shadow-sm backdrop-blur-sm text-xs">
+          <div className="pointer-events-auto absolute left-3 top-3 z-20 flex overflow-hidden rounded-lg border border-primary/25 bg-white/95 shadow-sm backdrop-blur-sm text-xs">
             <button
               onClick={() => setViewMode("2d")}
               className={`px-3 py-1.5 font-medium transition-colors ${
-                viewMode === "2d" ? "bg-stone-800 text-white" : "text-stone-500 hover:bg-stone-100"
+                viewMode === "2d" ? "bg-deep-forge text-white" : "text-deep-forge/60 hover:bg-primary/10"
               }`}
             >
               2D
@@ -587,7 +593,7 @@ export function Modeller() {
             <button
               onClick={() => setViewMode("3d")}
               className={`px-3 py-1.5 font-medium transition-colors ${
-                viewMode === "3d" ? "bg-stone-800 text-white" : "text-stone-500 hover:bg-stone-100"
+                viewMode === "3d" ? "bg-deep-forge text-white" : "text-deep-forge/60 hover:bg-primary/10"
               }`}
             >
               3D
@@ -683,14 +689,14 @@ function ProjectBrowser({
   const tabClass = (tab: SidebarTab) =>
     `flex-1 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
       sidebarTab === tab
-        ? "border-b-2 border-amber-500 text-amber-900"
-        : "text-stone-400 hover:text-stone-600"
+        ? "border-b-2 border-primary text-deep-forge"
+        : "text-scaffold-gray hover:text-deep-forge"
     }`;
 
   return (
-    <div className="flex w-64 shrink-0 flex-col border-r border-stone-200 bg-white text-xs">
+    <div className="flex w-64 shrink-0 flex-col border-r border-primary/15 bg-white text-xs">
       {/* Tab strip */}
-      <div className="flex border-b border-stone-200">
+      <div className="flex border-b border-primary/15">
         <button onClick={() => setSidebarTab("vertrekken")} className={tabClass("vertrekken")}>
           Vertrekken
         </button>
@@ -730,12 +736,12 @@ function ProjectBrowser({
             <button
               onClick={() => { toggle(floorKey); onFloorChange(floor); }}
               className={`flex w-full items-center gap-1.5 px-3 py-1.5 text-left transition-colors ${
-                isActive ? "bg-amber-50 font-semibold text-amber-900" : "text-stone-700 hover:bg-stone-50"
+                isActive ? "bg-primary/10 font-semibold text-deep-forge" : "text-deep-forge/70 hover:bg-primary/5"
               }`}
             >
-              <span className="text-[10px] text-stone-400">{isFloorCollapsed ? "\u25B6" : "\u25BC"}</span>
+              <span className="text-[10px] text-scaffold-gray">{isFloorCollapsed ? "\u25B6" : "\u25BC"}</span>
               <span>{label}</span>
-              <span className="ml-auto text-[10px] text-stone-400">{floorRooms.length}</span>
+              <span className="ml-auto text-[10px] text-scaffold-gray">{floorRooms.length}</span>
             </button>
 
             {/* Rooms under this floor */}
@@ -751,19 +757,19 @@ function ProjectBrowser({
                   {/* Room header */}
                   <div
                     className={`flex items-center gap-1 pl-6 pr-3 py-1 cursor-pointer transition-colors ${
-                      isSelected ? "bg-amber-100 text-amber-900" : "text-stone-600 hover:bg-stone-50"
+                      isSelected ? "bg-primary/15 text-deep-forge" : "text-deep-forge/70 hover:bg-primary/5"
                     }`}
                     onClick={() => onSelect({ type: "room", roomId: room.id })}
                   >
                     <button
                       onClick={(e) => { e.stopPropagation(); toggle(roomKey); }}
-                      className="text-[10px] text-stone-400 w-3"
+                      className="text-[10px] text-scaffold-gray w-3"
                     >
                       {isRoomCollapsed ? "\u25B6" : "\u25BC"}
                     </button>
                     <span className="font-mono font-medium text-[10px]">{room.id}</span>
                     <span className="truncate flex-1">{room.name}</span>
-                    <span className="text-[10px] text-stone-400">{area.toFixed(1)}m²</span>
+                    <span className="text-[10px] text-scaffold-gray">{area.toFixed(1)}m²</span>
                   </div>
 
                   {/* Surfaces under this room */}
@@ -798,11 +804,11 @@ function ProjectBrowser({
                           <div
                             key={`w-${wi}`}
                             className={`flex items-center gap-1 py-0.5 cursor-pointer rounded px-1 ${
-                              isWallSel ? "bg-amber-100" : "hover:bg-stone-50"
+                              isWallSel ? "bg-primary/15" : "hover:bg-primary/5"
                             }`}
                             onClick={() => onSelect({ type: "wall", roomId: room.id, wallIndex: wi })}
                           >
-                            <span className="text-stone-400 w-10 text-[10px]">{dir}</span>
+                            <span className="text-scaffold-gray w-10 text-[10px]">{dir}</span>
                             <span className="text-[10px] flex-1">{(len / 1000).toFixed(2)}m</span>
                             {isShared && <span className="text-[9px] text-blue-500">int</span>}
                             {!isShared && <span className="text-[9px] text-red-500">ext</span>}
@@ -813,13 +819,13 @@ function ProjectBrowser({
                       })}
 
                       {/* Floor surface */}
-                      <div className="flex items-center gap-1 py-0.5 px-1 text-[10px] text-stone-500">
+                      <div className="flex items-center gap-1 py-0.5 px-1 text-[10px] text-deep-forge/60">
                         <span className="w-10">Vloer</span>
                         <span className="flex-1">{area.toFixed(2)}m²</span>
                       </div>
 
                       {/* Ceiling surface */}
-                      <div className="flex items-center gap-1 py-0.5 px-1 text-[10px] text-stone-500">
+                      <div className="flex items-center gap-1 py-0.5 px-1 text-[10px] text-deep-forge/60">
                         <span className="w-10">Plafond</span>
                         <span className="flex-1">{area.toFixed(2)}m²</span>
                       </div>
