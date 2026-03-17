@@ -260,7 +260,7 @@ export function RcCalculator() {
     const validLayers = layers.filter((l) => l.materialId);
     const reportName = validLayers.length > 0 ? buildLayerName(validLayers) : "constructie";
     try {
-      const reportData = buildRcReportData({
+      const reportData = await buildRcReportData({
         name: reportName,
         category,
         materialType,

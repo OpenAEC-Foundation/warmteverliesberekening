@@ -266,3 +266,40 @@ export function svgToBase64(svg: string): string {
   }
   return btoa(binary);
 }
+
+/**
+ * Render SVG to PNG base64 via offscreen canvas.
+ * PyMuPDF can't handle SVG — this converts to a raster image first.
+ * Returns base64 PNG string (without data URI prefix).
+ */
+export async function svgToPngBase64(svg: string, scale = 3): Promise<string> {
+  // Parse SVG dimensions from viewBox or width/height attributes
+  const widthMatch = svg.match(/width="(\d+)"/);
+  const heightMatch = svg.match(/height="(\d+)"/);
+  const width = widthMatch?.[1] ? parseInt(widthMatch[1]) : 720;
+  const height = heightMatch?.[1] ? parseInt(heightMatch[1]) : 380;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable");
+
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("SVG rendering failed"));
+      img.src = url;
+    });
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // canvas.toDataURL returns "data:image/png;base64,..." — strip prefix
+    const dataUrl = canvas.toDataURL("image/png");
+    return dataUrl.replace(/^data:image\/png;base64,/, "");
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

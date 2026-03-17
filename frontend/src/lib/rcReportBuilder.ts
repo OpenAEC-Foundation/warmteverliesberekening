@@ -12,7 +12,7 @@ import {
   type CatalogueCategory,
 } from "./constructionCatalogue";
 import type { GlaserResult } from "./glaserCalculation";
-import { generateGlaserSvg, svgToBase64 } from "./glaserSvg";
+import { generateGlaserSvg, svgToPngBase64 } from "./glaserSvg";
 import { generateMoistureYearSvg } from "./moistureYearSvg";
 import type { LayerInput, RcResult } from "./rcCalculation";
 import { RC_MIN_BOUWBESLUIT } from "./rcCalculation";
@@ -50,7 +50,7 @@ export interface RcReportInput {
 }
 
 /** Build BM Reports JSON from Rc-calculator state. */
-export function buildRcReportData(input: RcReportInput): Record<string, unknown> {
+export async function buildRcReportData(input: RcReportInput): Promise<Record<string, unknown>> {
   const today = todayIso();
   const title = input.name || "Constructie-analyse";
 
@@ -96,8 +96,8 @@ export function buildRcReportData(input: RcReportInput): Record<string, unknown>
       buildDescriptionSection(input),
       buildLayersSection(input),
       buildThermalSection(input),
-      buildGlaserSection(input),
-      ...(input.moistureResult ? [buildMoistureSection(input)] : []),
+      await buildGlaserSection(input),
+      ...(input.moistureResult ? [await buildMoistureSection(input)] : []),
     ],
 
     backcover: { enabled: true },
@@ -208,7 +208,7 @@ function buildThermalSection(input: RcReportInput): Record<string, unknown> {
 }
 
 /** Sectie 4: Glaser-analyse. */
-function buildGlaserSection(input: RcReportInput): Record<string, unknown> {
+async function buildGlaserSection(input: RcReportInput): Promise<Record<string, unknown>> {
   const { glaserResult, thetaI, thetaE, rhI, rhE } = input;
 
   const condensText = glaserResult.hasCondensation
@@ -224,20 +224,26 @@ function buildGlaserSection(input: RcReportInput): Record<string, unknown> {
     p.pActual >= p.pSat ? "Condensatie" : "OK",
   ]);
 
-  // Generate Glaser SVG diagram
+  // Generate Glaser SVG diagram → convert to PNG for PyMuPDF compatibility
   const glaserSvg = generateGlaserSvg(glaserResult, thetaI, thetaE);
-  const glaserImageBlock = glaserSvg
-    ? {
+  let glaserImageBlock: Record<string, unknown> | null = null;
+  if (glaserSvg) {
+    try {
+      const pngBase64 = await svgToPngBase64(glaserSvg);
+      glaserImageBlock = {
         type: "image",
         src: {
-          data: svgToBase64(glaserSvg),
-          media_type: "image/svg+xml",
+          data: pngBase64,
+          media_type: "image/png",
         },
         caption: "Dampspanningsverloop door de constructie",
         width_mm: 170,
         alignment: "center",
-      }
-    : null;
+      };
+    } catch {
+      // SVG → PNG conversion failed, skip diagram
+    }
+  }
 
   return {
     title: "Dampspanningsanalyse (Glaser)",
@@ -274,7 +280,7 @@ function buildGlaserSection(input: RcReportInput): Record<string, unknown> {
 }
 
 /** Sectie 5: Jaarlijkse vochtbalans. */
-function buildMoistureSection(input: RcReportInput): Record<string, unknown> {
+async function buildMoistureSection(input: RcReportInput): Promise<Record<string, unknown>> {
   const mr = input.moistureResult;
   if (!mr) return { title: "Vochtbalans", level: 1, content: [] };
 
@@ -301,20 +307,26 @@ function buildMoistureSection(input: RcReportInput): Record<string, unknown> {
       ? "Tijdelijk vochtophoping, maar constructie droogt uit binnen \u00E9\u00E9n jaar."
       : "Geen vochtophoping. Constructie blijft droog over het jaar.";
 
-  // Generate moisture year chart SVG
+  // Generate moisture year chart SVG → convert to PNG for PyMuPDF compatibility
   const moistureSvg = generateMoistureYearSvg(mr);
-  const moistureImageBlock = moistureSvg
-    ? {
+  let moistureImageBlock: Record<string, unknown> | null = null;
+  if (moistureSvg) {
+    try {
+      const pngBase64 = await svgToPngBase64(moistureSvg);
+      moistureImageBlock = {
         type: "image",
         src: {
-          data: svgToBase64(moistureSvg),
-          media_type: "image/svg+xml",
+          data: pngBase64,
+          media_type: "image/png",
         },
         caption: "Vochthuishouding over het jaar",
         width_mm: 170,
         alignment: "center",
-      }
-    : null;
+      };
+    } catch {
+      // SVG → PNG conversion failed, skip chart
+    }
+  }
 
   return {
     title: "Jaarlijkse vochtbalans (NEN-EN-ISO 13788)",

@@ -162,46 +162,50 @@ function TitleBar({ onSettingsClick, onFeedbackClick }: TitleBarProps) {
         >
           {t("sendFeedback")}
         </button>
-        <button
-          className="titlebar-button titlebar-minimize"
-          onClick={handleMinimize}
-          aria-label={t("minimize")}
-          tabIndex={-1}
-        >
-          <svg width="10" height="1" viewBox="0 0 10 1">
-            <rect width="10" height="1" fill="currentColor" />
-          </svg>
-        </button>
+        {isTauri() && (
+          <>
+            <button
+              className="titlebar-button titlebar-minimize"
+              onClick={handleMinimize}
+              aria-label={t("minimize")}
+              tabIndex={-1}
+            >
+              <svg width="10" height="1" viewBox="0 0 10 1">
+                <rect width="10" height="1" fill="currentColor" />
+              </svg>
+            </button>
 
-        <button
-          className="titlebar-button titlebar-maximize"
-          onClick={handleMaximize}
-          aria-label={isMaximized ? t("restore") : t("maximize")}
-          tabIndex={-1}
-        >
-          {isMaximized ? (
-            <svg width="10" height="10" viewBox="0 0 10 10">
-              <rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
-              <polyline points="2.5 2.5 2.5 0.5 9.5 0.5 9.5 7.5 7.5 7.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            </svg>
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 10 10">
-              <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            </svg>
-          )}
-        </button>
+            <button
+              className="titlebar-button titlebar-maximize"
+              onClick={handleMaximize}
+              aria-label={isMaximized ? t("restore") : t("maximize")}
+              tabIndex={-1}
+            >
+              {isMaximized ? (
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                  <rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                  <polyline points="2.5 2.5 2.5 0.5 9.5 0.5 9.5 7.5 7.5 7.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
+              ) : (
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                  <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
+              )}
+            </button>
 
-        <button
-          className="titlebar-button titlebar-close"
-          onClick={handleClose}
-          aria-label={t("close")}
-          tabIndex={-1}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </button>
+            <button
+              className="titlebar-button titlebar-close"
+              onClick={handleClose}
+              aria-label={t("close")}
+              tabIndex={-1}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10">
+                <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" strokeWidth="1.2" />
+                <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
