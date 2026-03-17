@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useAuth } from "../../hooks/useAuth";
-import { createProject, updateProject } from "../../lib/backend";
+import { isTauri, createProject, updateProject } from "../../lib/backend";
 import {
   importProject,
   exportProject,
@@ -109,7 +108,6 @@ export default function Backstage({
   const [saveAsExpanded, setSaveAsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { isLoggedIn } = useAuth();
   const addToast = useToastStore((s) => s.addToast);
 
   const project = useProjectStore((s) => s.project);
@@ -122,6 +120,7 @@ export default function Backstage({
   const reset = useProjectStore((s) => s.reset);
 
   const resetToExample = useModellerStore((s) => s.resetToExample);
+  const isWeb = !isTauri();
 
   const actionAndClose = useCallback(
     (fn?: () => void) => {
@@ -195,7 +194,7 @@ export default function Backstage({
   );
 
   const handleSave = useCallback(async () => {
-    if (activeProjectId && isLoggedIn) {
+    if (activeProjectId && isWeb) {
       // Server save — update existing project
       try {
         const resp = await updateProject(activeProjectId, {
@@ -211,7 +210,7 @@ export default function Backstage({
           "error",
         );
       }
-    } else if (isLoggedIn) {
+    } else if (isWeb) {
       // Server save — new project, prompt for name
       const name = window.prompt(
         t("projectNamePrompt"),
@@ -237,7 +236,7 @@ export default function Backstage({
     }
   }, [
     activeProjectId,
-    isLoggedIn,
+    isWeb,
     project,
     result,
     serverUpdatedAt,
@@ -321,7 +320,7 @@ export default function Backstage({
           />
           {openExpanded && (
             <>
-              {isLoggedIn && (
+              {isWeb && (
                 <SubMenuItem
                   icon={ICONS.server}
                   label={t("fromServer")}
@@ -353,7 +352,7 @@ export default function Backstage({
           />
           {saveAsExpanded && (
             <>
-              {isLoggedIn && (
+              {isWeb && (
                 <SubMenuItem
                   icon={ICONS.server}
                   label={t("toServer")}

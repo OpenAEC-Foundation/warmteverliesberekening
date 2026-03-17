@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+
+import { isTauri } from "../lib/backend";
 import "./TitleBar.css";
 
 interface TitleBarProps {
@@ -152,6 +154,7 @@ function TitleBar({ onSettingsClick, onFeedbackClick }: TitleBarProps) {
       </span>
 
       <div className="titlebar-controls">
+        {!isTauri() && <UserBadge />}
         <button
           className="send-feedback-btn"
           onClick={onFeedbackClick}
@@ -200,6 +203,101 @@ function TitleBar({ onSettingsClick, onFeedbackClick }: TitleBarProps) {
           </svg>
         </button>
       </div>
+    </div>
+  );
+}
+
+/** SSO login/user badge for web mode. */
+function UserBadge() {
+  const { t } = useTranslation();
+  const [state, setState] = useState<{
+    ready: boolean;
+    loggedIn: boolean;
+    name: string;
+    login: () => void;
+    logout: () => void;
+  }>({ ready: false, loggedIn: false, name: "", login: () => {}, logout: () => {} });
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    import("../lib/oidc")
+      .then(({ getOidc }) => getOidc())
+      .then((oidc) => {
+        if (oidc.isUserLoggedIn) {
+          const decoded = oidc.getDecodedIdToken();
+          setState({
+            ready: true,
+            loggedIn: true,
+            name: decoded.name ?? decoded.preferred_username ?? "Gebruiker",
+            login: () => {},
+            logout: () => oidc.logout({ redirectTo: "current page" }),
+          });
+        } else {
+          setState({
+            ready: true,
+            loggedIn: false,
+            name: "",
+            login: () => oidc.login({ redirectUrl: window.location.href }),
+            logout: () => {},
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function close(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+  if (!state.ready) return null;
+
+  if (!state.loggedIn) {
+    return (
+      <button
+        className="titlebar-login-btn"
+        onClick={state.login}
+        tabIndex={-1}
+      >
+        {t("login", "Inloggen")}
+      </button>
+    );
+  }
+
+  const initial = state.name.charAt(0).toUpperCase();
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        className="titlebar-avatar"
+        onClick={() => setMenuOpen((v) => !v)}
+        title={state.name}
+        tabIndex={-1}
+      >
+        {initial}
+      </button>
+      {menuOpen && (
+        <div className="titlebar-user-menu">
+          <div className="titlebar-user-menu-name">{state.name}</div>
+          <button
+            className="titlebar-user-menu-item"
+            onClick={() => {
+              setMenuOpen(false);
+              state.logout();
+            }}
+          >
+            {t("logout", "Uitloggen")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

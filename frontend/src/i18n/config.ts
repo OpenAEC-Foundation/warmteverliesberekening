@@ -1,6 +1,6 @@
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
-import LanguageDetector from "i18next-browser-languagedetector";
+// LanguageDetector removed — default is NL, user can switch via settings
 import { getSetting } from "../tauriStore";
 
 // English
@@ -25,7 +25,6 @@ export const LANGUAGES = [
 const ns = ["common", "ribbon", "backstage", "settings", "feedback"];
 
 i18next
-  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources: {
@@ -34,12 +33,9 @@ i18next
     },
     ns,
     defaultNS: "common",
-    fallbackLng: "en",
+    fallbackLng: "nl",
     interpolation: { escapeValue: false },
-    detection: {
-      order: ["navigator"],
-      caches: [],
-    },
+    lng: "nl",
   });
 
 i18next.on("languageChanged", (lng) => {
@@ -47,7 +43,7 @@ i18next.on("languageChanged", (lng) => {
 });
 
 // Load saved language from store on startup
-getSetting("language", "auto").then((lang) => {
+getSetting("language", "nl").then((lang) => {
   changeLanguage(lang);
 });
 

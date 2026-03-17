@@ -1,4 +1,3 @@
-import { Component, type ReactNode, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import { isTauri } from "../../lib/backend";
@@ -139,31 +138,8 @@ function NavItem({ to, label, Icon }: { to: string; label: string; Icon: React.C
   );
 }
 
-/** Error boundary for oidc-spa. */
-class OidcGuard extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  render() {
-    return this.state.failed ? null : this.props.children;
-  }
-}
-
-/** Lazily loads oidc-spa and shows Projects nav link when logged in. */
+/** Shows Projects nav link in web mode. */
 function ProjectsNavLink() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    import("../../lib/oidc")
-      .then(({ getOidc }) => getOidc())
-      .then((oidc) => {
-        if (oidc.isUserLoggedIn) setVisible(true);
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!visible) return null;
   return (
     <>
       <li className="mx-3 my-3 border-t border-stone-200" />
@@ -203,11 +179,7 @@ export function Sidebar() {
           {NAV_MAIN.map((item) => (
             <NavItem key={item.to} {...item} />
           ))}
-          {isWeb && (
-            <OidcGuard>
-              <ProjectsNavLink />
-            </OidcGuard>
-          )}
+          {isWeb && <ProjectsNavLink />}
         </ul>
 
         {/* Divider */}
