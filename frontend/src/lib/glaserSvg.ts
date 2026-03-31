@@ -3,9 +3,15 @@
  *
  * Produceert een SVG string (geen React) die als base64 image in het
  * rapport kan worden geëmbed. Logica is equivalent aan GlaserDiagram.tsx.
+ *
+ * Hatch patterns komen uit hatchPatterns.ts (gedeeld met GlaserDiagram.tsx).
  */
 
-import type { GlaserResult } from "./glaserCalculation";
+import type { GlaserResult, LayerStudInfo } from "./glaserCalculation";
+import {
+  generateHatchPatternDefs,
+  resolvePatternId,
+} from "./hatchPatterns";
 import {
   MATERIAL_CATEGORY_VISUALS,
   type MaterialCategory,
@@ -18,6 +24,11 @@ const HEIGHT = 380;
 const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
+
+/** Minimum aantal zichtbare studs per laag. */
+const MIN_VISIBLE_STUDS = 2;
+/** Maximum aantal zichtbare studs per laag. */
+const MAX_VISIBLE_STUDS = 5;
 
 // ---------- Helpers ----------
 
@@ -44,32 +55,46 @@ function truncate(text: string, maxLen: number): string {
   return text.slice(0, maxLen - 1) + "\u2026";
 }
 
-// ---------- SVG hatching patterns ----------
+function categoryColor(cat: MaterialCategory): string {
+  return MATERIAL_CATEGORY_VISUALS[cat]?.color ?? "#e5e7eb";
+}
 
-const HATCH_PATTERNS = `
-<defs>
-  <pattern id="hatch-masonry" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-    <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(0,0,0,0.18)" stroke-width="1"/>
-    <line x1="4" y1="0" x2="4" y2="8" stroke="rgba(0,0,0,0.08)" stroke-width="0.5"/>
-  </pattern>
-  <pattern id="hatch-concrete" width="6" height="6" patternUnits="userSpaceOnUse">
-    <circle cx="1.5" cy="1.5" r="0.7" fill="rgba(0,0,0,0.15)"/>
-    <circle cx="4.5" cy="4.5" r="0.7" fill="rgba(0,0,0,0.15)"/>
-  </pattern>
-  <pattern id="hatch-insulation" width="10" height="8" patternUnits="userSpaceOnUse">
-    <polyline points="0,6 2.5,2 5,6 7.5,2 10,6" fill="none" stroke="rgba(0,0,0,0.15)" stroke-width="0.8"/>
-  </pattern>
-  <pattern id="hatch-wood" width="12" height="6" patternUnits="userSpaceOnUse">
-    <line x1="0" y1="2" x2="12" y2="2" stroke="rgba(0,0,0,0.12)" stroke-width="0.6"/>
-    <line x1="0" y1="5" x2="12" y2="5" stroke="rgba(0,0,0,0.08)" stroke-width="0.4"/>
-  </pattern>
-  <pattern id="hatch-foil" width="4" height="3" patternUnits="userSpaceOnUse">
-    <line x1="0" y1="1.5" x2="4" y2="1.5" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
-  </pattern>
-  <pattern id="hatch-metal" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-    <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
-  </pattern>
-</defs>`;
+// ---------- Stud computation ----------
+
+interface StudBand {
+  x: number;
+  w: number;
+}
+
+function computeStudBands(
+  bandX: number,
+  bandW: number,
+  stud: LayerStudInfo,
+): StudBand[] {
+  if (bandW < 8) return [];
+
+  const fraction = stud.width / stud.spacing;
+  const studPixelWidth = Math.max(bandW * fraction, 2);
+
+  const realCount = Math.floor(bandW / (stud.spacing / stud.width * studPixelWidth));
+  const count = Math.min(
+    Math.max(realCount, MIN_VISIBLE_STUDS),
+    MAX_VISIBLE_STUDS,
+  );
+
+  const totalStudWidth = count * studPixelWidth;
+  const totalGapWidth = bandW - totalStudWidth;
+  const gap = totalGapWidth / (count + 1);
+
+  const bands: StudBand[] = [];
+  for (let i = 0; i < count; i++) {
+    bands.push({
+      x: bandX + gap * (i + 1) + studPixelWidth * i,
+      w: studPixelWidth,
+    });
+  }
+  return bands;
+}
 
 // ---------- Generator ----------
 
@@ -84,6 +109,8 @@ export function generateGlaserSvg(
     layerThicknesses,
     layerNames,
     layerCategories,
+    layerHatchPatterns,
+    layerStuds,
     totalThickness,
   } = result;
 
@@ -114,28 +141,58 @@ export function generateGlaserSvg(
 
   // SVG open
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}" style="font-family: system-ui, -apple-system, sans-serif;">`);
-  parts.push(HATCH_PATTERNS);
+  parts.push(generateHatchPatternDefs());
 
   // Background
   parts.push(`<rect x="${MARGIN.left}" y="${MARGIN.top}" width="${PLOT_W}" height="${PLOT_H}" fill="white" stroke="#e7e5e4" stroke-width="1"/>`);
 
-  // Layer bands
+  // Layer bands with NEN 47 patterns and stud visualization
   let xCum = 0;
   for (let i = 0; i < layerThicknesses.length; i++) {
     const d = layerThicknesses[i]!;
     const cat = layerCategories[i] as MaterialCategory | undefined;
+    const hatchOverride = layerHatchPatterns?.[i];
+    const stud = layerStuds?.[i];
     const x = toX(xCum);
     const w = (d / totalThickness) * PLOT_W;
-    const color = cat ? (MATERIAL_CATEGORY_VISUALS[cat]?.color ?? "#e5e7eb") : "#e5e7eb";
-    const pattern = cat ? MATERIAL_CATEGORY_VISUALS[cat]?.patternId : undefined;
+    const color = cat ? categoryColor(cat) : "#e5e7eb";
 
+    // Resolve pattern: materiaal-specifiek > categorie default
+    const patternId = cat ? resolvePatternId(cat, hatchOverride) : undefined;
+
+    // Color fill
     parts.push(`<rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${Math.max(w, 1).toFixed(1)}" height="${PLOT_H}" fill="${color}" fill-opacity="0.55"/>`);
-    if (pattern) {
-      parts.push(`<rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${Math.max(w, 1).toFixed(1)}" height="${PLOT_H}" fill="url(#${pattern})"/>`);
+
+    // Pattern overlay
+    if (patternId) {
+      parts.push(`<rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${Math.max(w, 1).toFixed(1)}" height="${PLOT_H}" fill="url(#${patternId})"/>`);
     }
+
+    // Studs: verticale banden met stijl-patroon
+    if (stud) {
+      const studPatternId = resolvePatternId(stud.studCategory, stud.studHatchPattern);
+      const studColor = categoryColor(stud.studCategory);
+      const studBands = computeStudBands(x, w, stud);
+
+      for (const sb of studBands) {
+        // Stijl-kleur
+        parts.push(`<rect x="${sb.x.toFixed(1)}" y="${MARGIN.top}" width="${sb.w.toFixed(1)}" height="${PLOT_H}" fill="${studColor}" fill-opacity="0.65"/>`);
+        // Stijl-arcering
+        if (studPatternId) {
+          parts.push(`<rect x="${sb.x.toFixed(1)}" y="${MARGIN.top}" width="${sb.w.toFixed(1)}" height="${PLOT_H}" fill="url(#${studPatternId})"/>`);
+        }
+        // Scheidingslijnen
+        parts.push(`<line x1="${sb.x.toFixed(1)}" y1="${MARGIN.top}" x2="${sb.x.toFixed(1)}" y2="${MARGIN.top + PLOT_H}" stroke="#78716c" stroke-width="0.3" stroke-opacity="0.5"/>`);
+        parts.push(`<line x1="${(sb.x + sb.w).toFixed(1)}" y1="${MARGIN.top}" x2="${(sb.x + sb.w).toFixed(1)}" y2="${MARGIN.top + PLOT_H}" stroke="#78716c" stroke-width="0.3" stroke-opacity="0.5"/>`);
+      }
+    }
+
+    // Layer separator
     if (i > 0) {
       parts.push(`<line x1="${x.toFixed(1)}" y1="${MARGIN.top}" x2="${x.toFixed(1)}" y2="${MARGIN.top + PLOT_H}" stroke="#78716c" stroke-width="0.5"/>`);
     }
+
+    // Layer name
     if (w > 14) {
       const name = esc(truncate(layerNames[i] ?? "", Math.max(4, Math.floor(w / 5.5))));
       parts.push(`<text x="${(x + w / 2).toFixed(1)}" y="${MARGIN.top + PLOT_H + 14}" text-anchor="middle" font-size="9" fill="#57534e" font-weight="500">${name}</text>`);
@@ -258,7 +315,7 @@ function buildCondensationPath(
 
 /** Encode SVG string to base64 for embedding in report JSON. */
 export function svgToBase64(svg: string): string {
-  // TextEncoder for reliable UTF-8 → binary → base64
+  // TextEncoder for reliable UTF-8 -> binary -> base64
   const bytes = new TextEncoder().encode(svg);
   let binary = "";
   for (const byte of bytes) {
@@ -269,7 +326,7 @@ export function svgToBase64(svg: string): string {
 
 /**
  * Render SVG to PNG base64 via offscreen canvas.
- * PyMuPDF can't handle SVG — this converts to a raster image first.
+ * PyMuPDF can't handle SVG -- this converts to a raster image first.
  * Returns base64 PNG string (without data URI prefix).
  */
 export async function svgToPngBase64(svg: string, scale = 3): Promise<string> {
@@ -296,7 +353,7 @@ export async function svgToPngBase64(svg: string, scale = 3): Promise<string> {
       img.src = url;
     });
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    // canvas.toDataURL returns "data:image/png;base64,..." — strip prefix
+    // canvas.toDataURL returns "data:image/png;base64,..." -- strip prefix
     const dataUrl = canvas.toDataURL("image/png");
     return dataUrl.replace(/^data:image\/png;base64,/, "");
   } finally {

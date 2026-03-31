@@ -3,12 +3,18 @@
  *
  * Toont verzadigingsdampdruk (pSat) en werkelijke dampdruk (pActual)
  * door de constructie-opbouw heen. Materiaallagen worden getoond met
- * categorie-specifieke kleuren en arceringen.
+ * categorie-specifieke kleuren en NEN 47-conforme arceringen.
+ *
+ * Hatch patterns komen uit lib/hatchPatterns.ts (gedeeld met glaserSvg.ts).
  */
 
 import { useMemo } from "react";
 
-import type { GlaserResult } from "../../lib/glaserCalculation";
+import type { GlaserResult, LayerStudInfo } from "../../lib/glaserCalculation";
+import {
+  getAllPatternDefs,
+  resolvePatternId,
+} from "../../lib/hatchPatterns";
 import {
   MATERIAL_CATEGORY_VISUALS,
   type MaterialCategory,
@@ -27,6 +33,11 @@ const HEIGHT = 340;
 const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
+
+/** Minimum aantal zichtbare studs per laag. */
+const MIN_VISIBLE_STUDS = 2;
+/** Maximum aantal zichtbare studs per laag (voorkomt visuele ruis). */
+const MAX_VISIBLE_STUDS = 5;
 
 // ---------- Helpers ----------
 
@@ -58,86 +69,79 @@ function categoryColor(cat: MaterialCategory): string {
   return MATERIAL_CATEGORY_VISUALS[cat]?.color ?? "#e5e7eb";
 }
 
-function categoryPattern(cat: MaterialCategory): string | undefined {
-  return MATERIAL_CATEGORY_VISUALS[cat]?.patternId;
-}
-
-// ---------- SVG Hatching Patterns ----------
+// ---------- NEN 47 Hatch Pattern Defs (from shared module) ----------
 
 function HatchPatterns() {
-  return (
-    <defs>
-      {/* Metselwerk: diagonaal kruisarcering */}
-      <pattern
-        id="hatch-masonry"
-        width="8"
-        height="8"
-        patternUnits="userSpaceOnUse"
-        patternTransform="rotate(45)"
-      >
-        <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(0,0,0,0.18)" strokeWidth="1" />
-        <line x1="4" y1="0" x2="4" y2="8" stroke="rgba(0,0,0,0.08)" strokeWidth="0.5" />
-      </pattern>
+  const defs = getAllPatternDefs();
+  // Render patterns via dangerouslySetInnerHTML for performance —
+  // the pattern content is static SVG from our own hatchPatterns.ts.
+  const svgContent = defs
+    .map((p) => {
+      const attrs = p.attrs ? ` ${p.attrs}` : "";
+      return `<pattern id="${p.id}" width="${p.width}" height="${p.height}" patternUnits="userSpaceOnUse"${attrs}>${p.content}</pattern>`;
+    })
+    .join("");
 
-      {/* Beton: stippen */}
-      <pattern
-        id="hatch-concrete"
-        width="6"
-        height="6"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="1.5" cy="1.5" r="0.7" fill="rgba(0,0,0,0.15)" />
-        <circle cx="4.5" cy="4.5" r="0.7" fill="rgba(0,0,0,0.15)" />
-      </pattern>
+  return <defs dangerouslySetInnerHTML={{ __html: svgContent }} />;
+}
 
-      {/* Isolatie: zigzag */}
-      <pattern
-        id="hatch-insulation"
-        width="10"
-        height="8"
-        patternUnits="userSpaceOnUse"
-      >
-        <polyline
-          points="0,6 2.5,2 5,6 7.5,2 10,6"
-          fill="none"
-          stroke="rgba(0,0,0,0.15)"
-          strokeWidth="0.8"
-        />
-      </pattern>
+// ---------- Stud band computation ----------
 
-      {/* Hout: horizontale nerf */}
-      <pattern
-        id="hatch-wood"
-        width="12"
-        height="6"
-        patternUnits="userSpaceOnUse"
-      >
-        <line x1="0" y1="2" x2="12" y2="2" stroke="rgba(0,0,0,0.12)" strokeWidth="0.6" />
-        <line x1="0" y1="5" x2="12" y2="5" stroke="rgba(0,0,0,0.08)" strokeWidth="0.4" />
-      </pattern>
+interface StudBand {
+  /** X-positie van de stijl-band in SVG coords. */
+  x: number;
+  /** Breedte van de stijl-band in SVG coords. */
+  w: number;
+}
 
-      {/* Folie: dichte horizontale strepen */}
-      <pattern
-        id="hatch-foil"
-        width="4"
-        height="3"
-        patternUnits="userSpaceOnUse"
-      >
-        <line x1="0" y1="1.5" x2="4" y2="1.5" stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
-      </pattern>
+/**
+ * Bereken de posities van stijl-banden binnen een laagband.
+ * Toont minimaal MIN_VISIBLE_STUDS, maximaal MAX_VISIBLE_STUDS studs,
+ * evenredig verdeeld over de laagbreedte.
+ */
+function computeStudBands(
+  bandX: number,
+  bandW: number,
+  stud: LayerStudInfo,
+): StudBand[] {
+  if (bandW < 8) return []; // Te smal om studs te tonen
 
-      {/* Metaal: dichte diagonaal */}
-      <pattern
-        id="hatch-metal"
-        width="4"
-        height="4"
-        patternUnits="userSpaceOnUse"
-        patternTransform="rotate(45)"
-      >
-        <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
-      </pattern>
-    </defs>
+  const fraction = stud.width / stud.spacing;
+  const studPixelWidth = Math.max(bandW * fraction, 2); // Minimaal 2px breed
+
+  // Bereken hoeveel studs er passen (realistisch)
+  const realCount = Math.floor(bandW / (stud.spacing / stud.width * studPixelWidth));
+  const count = Math.min(
+    Math.max(realCount, MIN_VISIBLE_STUDS),
+    MAX_VISIBLE_STUDS,
   );
+
+  // Verdeel evenredig over de band
+  const totalStudWidth = count * studPixelWidth;
+  const totalGapWidth = bandW - totalStudWidth;
+  const gap = totalGapWidth / (count + 1);
+
+  const bands: StudBand[] = [];
+  for (let i = 0; i < count; i++) {
+    bands.push({
+      x: bandX + gap * (i + 1) + studPixelWidth * i,
+      w: studPixelWidth,
+    });
+  }
+  return bands;
+}
+
+// ---------- Layer band type ----------
+
+interface LayerBand {
+  x: number;
+  w: number;
+  name: string;
+  color: string;
+  patternId?: string;
+  stud?: LayerStudInfo;
+  studPatternId?: string;
+  studColor?: string;
 }
 
 // ---------- Component ----------
@@ -149,6 +153,8 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
     layerThicknesses,
     layerNames,
     layerCategories,
+    layerHatchPatterns,
+    layerStuds,
     totalThickness,
   } = result;
 
@@ -254,26 +260,42 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
     return zones.join(" ");
   }, [curvePoints, hasLayers, toX, toY]);
 
-  // Laag-banden met categorie-kleuren
+  // Laag-banden met categorie-kleuren en patterns
   const layerBands = useMemo(() => {
     if (!hasLayers) return [];
-    const bands: {
-      x: number;
-      w: number;
-      name: string;
-      color: string;
-      pattern?: string;
-    }[] = [];
+    const bands: LayerBand[] = [];
     let xCum = 0;
     for (let i = 0; i < layerThicknesses.length; i++) {
       const d = layerThicknesses[i]!;
       const cat = layerCategories[i] as MaterialCategory | undefined;
+      const hatchOverride = layerHatchPatterns?.[i];
+      const stud = layerStuds?.[i];
+
+      // Resolve pattern: materiaal-specifiek > categorie default
+      const patternId = cat
+        ? resolvePatternId(cat, hatchOverride)
+        : undefined;
+
+      // Stud pattern en kleur
+      let studPatternId: string | undefined;
+      let studColor: string | undefined;
+      if (stud) {
+        studPatternId = resolvePatternId(
+          stud.studCategory,
+          stud.studHatchPattern,
+        );
+        studColor = categoryColor(stud.studCategory);
+      }
+
       bands.push({
         x: toX(xCum),
         w: (d / totalThickness) * PLOT_W,
         name: layerNames[i] ?? "",
         color: cat ? categoryColor(cat) : "#e5e7eb",
-        pattern: cat ? categoryPattern(cat) : undefined,
+        patternId,
+        stud,
+        studPatternId,
+        studColor,
       });
       xCum += d;
     }
@@ -282,6 +304,8 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
     layerThicknesses,
     layerNames,
     layerCategories,
+    layerHatchPatterns,
+    layerStuds,
     totalThickness,
     hasLayers,
     toX,
@@ -314,55 +338,106 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
         strokeWidth={1}
       />
 
-      {/* Laag-banden met kleur en arcering */}
-      {layerBands.map((band, i) => (
-        <g key={i}>
-          {/* Kleurvulling */}
-          <rect
-            x={band.x}
-            y={MARGIN.top}
-            width={Math.max(band.w, 1)}
-            height={PLOT_H}
-            fill={band.color}
-            fillOpacity={0.55}
-          />
-          {/* Arcering overlay */}
-          {band.pattern && (
+      {/* Laag-banden met kleur, arcering en studs */}
+      {layerBands.map((band, i) => {
+        const studBands = band.stud
+          ? computeStudBands(band.x, band.w, band.stud)
+          : [];
+
+        return (
+          <g key={i}>
+            {/* Kleurvulling voor hele laag */}
             <rect
               x={band.x}
               y={MARGIN.top}
               width={Math.max(band.w, 1)}
               height={PLOT_H}
-              fill={`url(#${band.pattern})`}
+              fill={band.color}
+              fillOpacity={0.55}
             />
-          )}
-          {/* Laag-scheidingslijn */}
-          {i > 0 && (
-            <line
-              x1={band.x}
-              y1={MARGIN.top}
-              x2={band.x}
-              y2={MARGIN.top + PLOT_H}
-              stroke="#78716c"
-              strokeWidth={0.5}
-            />
-          )}
-          {/* Laagnaam */}
-          {band.w > 14 && (
-            <text
-              x={band.x + band.w / 2}
-              y={MARGIN.top + PLOT_H + 14}
-              textAnchor="middle"
-              fontSize={9}
-              fill="#57534e"
-              fontWeight={500}
-              className="select-none"
-            >
-              {truncate(band.name, Math.max(4, Math.floor(band.w / 5.5)))}
-            </text>
-          )}
-        </g>
-      ))}
+            {/* Arcering overlay voor hele laag */}
+            {band.patternId && (
+              <rect
+                x={band.x}
+                y={MARGIN.top}
+                width={Math.max(band.w, 1)}
+                height={PLOT_H}
+                fill={`url(#${band.patternId})`}
+              />
+            )}
+
+            {/* Studs: verticale banden met hout-patroon */}
+            {studBands.map((sb, si) => (
+              <g key={`stud-${si}`}>
+                {/* Stijl-kleur */}
+                <rect
+                  x={sb.x}
+                  y={MARGIN.top}
+                  width={sb.w}
+                  height={PLOT_H}
+                  fill={band.studColor ?? "#c68642"}
+                  fillOpacity={0.65}
+                />
+                {/* Stijl-arcering */}
+                {band.studPatternId && (
+                  <rect
+                    x={sb.x}
+                    y={MARGIN.top}
+                    width={sb.w}
+                    height={PLOT_H}
+                    fill={`url(#${band.studPatternId})`}
+                  />
+                )}
+                {/* Scheidingslijnen stijl */}
+                <line
+                  x1={sb.x}
+                  y1={MARGIN.top}
+                  x2={sb.x}
+                  y2={MARGIN.top + PLOT_H}
+                  stroke="#78716c"
+                  strokeWidth={0.3}
+                  strokeOpacity={0.5}
+                />
+                <line
+                  x1={sb.x + sb.w}
+                  y1={MARGIN.top}
+                  x2={sb.x + sb.w}
+                  y2={MARGIN.top + PLOT_H}
+                  stroke="#78716c"
+                  strokeWidth={0.3}
+                  strokeOpacity={0.5}
+                />
+              </g>
+            ))}
+
+            {/* Laag-scheidingslijn */}
+            {i > 0 && (
+              <line
+                x1={band.x}
+                y1={MARGIN.top}
+                x2={band.x}
+                y2={MARGIN.top + PLOT_H}
+                stroke="#78716c"
+                strokeWidth={0.5}
+              />
+            )}
+            {/* Laagnaam */}
+            {band.w > 14 && (
+              <text
+                x={band.x + band.w / 2}
+                y={MARGIN.top + PLOT_H + 14}
+                textAnchor="middle"
+                fontSize={9}
+                fill="#57534e"
+                fontWeight={500}
+                className="select-none"
+              >
+                {truncate(band.name, Math.max(4, Math.floor(band.w / 5.5)))}
+              </text>
+            )}
+          </g>
+        );
+      })}
 
       {/* Y-as gridlijnen en labels */}
       {yTicks.map((tick) => {

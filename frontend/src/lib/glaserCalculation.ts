@@ -40,6 +40,18 @@ export interface GlaserPoint {
   pActual: number;
 }
 
+/** Stud-informatie per laag voor diagramvisualisatie. */
+export interface LayerStudInfo {
+  /** Stijlbreedte [mm]. */
+  width: number;
+  /** Hart-op-hart afstand [mm]. */
+  spacing: number;
+  /** MaterialCategory van het stijlmateriaal. */
+  studCategory: MaterialCategory;
+  /** Optioneel specifiek hatch pattern van het stijlmateriaal. */
+  studHatchPattern?: string;
+}
+
 export interface GlaserResult {
   /** Punten op laag-grensvlakken (voor pActual lijnstukken). */
   interfacePoints: GlaserPoint[];
@@ -51,6 +63,10 @@ export interface GlaserResult {
   layerThicknesses: number[];
   /** Materiaalcategorieën per laag. */
   layerCategories: MaterialCategory[];
+  /** Specifieke hatch patterns per laag (override category default). */
+  layerHatchPatterns: (string | undefined)[];
+  /** Stud-informatie per laag (undefined als laag homogeen is). */
+  layerStuds: (LayerStudInfo | undefined)[];
   /** Totale dikte [mm]. */
   totalThickness: number;
   /** Condensatierisico aanwezig. */
@@ -115,6 +131,9 @@ export function calculateGlaser(input: GlaserInput): GlaserResult {
   // Bouw laagdata op
   // Bij inhomogene lagen: gebruik isolatiemateriaal (worst case voor condensatie)
   const layerData: LayerData[] = [];
+  const layerHatchPatterns: (string | undefined)[] = [];
+  const layerStuds: (LayerStudInfo | undefined)[] = [];
+
   for (const li of layerInputs) {
     const mat = getMaterialById(li.materialId);
     if (!mat) continue;
@@ -132,6 +151,20 @@ export function calculateGlaser(input: GlaserInput): GlaserResult {
     const sd = mat.sdFixed !== null ? mat.sdFixed : mat.mu * (li.thickness / 1000);
 
     layerData.push({ name: mat.name, thickness: li.thickness, r, sd, category: mat.category });
+    layerHatchPatterns.push(mat.hatchPattern);
+
+    // Stud-informatie voor diagram
+    if (li.stud) {
+      const studMat = getMaterialById(li.stud.materialId);
+      layerStuds.push({
+        width: li.stud.width,
+        spacing: li.stud.spacing,
+        studCategory: studMat?.category ?? "hout",
+        studHatchPattern: studMat?.hatchPattern,
+      });
+    } else {
+      layerStuds.push(undefined);
+    }
   }
 
   const rcTotal = layerData.reduce((s, l) => s + l.r, 0);
@@ -221,6 +254,8 @@ export function calculateGlaser(input: GlaserInput): GlaserResult {
     layerNames: layerData.map((l) => l.name),
     layerThicknesses: layerData.map((l) => l.thickness),
     layerCategories: layerData.map((l) => l.category),
+    layerHatchPatterns,
+    layerStuds,
     totalThickness,
     hasCondensation,
     pI,

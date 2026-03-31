@@ -46,6 +46,8 @@ export interface Material {
   keywords: string[];
   /** Is dit een ingebouwd materiaal? */
   isBuiltIn?: boolean;
+  /** Optioneel: specifiek NEN 47 hatch pattern ID (override category default). */
+  hatchPattern?: string;
 }
 
 export const MATERIAL_CATEGORY_LABELS: Record<MaterialCategory, string> = {
@@ -140,6 +142,8 @@ interface RawMaterial {
   /** Vaste sd-waarde [m] voor folies. Indien afwezig: sd = mu × d. */
   sd_vast?: number | null;
   keywords: string[];
+  /** Optioneel: specifiek NEN 47 hatch pattern (override category default). */
+  hatch_pattern?: string;
 }
 
 const RAW_MATERIALS: RawMaterial[] = [
@@ -191,22 +195,22 @@ const RAW_MATERIALS: RawMaterial[] = [
   { categorie: "Beton", naam: "Kanaalplaatvloer", lambda: 1.5, lambda_nat: 1.85, mu: 70, rho: 1800, rd_vast: null, keywords: ["kanaalplaat", "vloer", "hol"] },
 
   // Plaatmateriaal
-  { categorie: "Plaatmateriaal", naam: "Gipskartonplaat", lambda: 0.25, mu: 8, rho: 900, rd_vast: null, keywords: ["gipskarton", "gips", "gyproc", "rigips"] },
-  { categorie: "Plaatmateriaal", naam: "Gipskarton brandwerend", lambda: 0.25, mu: 8, rho: 1000, rd_vast: null, keywords: ["gipskarton", "brandwerend", "rf"] },
-  { categorie: "Plaatmateriaal", naam: "Gipsvezelplaat (Fermacell)", lambda: 0.32, mu: 13, rho: 1150, rd_vast: null, keywords: ["fermacell", "gipsvezel"] },
+  { categorie: "Plaatmateriaal", naam: "Gipskartonplaat", lambda: 0.25, mu: 8, rho: 900, rd_vast: null, keywords: ["gipskarton", "gips", "gyproc", "rigips"], hatch_pattern: "hatch-board-gypsum" },
+  { categorie: "Plaatmateriaal", naam: "Gipskarton brandwerend", lambda: 0.25, mu: 8, rho: 1000, rd_vast: null, keywords: ["gipskarton", "brandwerend", "rf"], hatch_pattern: "hatch-board-gypsum" },
+  { categorie: "Plaatmateriaal", naam: "Gipsvezelplaat (Fermacell)", lambda: 0.32, mu: 13, rho: 1150, rd_vast: null, keywords: ["fermacell", "gipsvezel"], hatch_pattern: "hatch-board-gypsum" },
   { categorie: "Plaatmateriaal", naam: "Cellulair glas (Foamglas)", lambda: 0.048, mu: 10000, rho: 120, rd_vast: null, keywords: ["foamglas", "cellulair", "glas"] },
   { categorie: "Plaatmateriaal", naam: "Cementgebonden plaat", lambda: 0.35, mu: 50, rho: 1200, rd_vast: null, keywords: ["cement", "plaat", "eternit"] },
   { categorie: "Plaatmateriaal", naam: "Vezelcementplaat", lambda: 0.35, mu: 30, rho: 1200, rd_vast: null, keywords: ["vezelcement", "eternit"] },
   { categorie: "Plaatmateriaal", naam: "Magnesiumoxideplaat", lambda: 0.21, mu: 15, rho: 1100, rd_vast: null, keywords: ["mgo", "magnesium"] },
 
   // Hout
-  { categorie: "Hout", naam: "Naaldhout", lambda: 0.17, lambda_nat: 0.23, mu: 40, rho: 550, rd_vast: null, keywords: ["naaldhout", "vuren", "grenen", "den", "spar"] },
-  { categorie: "Hout", naam: "Loofhout", lambda: 0.20, lambda_nat: 0.27, mu: 50, rho: 700, rd_vast: null, keywords: ["loofhout", "eiken", "beuken"] },
-  { categorie: "Hout", naam: "Hardhout / Multiplex", lambda: 0.20, lambda_nat: 0.27, mu: 50, rho: 700, rd_vast: null, keywords: ["hardhout", "multiplex", "triplex"] },
-  { categorie: "Hout", naam: "Tropisch hardhout", lambda: 0.24, lambda_nat: 0.30, mu: 100, rho: 900, rd_vast: null, keywords: ["tropisch", "iroko", "merbau", "azobe"] },
-  { categorie: "Hout", naam: "OSB", lambda: 0.13, lambda_nat: 0.18, mu: 30, rho: 650, rd_vast: null, keywords: ["osb", "oriented strand"] },
-  { categorie: "Hout", naam: "Spaanplaat", lambda: 0.14, lambda_nat: 0.19, mu: 15, rho: 650, rd_vast: null, keywords: ["spaanplaat", "particle"] },
-  { categorie: "Hout", naam: "MDF", lambda: 0.14, lambda_nat: 0.18, mu: 20, rho: 750, rd_vast: null, keywords: ["mdf", "medium density"] },
+  { categorie: "Hout", naam: "Naaldhout", lambda: 0.17, lambda_nat: 0.23, mu: 40, rho: 550, rd_vast: null, keywords: ["naaldhout", "vuren", "grenen", "den", "spar"], hatch_pattern: "hatch-wood-softwood" },
+  { categorie: "Hout", naam: "Loofhout", lambda: 0.20, lambda_nat: 0.27, mu: 50, rho: 700, rd_vast: null, keywords: ["loofhout", "eiken", "beuken"], hatch_pattern: "hatch-wood-hardwood" },
+  { categorie: "Hout", naam: "Hardhout / Multiplex", lambda: 0.20, lambda_nat: 0.27, mu: 50, rho: 700, rd_vast: null, keywords: ["hardhout", "multiplex", "triplex"], hatch_pattern: "hatch-wood-hardwood" },
+  { categorie: "Hout", naam: "Tropisch hardhout", lambda: 0.24, lambda_nat: 0.30, mu: 100, rho: 900, rd_vast: null, keywords: ["tropisch", "iroko", "merbau", "azobe"], hatch_pattern: "hatch-wood-hardwood" },
+  { categorie: "Hout", naam: "OSB", lambda: 0.13, lambda_nat: 0.18, mu: 30, rho: 650, rd_vast: null, keywords: ["osb", "oriented strand"], hatch_pattern: "hatch-board-osb" },
+  { categorie: "Hout", naam: "Spaanplaat", lambda: 0.14, lambda_nat: 0.19, mu: 15, rho: 650, rd_vast: null, keywords: ["spaanplaat", "particle"], hatch_pattern: "hatch-board-osb" },
+  { categorie: "Hout", naam: "MDF", lambda: 0.14, lambda_nat: 0.18, mu: 20, rho: 750, rd_vast: null, keywords: ["mdf", "medium density"], hatch_pattern: "hatch-board-mdf" },
   { categorie: "Hout", naam: "Hardboard (HDF)", lambda: 0.20, lambda_nat: 0.26, mu: 20, rho: 900, rd_vast: null, keywords: ["hardboard", "hdf"] },
   { categorie: "Hout", naam: "Zachtboard", lambda: 0.05, lambda_nat: 0.07, mu: 5, rho: 250, rd_vast: null, keywords: ["zachtboard", "houtvezel"] },
   { categorie: "Hout", naam: "Houtwolcement", lambda: 0.10, lambda_nat: 0.13, mu: 5, rho: 400, rd_vast: null, keywords: ["houtwol", "heraklith"] },
@@ -221,21 +225,21 @@ const RAW_MATERIALS: RawMaterial[] = [
   { categorie: "Hout", naam: "Thermowood", lambda: 0.13, lambda_nat: 0.16, mu: 30, rho: 420, rd_vast: null, keywords: ["thermowood", "thermisch"] },
 
   // Isolatie - Mineraal
-  { categorie: "Isolatie - Mineraal", naam: "Minerale wol (dekens)", lambda: 0.040, mu: 1, rho: 20, rd_vast: null, keywords: ["mineraal", "wol", "deken", "glaswol", "rockwool"] },
-  { categorie: "Isolatie - Mineraal", naam: "Minerale wol (platen)", lambda: 0.035, mu: 1, rho: 50, rd_vast: null, keywords: ["mineraal", "wol", "plaat"] },
-  { categorie: "Isolatie - Mineraal", naam: "Steenwol hoge dichtheid", lambda: 0.034, mu: 1, rho: 100, rd_vast: null, keywords: ["steenwol", "rockwool"] },
-  { categorie: "Isolatie - Mineraal", naam: "Glaswol", lambda: 0.035, mu: 1, rho: 25, rd_vast: null, keywords: ["glaswol", "isover"] },
+  { categorie: "Isolatie - Mineraal", naam: "Minerale wol (dekens)", lambda: 0.040, mu: 1, rho: 20, rd_vast: null, keywords: ["mineraal", "wol", "deken", "glaswol", "rockwool"], hatch_pattern: "hatch-insulation-glasswool" },
+  { categorie: "Isolatie - Mineraal", naam: "Minerale wol (platen)", lambda: 0.035, mu: 1, rho: 50, rd_vast: null, keywords: ["mineraal", "wol", "plaat"], hatch_pattern: "hatch-insulation-rockwool" },
+  { categorie: "Isolatie - Mineraal", naam: "Steenwol hoge dichtheid", lambda: 0.034, mu: 1, rho: 100, rd_vast: null, keywords: ["steenwol", "rockwool"], hatch_pattern: "hatch-insulation-rockwool" },
+  { categorie: "Isolatie - Mineraal", naam: "Glaswol", lambda: 0.035, mu: 1, rho: 25, rd_vast: null, keywords: ["glaswol", "isover"], hatch_pattern: "hatch-insulation-glasswool" },
   { categorie: "Isolatie - Mineraal", naam: "Perlite", lambda: 0.05, mu: 2, rho: 100, rd_vast: null, keywords: ["perlite"] },
   { categorie: "Isolatie - Mineraal", naam: "Vermiculiet", lambda: 0.07, mu: 3, rho: 100, rd_vast: null, keywords: ["vermiculiet"] },
 
   // Isolatie - Kunststof
-  { categorie: "Isolatie - Kunststof", naam: "EPS", lambda: 0.035, mu: 40, rho: 20, rd_vast: null, keywords: ["eps", "piepschuim", "tempex"] },
-  { categorie: "Isolatie - Kunststof", naam: "EPS grijs (Neopor)", lambda: 0.032, mu: 40, rho: 18, rd_vast: null, keywords: ["eps", "grijs", "neopor"] },
-  { categorie: "Isolatie - Kunststof", naam: "XPS", lambda: 0.034, mu: 150, rho: 35, rd_vast: null, keywords: ["xps", "roofmate", "styrodur"] },
-  { categorie: "Isolatie - Kunststof", naam: "PUR", lambda: 0.026, mu: 50, rho: 35, rd_vast: null, keywords: ["pur", "polyurethaan"] },
-  { categorie: "Isolatie - Kunststof", naam: "PIR", lambda: 0.023, mu: 50, rho: 35, rd_vast: null, keywords: ["pir", "iko", "recticel"] },
-  { categorie: "Isolatie - Kunststof", naam: "PIR alu-bekleed", lambda: 0.022, mu: 50, rho: 35, rd_vast: null, keywords: ["pir", "alu", "dampgesloten"] },
-  { categorie: "Isolatie - Kunststof", naam: "Resolschuim (phenol)", lambda: 0.020, mu: 30, rho: 45, rd_vast: null, keywords: ["resol", "phenol", "kingspan"] },
+  { categorie: "Isolatie - Kunststof", naam: "EPS", lambda: 0.035, mu: 40, rho: 20, rd_vast: null, keywords: ["eps", "piepschuim", "tempex"], hatch_pattern: "hatch-insulation-eps" },
+  { categorie: "Isolatie - Kunststof", naam: "EPS grijs (Neopor)", lambda: 0.032, mu: 40, rho: 18, rd_vast: null, keywords: ["eps", "grijs", "neopor"], hatch_pattern: "hatch-insulation-eps" },
+  { categorie: "Isolatie - Kunststof", naam: "XPS", lambda: 0.034, mu: 150, rho: 35, rd_vast: null, keywords: ["xps", "roofmate", "styrodur"], hatch_pattern: "hatch-insulation-xps" },
+  { categorie: "Isolatie - Kunststof", naam: "PUR", lambda: 0.026, mu: 50, rho: 35, rd_vast: null, keywords: ["pur", "polyurethaan"], hatch_pattern: "hatch-insulation-pur" },
+  { categorie: "Isolatie - Kunststof", naam: "PIR", lambda: 0.023, mu: 50, rho: 35, rd_vast: null, keywords: ["pir", "iko", "recticel"], hatch_pattern: "hatch-insulation-pir" },
+  { categorie: "Isolatie - Kunststof", naam: "PIR alu-bekleed", lambda: 0.022, mu: 50, rho: 35, rd_vast: null, keywords: ["pir", "alu", "dampgesloten"], hatch_pattern: "hatch-insulation-pir" },
+  { categorie: "Isolatie - Kunststof", naam: "Resolschuim (phenol)", lambda: 0.020, mu: 30, rho: 45, rd_vast: null, keywords: ["resol", "phenol", "kingspan"], hatch_pattern: "hatch-insulation-pir" },
   { categorie: "Isolatie - Kunststof", naam: "PE-schuim", lambda: 0.04, mu: 10000, rho: 35, rd_vast: null, keywords: ["pe", "schuim", "ondervloer"] },
 
   // Isolatie - Natuurlijk
@@ -367,6 +371,7 @@ export const MATERIALS_DATABASE: Material[] = RAW_MATERIALS.map((raw) => {
     sdFixed: raw.sd_vast ?? null,
     keywords: raw.keywords,
     isBuiltIn: true,
+    hatchPattern: raw.hatch_pattern,
   };
 });
 
@@ -385,21 +390,21 @@ export interface CategoryVisual {
 export const MATERIAL_CATEGORY_VISUALS: Record<MaterialCategory, CategoryVisual> = {
   metselwerk:         { color: "#d4736a", patternId: "hatch-masonry" },
   beton:              { color: "#b0b0b0", patternId: "hatch-concrete" },
-  isolatie_mineraal:  { color: "#fde047", patternId: "hatch-insulation" },
-  isolatie_kunststof: { color: "#f9a8d4", patternId: "hatch-insulation" },
-  isolatie_natuurlijk:{ color: "#86efac", patternId: "hatch-insulation" },
+  isolatie_mineraal:  { color: "#fde047", patternId: "hatch-insulation-mineral" },
+  isolatie_kunststof: { color: "#f9a8d4", patternId: "hatch-insulation-plastic" },
+  isolatie_natuurlijk:{ color: "#86efac", patternId: "hatch-insulation-natural" },
   hout:               { color: "#c68642", patternId: "hatch-wood" },
-  spouw:              { color: "#bfdbfe" },
+  spouw:              { color: "#bfdbfe", patternId: "hatch-cavity" },
   folie:              { color: "#a5b4fc", patternId: "hatch-foil" },
-  afwerking:          { color: "#e7e5e4" },
-  plaatmateriaal:     { color: "#fbbf24", patternId: "hatch-wood" },
-  mortel:             { color: "#d6d3d1" },
-  natuursteen:        { color: "#9ca3af", patternId: "hatch-concrete" },
-  vloer:              { color: "#d1d5db" },
+  afwerking:          { color: "#e7e5e4", patternId: "hatch-finish" },
+  plaatmateriaal:     { color: "#fbbf24", patternId: "hatch-board" },
+  mortel:             { color: "#d6d3d1", patternId: "hatch-mortar" },
+  natuursteen:        { color: "#9ca3af", patternId: "hatch-natural-stone" },
+  vloer:              { color: "#d1d5db", patternId: "hatch-floor" },
   metaal:             { color: "#94a3b8", patternId: "hatch-metal" },
-  kunststof:          { color: "#c084fc" },
-  glas:               { color: "#67e8f9" },
-  overig:             { color: "#e5e7eb" },
+  kunststof:          { color: "#c084fc", patternId: "hatch-plastic" },
+  glas:               { color: "#67e8f9", patternId: "hatch-glass" },
+  overig:             { color: "#e5e7eb", patternId: "hatch-other" },
 };
 
 // ---------- Query functies ----------

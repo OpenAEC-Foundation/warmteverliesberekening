@@ -3,12 +3,44 @@ import { createPortal } from "react-dom";
 
 import { useClickOutside } from "../../hooks/useClickOutside";
 import {
+  resolvePatternId,
+  getPatternSvgString,
+  CATEGORY_PATTERN_MAP,
+} from "../../lib/hatchPatterns";
+import {
   MATERIAL_CATEGORY_LABELS,
   MATERIAL_CATEGORY_ORDER,
+  MATERIAL_CATEGORY_VISUALS,
   searchMaterials,
   type Material,
   type MaterialCategory,
 } from "../../lib/materialsDatabase";
+
+/** Inline SVG preview van een hatch pattern (20x20px). */
+function HatchPreview({
+  patternId,
+  color,
+  size = 18,
+}: {
+  patternId: string;
+  color: string;
+  size?: number;
+}) {
+  const patternSvg = getPatternSvgString(patternId as never);
+  if (!patternSvg) return null;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0 rounded-sm border border-black/10"
+      dangerouslySetInnerHTML={{
+        __html: `<defs>${patternSvg}</defs><rect width="${size}" height="${size}" fill="${color}" fill-opacity="0.55"/><rect width="${size}" height="${size}" fill="url(#${patternId})"/>`,
+      }}
+    />
+  );
+}
 
 interface MaterialPickerProps {
   onSelect: (material: Material) => void;
@@ -91,28 +123,53 @@ export function MaterialPicker({
         {MATERIAL_CATEGORY_ORDER.map((cat) => {
           const materials = filtered.get(cat);
           if (!materials) return null;
+          const catVisual = MATERIAL_CATEGORY_VISUALS[cat];
+          const catPatternId = CATEGORY_PATTERN_MAP[cat];
+
           return (
             <div key={cat}>
-              <div className="sticky top-0 bg-surface-alt px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+              <div className="sticky top-0 flex items-center gap-2 bg-surface-alt px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+                <HatchPreview
+                  patternId={catPatternId}
+                  color={catVisual.color}
+                />
                 {MATERIAL_CATEGORY_LABELS[cat]}
               </div>
-              {materials.map((mat) => (
-                <button
-                  key={mat.id}
-                  type="button"
-                  onClick={() => handleSelect(mat)}
-                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-blue-600/15"
-                >
-                  <span className="text-on-surface-secondary">{mat.name}</span>
-                  <span className="ml-2 tabular-nums text-on-surface-muted">
-                    {mat.lambda !== null
-                      ? `\u03BB=${mat.lambda}`
-                      : mat.rdFixed !== null
-                        ? `Rd=${mat.rdFixed}`
-                        : ""}
-                  </span>
-                </button>
-              ))}
+              {materials.map((mat) => {
+                const matPatternId = resolvePatternId(
+                  mat.category,
+                  mat.hatchPattern,
+                );
+                const showMatPreview =
+                  mat.hatchPattern && matPatternId !== catPatternId;
+
+                return (
+                  <button
+                    key={mat.id}
+                    type="button"
+                    onClick={() => handleSelect(mat)}
+                    className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-blue-600/15"
+                  >
+                    <span className="flex items-center gap-1.5 text-on-surface-secondary">
+                      {showMatPreview && (
+                        <HatchPreview
+                          patternId={matPatternId}
+                          color={catVisual.color}
+                          size={14}
+                        />
+                      )}
+                      {mat.name}
+                    </span>
+                    <span className="ml-2 tabular-nums text-on-surface-muted">
+                      {mat.lambda !== null
+                        ? `\u03BB=${mat.lambda}`
+                        : mat.rdFixed !== null
+                          ? `Rd=${mat.rdFixed}`
+                          : ""}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           );
         })}
