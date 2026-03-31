@@ -160,44 +160,44 @@ function HatchPatterns() {
 // ---------- Stud band computation ----------
 
 interface StudBand {
-  /** X-positie van de stijl-band in SVG coords. */
-  x: number;
-  /** Breedte van de stijl-band in SVG coords. */
-  w: number;
+  /** Y-positie van de stijl-band in SVG coords. */
+  y: number;
+  /** Hoogte van de stijl-band in SVG coords. */
+  h: number;
 }
 
 /**
  * Bereken de posities van stijl-banden binnen een laagband.
- * Toont minimaal MIN_VISIBLE_STUDS, maximaal MAX_VISIBLE_STUDS studs,
- * evenredig verdeeld over de laagbreedte.
+ * Studs worden als HORIZONTALE banden getekend (over de volle breedte van de laag),
+ * evenredig verdeeld over de hoogte. Dit omdat de laagband zelf een verticale strip
+ * is en stijlen in werkelijkheid verticaal lopen (= horizontaal in het diagram).
  */
 function computeStudBands(
-  bandX: number,
-  bandW: number,
+  bandH: number,
   stud: LayerStudInfo,
 ): StudBand[] {
-  if (bandW < 8) return []; // Te smal om studs te tonen
+  if (bandH < 20) return []; // Te laag om studs te tonen
 
   const fraction = stud.width / stud.spacing;
-  const studPixelWidth = Math.max(bandW * fraction, 2); // Minimaal 2px breed
+  const studPixelH = Math.max(bandH * fraction, 3); // Minimaal 3px hoog
 
   // Bereken hoeveel studs er passen (realistisch)
-  const realCount = Math.floor(bandW / (stud.spacing / stud.width * studPixelWidth));
+  const realCount = Math.floor(bandH / (stud.spacing / stud.width * studPixelH));
   const count = Math.min(
     Math.max(realCount, MIN_VISIBLE_STUDS),
     MAX_VISIBLE_STUDS,
   );
 
-  // Verdeel evenredig over de band
-  const totalStudWidth = count * studPixelWidth;
-  const totalGapWidth = bandW - totalStudWidth;
-  const gap = totalGapWidth / (count + 1);
+  // Verdeel evenredig over de hoogte
+  const totalStudH = count * studPixelH;
+  const totalGapH = bandH - totalStudH;
+  const gap = totalGapH / (count + 1);
 
   const bands: StudBand[] = [];
   for (let i = 0; i < count; i++) {
     bands.push({
-      x: bandX + gap * (i + 1) + studPixelWidth * i,
-      w: studPixelWidth,
+      y: MARGIN.top + gap * (i + 1) + studPixelH * i,
+      h: studPixelH,
     });
   }
   return bands;
@@ -434,7 +434,7 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
       {/* Laag-banden met kleur, arcering en studs */}
       {layerBands.map((band, i) => {
         const studBands = band.stud
-          ? computeStudBands(band.x, band.w, band.stud)
+          ? computeStudBands(PLOT_H, band.stud)
           : [];
 
         return (
@@ -508,43 +508,43 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
               );
             })()}
 
-            {/* Studs: verticale banden met hout-patroon */}
+            {/* Studs: horizontale banden met hout-patroon */}
             {studBands.map((sb, si) => (
               <g key={`stud-${si}`}>
                 {/* Stijl-kleur */}
                 <rect
-                  x={sb.x}
-                  y={MARGIN.top}
-                  width={sb.w}
-                  height={PLOT_H}
+                  x={band.x}
+                  y={sb.y}
+                  width={band.w}
+                  height={sb.h}
                   fill={band.studColor ?? "#c68642"}
                   fillOpacity={0.65}
                 />
                 {/* Stijl-arcering */}
                 {band.studPatternId && (
                   <rect
-                    x={sb.x}
-                    y={MARGIN.top}
-                    width={sb.w}
-                    height={PLOT_H}
+                    x={band.x}
+                    y={sb.y}
+                    width={band.w}
+                    height={sb.h}
                     fill={`url(#${band.studPatternId})`}
                   />
                 )}
                 {/* Scheidingslijnen stijl */}
                 <line
-                  x1={sb.x}
-                  y1={MARGIN.top}
-                  x2={sb.x}
-                  y2={MARGIN.top + PLOT_H}
+                  x1={band.x}
+                  y1={sb.y}
+                  x2={band.x + band.w}
+                  y2={sb.y}
                   stroke="#78716c"
                   strokeWidth={0.3}
                   strokeOpacity={0.5}
                 />
                 <line
-                  x1={sb.x + sb.w}
-                  y1={MARGIN.top}
-                  x2={sb.x + sb.w}
-                  y2={MARGIN.top + PLOT_H}
+                  x1={band.x}
+                  y1={sb.y + sb.h}
+                  x2={band.x + band.w}
+                  y2={sb.y + sb.h}
                   stroke="#78716c"
                   strokeWidth={0.3}
                   strokeOpacity={0.5}

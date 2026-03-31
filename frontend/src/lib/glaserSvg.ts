@@ -121,35 +121,34 @@ function generateZigzagPath(
 // ---------- Stud computation ----------
 
 interface StudBand {
-  x: number;
-  w: number;
+  y: number;
+  h: number;
 }
 
 function computeStudBands(
-  bandX: number,
-  bandW: number,
+  bandH: number,
   stud: LayerStudInfo,
 ): StudBand[] {
-  if (bandW < 8) return [];
+  if (bandH < 20) return [];
 
   const fraction = stud.width / stud.spacing;
-  const studPixelWidth = Math.max(bandW * fraction, 2);
+  const studPixelH = Math.max(bandH * fraction, 3);
 
-  const realCount = Math.floor(bandW / (stud.spacing / stud.width * studPixelWidth));
+  const realCount = Math.floor(bandH / (stud.spacing / stud.width * studPixelH));
   const count = Math.min(
     Math.max(realCount, MIN_VISIBLE_STUDS),
     MAX_VISIBLE_STUDS,
   );
 
-  const totalStudWidth = count * studPixelWidth;
-  const totalGapWidth = bandW - totalStudWidth;
-  const gap = totalGapWidth / (count + 1);
+  const totalStudH = count * studPixelH;
+  const totalGapH = bandH - totalStudH;
+  const gap = totalGapH / (count + 1);
 
   const bands: StudBand[] = [];
   for (let i = 0; i < count; i++) {
     bands.push({
-      x: bandX + gap * (i + 1) + studPixelWidth * i,
-      w: studPixelWidth,
+      y: MARGIN.top + gap * (i + 1) + studPixelH * i,
+      h: studPixelH,
     });
   }
   return bands;
@@ -265,18 +264,18 @@ export function generateGlaserSvg(
     if (stud) {
       const studPatternId = resolvePatternId(stud.studCategory, stud.studHatchPattern);
       const studColor = categoryColor(stud.studCategory);
-      const studBands = computeStudBands(x, w, stud);
+      const studBands = computeStudBands(PLOT_H, stud);
 
       for (const sb of studBands) {
-        // Stijl-kleur
-        parts.push(`<rect x="${sb.x.toFixed(1)}" y="${MARGIN.top}" width="${sb.w.toFixed(1)}" height="${PLOT_H}" fill="${studColor}" fill-opacity="0.65"/>`);
+        // Stijl-kleur (horizontale band over volle laagbreedte)
+        parts.push(`<rect x="${x.toFixed(1)}" y="${sb.y.toFixed(1)}" width="${w.toFixed(1)}" height="${sb.h.toFixed(1)}" fill="${studColor}" fill-opacity="0.65"/>`);
         // Stijl-arcering
         if (studPatternId) {
-          parts.push(`<rect x="${sb.x.toFixed(1)}" y="${MARGIN.top}" width="${sb.w.toFixed(1)}" height="${PLOT_H}" fill="url(#${studPatternId})"/>`);
+          parts.push(`<rect x="${x.toFixed(1)}" y="${sb.y.toFixed(1)}" width="${w.toFixed(1)}" height="${sb.h.toFixed(1)}" fill="url(#${studPatternId})"/>`);
         }
-        // Scheidingslijnen
-        parts.push(`<line x1="${sb.x.toFixed(1)}" y1="${MARGIN.top}" x2="${sb.x.toFixed(1)}" y2="${MARGIN.top + PLOT_H}" stroke="#78716c" stroke-width="0.3" stroke-opacity="0.5"/>`);
-        parts.push(`<line x1="${(sb.x + sb.w).toFixed(1)}" y1="${MARGIN.top}" x2="${(sb.x + sb.w).toFixed(1)}" y2="${MARGIN.top + PLOT_H}" stroke="#78716c" stroke-width="0.3" stroke-opacity="0.5"/>`);
+        // Scheidingslijnen (horizontaal)
+        parts.push(`<line x1="${x.toFixed(1)}" y1="${sb.y.toFixed(1)}" x2="${(x + w).toFixed(1)}" y2="${sb.y.toFixed(1)}" stroke="#78716c" stroke-width="0.3" stroke-opacity="0.5"/>`);
+        parts.push(`<line x1="${x.toFixed(1)}" y1="${(sb.y + sb.h).toFixed(1)}" x2="${(x + w).toFixed(1)}" y2="${(sb.y + sb.h).toFixed(1)}" stroke="#78716c" stroke-width="0.3" stroke-opacity="0.5"/>`);
       }
     }
 
