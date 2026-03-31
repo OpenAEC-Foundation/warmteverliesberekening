@@ -59,10 +59,16 @@ export interface GlaserResult {
   pI: number;
   /** Dampdruk buitenlucht [Pa]. */
   pE: number;
+  /** Sectie-label bij inhomogene lagen ("Door isolatie" / "Door stijl"). */
+  sectionLabel?: string;
 }
 
 export interface GlaserInput {
-  layers: { materialId: string; thickness: number }[];
+  layers: {
+    materialId: string;
+    thickness: number;
+    stud?: { materialId: string; width: number; spacing: number };
+  }[];
   position: VerticalPosition;
   thetaI: number;
   thetaE: number;
@@ -103,7 +109,11 @@ export function calculateGlaser(input: GlaserInput): GlaserResult {
   const rSi = R_SI[position];
   const rSe = R_SE;
 
+  // Bepaal of er inhomogene lagen zijn
+  const hasInhomogeneous = layerInputs.some((li) => li.stud);
+
   // Bouw laagdata op
+  // Bij inhomogene lagen: gebruik isolatiemateriaal (worst case voor condensatie)
   const layerData: LayerData[] = [];
   for (const li of layerInputs) {
     const mat = getMaterialById(li.materialId);
@@ -215,5 +225,6 @@ export function calculateGlaser(input: GlaserInput): GlaserResult {
     hasCondensation,
     pI,
     pE,
+    sectionLabel: hasInhomogeneous ? "Door isolatie" : undefined,
   };
 }

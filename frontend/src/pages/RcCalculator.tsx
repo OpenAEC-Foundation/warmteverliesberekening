@@ -21,7 +21,13 @@ import {
   calculateRc,
   RC_MIN_BOUWBESLUIT,
   type LayerInput,
+  type FastenerConfig,
 } from "../lib/rcCalculation";
+import {
+  calculateFastenerCorrection,
+  diameterToCrossSection,
+  FASTENER_MATERIALS,
+} from "../lib/fastenerCorrection";
 import { generateReportDirect } from "../lib/reportClient";
 import { calculateYearlyMoisture } from "../lib/yearlyMoistureCalculation";
 import { useCatalogueStore } from "../store/catalogueStore";
@@ -66,6 +72,13 @@ export function RcCalculator() {
     { materialId: "", thickness: 0 },
   ]);
 
+  // Bevestigingsmiddelen
+  const [fastenerEnabled, setFastenerEnabled] = useState(false);
+  const [fastenerMaterialIndex, setFastenerMaterialIndex] = useState(0);
+  const [fastenerDiameter, setFastenerDiameter] = useState(4);
+  const [fastenerCountPerM2, setFastenerCountPerM2] = useState(4);
+  const [fastenerPenetration, setFastenerPenetration] = useState(0);
+
   // Klimaatcondities (Glaser)
   const [thetaI, setThetaI] = useState<number>(GLASER_DEFAULTS.thetaI);
   const [thetaE, setThetaE] = useState<number>(GLASER_DEFAULTS.thetaE);
@@ -76,6 +89,11 @@ export function RcCalculator() {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
   const materialBtnRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  // Stud MaterialPicker state (aparte picker voor stijlmateriaal)
+  const [studPickerIndex, setStudPickerIndex] = useState<number | null>(null);
+  const [studPickerRect, setStudPickerRect] = useState<DOMRect | null>(null);
+  const studMaterialBtnRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
   // Opslaan feedback
   const [saved, setSaved] = useState(false);
@@ -98,7 +116,11 @@ export function RcCalculator() {
     setCategory(entry.category);
     setMaterialType(entry.materialType);
     if (entry.layers?.length) {
-      setLayers(entry.layers.map((l) => ({ materialId: l.materialId, thickness: l.thickness })));
+      setLayers(entry.layers.map((l) => ({
+        materialId: l.materialId,
+        thickness: l.thickness,
+        stud: l.stud,
+      })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
@@ -110,6 +132,37 @@ export function RcCalculator() {
     () => calculateRc(layers, position),
     [layers, position],
   );
+
+  // Bevestigingsmiddelen ΔU_f
+  const fastenerConfig: FastenerConfig | undefined = useMemo(() => {
+    if (!fastenerEnabled) return undefined;
+    const mat = FASTENER_MATERIALS[fastenerMaterialIndex];
+    if (!mat) return undefined;
+
+    // Bepaal isolatiedikte voor penetratie default
+    const insulationLayer = layers.find((l) => {
+      const m = getMaterialById(l.materialId);
+      return m?.category.startsWith("isolatie");
+    });
+    const insulationThickness = insulationLayer?.thickness ?? 0;
+    const penetration = fastenerPenetration > 0 ? fastenerPenetration : insulationThickness;
+
+    return {
+      lambdaFastener: mat.lambdaFastener,
+      crossSection: diameterToCrossSection(fastenerDiameter),
+      countPerM2: fastenerCountPerM2,
+      penetrationDepth: penetration,
+    };
+  }, [fastenerEnabled, fastenerMaterialIndex, fastenerDiameter, fastenerCountPerM2, fastenerPenetration, layers]);
+
+  const deltaUf = useMemo(() => {
+    if (!fastenerConfig) return 0;
+    const insulationLayer = layers.find((l) => {
+      const m = getMaterialById(l.materialId);
+      return m?.category.startsWith("isolatie");
+    });
+    return calculateFastenerCorrection(fastenerConfig, insulationLayer?.thickness ?? 0);
+  }, [fastenerConfig, layers]);
 
   const glaserResult = useMemo(
     () =>
@@ -131,6 +184,8 @@ export function RcCalculator() {
 
   const rcMin = RC_MIN_BOUWBESLUIT[position];
   const meetsRequirement = rcResult.rc >= rcMin;
+  const hasInhomogeneous = layers.some((l) => l.stud);
+  const uCorrected = rcResult.uValue + deltaUf;
 
   // ---------- Laag-handlers ----------
 
@@ -174,6 +229,44 @@ export function RcCalculator() {
     [],
   );
 
+  // ---------- Stud handlers ----------
+
+  const handleToggleStud = useCallback((index: number) => {
+    setLayers((prev) =>
+      prev.map((l, i) => {
+        if (i !== index) return l;
+        if (l.stud) {
+          // Verwijder stud
+          const { stud: _, ...rest } = l;
+          return rest;
+        }
+        // Voeg default stud toe
+        return {
+          ...l,
+          stud: { materialId: "hout-naaldhout", width: 38, spacing: 600 },
+        };
+      }),
+    );
+  }, []);
+
+  const handleStudWidthChange = useCallback((index: number, value: string) => {
+    const width = Number(value) || 0;
+    setLayers((prev) =>
+      prev.map((l, i) =>
+        i === index && l.stud ? { ...l, stud: { ...l.stud, width } } : l,
+      ),
+    );
+  }, []);
+
+  const handleStudSpacingChange = useCallback((index: number, value: string) => {
+    const spacing = Number(value) || 0;
+    setLayers((prev) =>
+      prev.map((l, i) =>
+        i === index && l.stud ? { ...l, stud: { ...l.stud, spacing } } : l,
+      ),
+    );
+  }, []);
+
   // ---------- MaterialPicker handlers ----------
 
   const handleOpenPicker = useCallback((index: number) => {
@@ -203,6 +296,36 @@ export function RcCalculator() {
     setPickerRect(null);
   }, []);
 
+  // Stud material picker
+  const handleOpenStudPicker = useCallback((index: number) => {
+    const btn = studMaterialBtnRefs.current.get(index);
+    if (btn) {
+      setStudPickerRect(btn.getBoundingClientRect());
+    }
+    setStudPickerIndex(index);
+  }, []);
+
+  const handleSelectStudMaterial = useCallback(
+    (material: Material) => {
+      if (studPickerIndex === null) return;
+      setLayers((prev) =>
+        prev.map((l, i) =>
+          i === studPickerIndex && l.stud
+            ? { ...l, stud: { ...l.stud, materialId: material.id } }
+            : l,
+        ),
+      );
+      setStudPickerIndex(null);
+      setStudPickerRect(null);
+    },
+    [studPickerIndex],
+  );
+
+  const handleCloseStudPicker = useCallback(() => {
+    setStudPickerIndex(null);
+    setStudPickerRect(null);
+  }, []);
+
   // ---------- Opslaan ----------
 
   const handleSave = useCallback(() => {
@@ -219,6 +342,7 @@ export function RcCalculator() {
       layers: validLayers.map((l) => ({
         materialId: l.materialId,
         thickness: l.thickness,
+        stud: l.stud,
       })),
     };
 
@@ -249,6 +373,7 @@ export function RcCalculator() {
       layers: validLayers.map((l) => ({
         materialId: l.materialId,
         thickness: l.thickness,
+        stud: l.stud,
       })),
     });
 
@@ -380,7 +505,7 @@ export function RcCalculator() {
                     <th className="w-24 pb-2 text-right">
                       R [m{"²"}K/W]
                     </th>
-                    <th className="w-16 pb-2" />
+                    <th className="w-20 pb-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -403,11 +528,17 @@ export function RcCalculator() {
                       ? getMaterialById(layer.materialId)
                       : undefined;
                     const layerResult = rcResult.layers[index];
+                    const isInhomogeneous = !!layer.stud;
+                    const studMaterial = layer.stud
+                      ? getMaterialById(layer.stud.materialId)
+                      : undefined;
 
                     return (
                       <tr
                         key={index}
-                        className="border-b border-[var(--oaec-border-subtle)] hover:bg-[var(--oaec-hover)]/50"
+                        className={`border-b border-[var(--oaec-border-subtle)] hover:bg-[var(--oaec-hover)]/50 ${
+                          isInhomogeneous ? "bg-amber-500/5" : ""
+                        }`}
                       >
                         {/* Volgorde knoppen */}
                         <td className="py-1">
@@ -453,25 +584,88 @@ export function RcCalculator() {
 
                         {/* Materiaal */}
                         <td className="py-1">
-                          <button
-                            ref={(el) => {
-                              if (el)
-                                materialBtnRefs.current.set(index, el);
-                              else materialBtnRefs.current.delete(index);
-                            }}
-                            onClick={() => handleOpenPicker(index)}
-                            className="w-full rounded border border-[var(--oaec-border)] px-2 py-1 text-left text-sm hover:border-[var(--oaec-border)] hover:bg-[var(--oaec-hover)]"
-                          >
-                            {material ? (
-                              <span className="text-on-surface-secondary">
-                                {material.name}
-                              </span>
-                            ) : (
-                              <span className="text-on-surface-muted">
-                                Kies materiaal...
-                              </span>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              ref={(el) => {
+                                if (el)
+                                  materialBtnRefs.current.set(index, el);
+                                else materialBtnRefs.current.delete(index);
+                              }}
+                              onClick={() => handleOpenPicker(index)}
+                              className="flex-1 rounded border border-[var(--oaec-border)] px-2 py-1 text-left text-sm hover:border-[var(--oaec-border)] hover:bg-[var(--oaec-hover)]"
+                            >
+                              {material ? (
+                                <span className="text-on-surface-secondary">
+                                  {material.name}
+                                  {isInhomogeneous && studMaterial && (
+                                    <span className="ml-1 text-xs text-amber-400">
+                                      + {studMaterial.name} {layer.stud!.width}x{layer.thickness} h.o.h.{layer.stud!.spacing}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-on-surface-muted">
+                                  Kies materiaal...
+                                </span>
+                              )}
+                            </button>
+                            {/* Stijl toggle */}
+                            <button
+                              onClick={() => handleToggleStud(index)}
+                              className={`rounded p-1 text-xs ${
+                                isInhomogeneous
+                                  ? "bg-amber-500/20 text-amber-400"
+                                  : "text-on-surface-muted hover:bg-[var(--oaec-hover)] hover:text-on-surface-secondary"
+                              }`}
+                              title={isInhomogeneous ? "Stijlen verwijderen" : "Stijlen toevoegen"}
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M4 6h16M4 12h16M4 18h16" />
+                              </svg>
+                            </button>
+                          </div>
+                          {/* Expandable stud editor */}
+                          {isInhomogeneous && layer.stud && (
+                            <div className="mt-1.5 flex items-center gap-2 rounded bg-amber-500/10 px-2 py-1.5 text-xs">
+                              <button
+                                ref={(el) => {
+                                  if (el) studMaterialBtnRefs.current.set(index, el);
+                                  else studMaterialBtnRefs.current.delete(index);
+                                }}
+                                onClick={() => handleOpenStudPicker(index)}
+                                className="rounded border border-amber-500/30 px-1.5 py-0.5 text-amber-300 hover:bg-amber-500/20"
+                              >
+                                {studMaterial?.name ?? "Kies stijlmateriaal"}
+                              </button>
+                              <label className="flex items-center gap-1 text-on-surface-muted">
+                                B:
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={layer.stud.width || ""}
+                                  onChange={(e) => handleStudWidthChange(index, e.target.value)}
+                                  className="w-12 rounded border border-[var(--oaec-border)] bg-transparent px-1 py-0.5 text-right text-xs tabular-nums focus:border-primary focus:outline-none"
+                                />
+                                mm
+                              </label>
+                              <label className="flex items-center gap-1 text-on-surface-muted">
+                                h.o.h.:
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={layer.stud.spacing || ""}
+                                  onChange={(e) => handleStudSpacingChange(index, e.target.value)}
+                                  className="w-14 rounded border border-[var(--oaec-border)] bg-transparent px-1 py-0.5 text-right text-xs tabular-nums focus:border-primary focus:outline-none"
+                                />
+                                mm
+                              </label>
+                              {layerResult?.studFraction !== undefined && (
+                                <span className="ml-auto text-on-surface-muted">
+                                  f<sub>stijl</sub> = {(layerResult.studFraction * 100).toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         {/* Dikte */}
@@ -502,6 +696,11 @@ export function RcCalculator() {
                         {/* R-waarde */}
                         <td className="py-1 text-right tabular-nums text-on-surface-secondary">
                           {layerResult ? layerResult.r.toFixed(3) : "\u2014"}
+                          {layerResult?.rEffective !== undefined && (
+                            <span className="block text-[10px] text-amber-400" title="Effectieve R (incl. stijlcorrectie)">
+                              eff.
+                            </span>
+                          )}
                         </td>
 
                         {/* Verwijderen */}
@@ -553,11 +752,94 @@ export function RcCalculator() {
             </div>
           </div>
 
+          {/* Bevestigingsmiddelen */}
+          <div className="rounded-lg border border-[var(--oaec-border)] bg-[var(--oaec-bg-lighter)]">
+            <div className="flex items-center justify-between border-b border-[var(--oaec-border)] px-4 py-2.5">
+              <h3 className="text-sm font-semibold text-on-surface-secondary">
+                Bevestigingsmiddelen (ISO 6946 Annex F)
+              </h3>
+              <label className="flex items-center gap-2 text-xs text-on-surface-muted">
+                <input
+                  type="checkbox"
+                  checked={fastenerEnabled}
+                  onChange={(e) => setFastenerEnabled(e.target.checked)}
+                  className="rounded border-[var(--oaec-border)]"
+                />
+                Correctie toepassen
+              </label>
+            </div>
+
+            {fastenerEnabled && (
+              <div className="px-4 py-3">
+                <div className="grid grid-cols-4 gap-3">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                    <span>Materiaal</span>
+                    <select
+                      value={fastenerMaterialIndex}
+                      onChange={(e) => setFastenerMaterialIndex(Number(e.target.value))}
+                      className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    >
+                      {FASTENER_MATERIALS.map((m, i) => (
+                        <option key={m.label} value={i}>
+                          {m.label} ({"\u03BB"}={m.lambdaFastener})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                    <span>Diameter [mm]</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={fastenerDiameter}
+                      onChange={(e) => setFastenerDiameter(Number(e.target.value) || 0)}
+                      className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm tabular-nums focus:border-primary focus:outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                    <span>Aantal / m²</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={fastenerCountPerM2}
+                      onChange={(e) => setFastenerCountPerM2(Number(e.target.value) || 0)}
+                      className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm tabular-nums focus:border-primary focus:outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                    <span>Doorsnijding [mm]</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={fastenerPenetration || ""}
+                      onChange={(e) => setFastenerPenetration(Number(e.target.value) || 0)}
+                      placeholder="= isolatiedikte"
+                      className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm tabular-nums focus:border-primary focus:outline-none"
+                    />
+                  </label>
+                </div>
+                {deltaUf > 0 && (
+                  <div className="mt-2 text-xs text-on-surface-muted">
+                    {"\u0394"}U<sub>f</sub> = <strong className="text-on-surface">{deltaUf.toFixed(4)}</strong> W/(m²·K)
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Dampspanning (Glaser) */}
           <div className="rounded-lg border border-[var(--oaec-border)] bg-[var(--oaec-bg-lighter)]">
             <div className="flex items-center justify-between border-b border-[var(--oaec-border)] px-4 py-2.5">
               <h3 className="text-sm font-semibold text-on-surface-secondary">
                 Dampspanning (Glaser-methode)
+                {glaserResult.sectionLabel && (
+                  <span className="ml-2 text-xs font-normal text-amber-400">
+                    — {glaserResult.sectionLabel}
+                  </span>
+                )}
               </h3>
               {glaserResult.hasCondensation ? (
                 <span className="flex items-center gap-1.5 rounded-full bg-red-600/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
@@ -696,7 +978,45 @@ export function RcCalculator() {
                     </strong>{" "}
                     W/m{"²"}K
                   </span>
+                  {deltaUf > 0 && (
+                    <span className="text-on-surface-muted">
+                      U<sub>corr</sub> ={" "}
+                      <strong className="text-on-surface">
+                        {uCorrected.toFixed(3)}
+                      </strong>{" "}
+                      W/m{"²"}K
+                    </span>
+                  )}
                 </div>
+
+                {/* Inhomogene lagen detail */}
+                {hasInhomogeneous && rcResult.rUpper !== undefined && rcResult.rLower !== undefined && (
+                  <div className="flex items-center gap-4 text-xs text-on-surface-muted">
+                    <span>
+                      R{"'"} = <strong>{rcResult.rUpper.toFixed(3)}</strong> m{"²"}K/W
+                    </span>
+                    <span>
+                      R{"\u2033"} = <strong>{rcResult.rLower.toFixed(3)}</strong> m{"²"}K/W
+                    </span>
+                    <span>
+                      R{"'"}/R{"\u2033"} ={" "}
+                      <strong className={rcResult.ratio !== undefined && rcResult.ratio < 1.5 ? "text-green-400" : "text-red-400"}>
+                        {rcResult.ratio?.toFixed(3)}
+                      </strong>
+                      {rcResult.ratio !== undefined && (
+                        <span className="ml-1">
+                          {rcResult.ratio < 1.5 ? "\u2714" : "\u2718 > 1.5"}
+                        </span>
+                      )}
+                    </span>
+                    {deltaUf > 0 && (
+                      <span>
+                        {"\u0394"}U<sub>f</sub> = <strong>{deltaUf.toFixed(4)}</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <span
                     className={`inline-block h-2 w-2 rounded-full ${
@@ -753,6 +1073,15 @@ export function RcCalculator() {
           anchorRect={pickerRect}
           onSelect={handleSelectMaterial}
           onClose={handleClosePicker}
+        />
+      )}
+
+      {/* Stud MaterialPicker portal */}
+      {studPickerIndex !== null && (
+        <MaterialPicker
+          anchorRect={studPickerRect}
+          onSelect={handleSelectStudMaterial}
+          onClose={handleCloseStudPicker}
         />
       )}
     </div>

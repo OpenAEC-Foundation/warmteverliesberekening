@@ -78,6 +78,12 @@ export interface ConstructionElementLayer {
   materialId: string;
   /** Laagdikte in mm. */
   thickness: number;
+  /** Stijl/keper configuratie voor inhomogene lagen. */
+  stud?: {
+    materialId: string;
+    width: number;
+    spacing: number;
+  };
 }
 
 export interface ConstructionElement {

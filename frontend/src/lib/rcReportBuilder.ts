@@ -145,11 +145,18 @@ function buildLayersSection(input: RcReportInput): Record<string, unknown> {
   for (const layerResult of rcResult.layers) {
     const lambdaStr = layerResult.lambda !== null ? layerResult.lambda.toFixed(3) : "\u2014";
     const thicknessStr = layerResult.thickness > 0 ? String(layerResult.thickness) : "\u2014";
+    let nameStr = layerResult.name;
+    if (layerResult.studFraction !== undefined) {
+      nameStr += ` (inhomogeen, f_stijl=${(layerResult.studFraction * 100).toFixed(1)}%)`;
+    }
+    const rStr = layerResult.rEffective !== undefined
+      ? `${layerResult.rEffective.toFixed(3)} (eff.)`
+      : layerResult.r.toFixed(3);
     layerRows.push([
-      layerResult.name,
+      nameStr,
       thicknessStr,
       lambdaStr,
-      layerResult.r.toFixed(3),
+      rStr,
     ]);
   }
 
@@ -176,6 +183,34 @@ function buildThermalSection(input: RcReportInput): Record<string, unknown> {
   const rcMin = RC_MIN_BOUWBESLUIT[position];
   const voldoet = rcResult.rc >= rcMin;
 
+  const summaryRows: string[][] = [
+    ["Rc (constructieweerstand)", `${rcResult.rc.toFixed(2)} m²K/W`],
+    ["R_totaal (incl. Rsi + Rse)", `${rcResult.rTotal.toFixed(2)} m²K/W`],
+    ["U-waarde", `${rcResult.uValue.toFixed(3)} W/(m²·K)`],
+  ];
+
+  // Voeg inhomogene-laag resultaten toe indien aanwezig
+  if (rcResult.rUpper !== undefined && rcResult.rLower !== undefined) {
+    summaryRows.push(
+      ["R'_T (bovengrens)", `${rcResult.rUpper.toFixed(3)} m²K/W`],
+      ["R''_T (ondergrens)", `${rcResult.rLower.toFixed(3)} m²K/W`],
+    );
+    if (rcResult.ratio !== undefined) {
+      const ratioOk = rcResult.ratio < 1.5;
+      summaryRows.push([
+        "Ratio R'_T / R''_T",
+        `${rcResult.ratio.toFixed(3)} ${ratioOk ? "\u2714 < 1.5" : "\u2718 > 1.5"}`,
+      ]);
+    }
+  }
+
+  if (rcResult.deltaUf !== undefined && rcResult.deltaUf > 0) {
+    summaryRows.push(
+      ["\u0394U_f (bevestigingsmiddelen)", `${rcResult.deltaUf.toFixed(4)} W/(m²·K)`],
+      ["U gecorrigeerd", `${(rcResult.uValue + rcResult.deltaUf).toFixed(3)} W/(m²·K)`],
+    );
+  }
+
   return {
     title: "Thermische prestatie",
     level: 1,
@@ -184,11 +219,7 @@ function buildThermalSection(input: RcReportInput): Record<string, unknown> {
         type: "table",
         title: "Samenvatting",
         headers: ["Parameter", "Waarde"],
-        rows: [
-          ["Rc (constructieweerstand)", `${rcResult.rc.toFixed(2)} m²K/W`],
-          ["R_totaal (incl. Rsi + Rse)", `${rcResult.rTotal.toFixed(2)} m²K/W`],
-          ["U-waarde", `${rcResult.uValue.toFixed(3)} W/(m²·K)`],
-        ],
+        rows: summaryRows,
       },
       { type: "spacer", height_mm: 4 },
       {
@@ -197,7 +228,7 @@ function buildThermalSection(input: RcReportInput): Record<string, unknown> {
         headers: ["Eis", "Waarde", "Resultaat"],
         rows: [
           [
-            `Rc ≥ ${rcMin} m²K/W`,
+            `Rc \u2265 ${rcMin} m²K/W`,
             `${rcResult.rc.toFixed(2)} m²K/W`,
             voldoet ? "\u2714 Voldoet" : "\u2718 Voldoet niet",
           ],

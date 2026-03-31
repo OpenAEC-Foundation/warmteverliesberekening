@@ -6,6 +6,12 @@ export interface CatalogueLayer {
   materialId: string;
   /** Laagdikte in mm. */
   thickness: number;
+  /** Stijl/keper configuratie voor inhomogene lagen. */
+  stud?: {
+    materialId: string;
+    width: number;
+    spacing: number;
+  };
 }
 
 export interface CatalogueEntry {
@@ -219,6 +225,96 @@ export const CONSTRUCTION_CATALOGUE: CatalogueEntry[] = [
       { materialId: "hout-osb", thickness: 12 },
       { materialId: "spouw-spouw-gevent-rd-0-09", thickness: 25 },
       { materialId: "plaatmateriaal-vezelcementplaat", thickness: 8 },
+    ],
+  },
+
+  // ===== WANDEN — Buitenwanden houtskelet (met stijlcorrectie) =====
+
+  {
+    id: "hsb-buitenwand-basis",
+    name: "Gips 12.5 | PE-folie | MW 140 (38×140 h.o.h.600) | OSB 12 | Spouw(v) 25 | VCement 8",
+    category: "wanden",
+    uValue: 0.28,
+    materialType: "non_masonry",
+    verticalPosition: "wall",
+    boundaryType: "exterior",
+    isBuiltIn: true,
+    layers: [
+      { materialId: "plaatmateriaal-gipskartonplaat", thickness: 12.5 },
+      { materialId: "folie-dampremmend-pe-folie-0-15mm", thickness: 0 },
+      {
+        materialId: "isolatie-mineraal-minerale-wol-platen",
+        thickness: 140,
+        stud: { materialId: "hout-naaldhout", width: 38, spacing: 600 },
+      },
+      { materialId: "hout-osb", thickness: 12 },
+      { materialId: "spouw-spouw-gevent-rd-0-09", thickness: 25 },
+      { materialId: "plaatmateriaal-vezelcementplaat", thickness: 8 },
+    ],
+  },
+  {
+    id: "hsb-buitenwand-nieuwbouw",
+    name: "Gips 12.5 | PE-folie | MW 184 (38×184 h.o.h.600) | OSB 12 | Spouw(v) 25 | VCement 8",
+    category: "wanden",
+    uValue: 0.22,
+    materialType: "non_masonry",
+    verticalPosition: "wall",
+    boundaryType: "exterior",
+    isBuiltIn: true,
+    layers: [
+      { materialId: "plaatmateriaal-gipskartonplaat", thickness: 12.5 },
+      { materialId: "folie-dampremmend-pe-folie-0-15mm", thickness: 0 },
+      {
+        materialId: "isolatie-mineraal-minerale-wol-platen",
+        thickness: 184,
+        stud: { materialId: "hout-naaldhout", width: 38, spacing: 600 },
+      },
+      { materialId: "hout-osb", thickness: 12 },
+      { materialId: "spouw-spouw-gevent-rd-0-09", thickness: 25 },
+      { materialId: "plaatmateriaal-vezelcementplaat", thickness: 8 },
+    ],
+  },
+  {
+    id: "hsb-buitenwand-hoge-isolatie",
+    name: "Gips 12.5 | PE-folie | MW 235 (38×235 h.o.h.600) | OSB 12 | Spouw(v) 25 | VCement 8",
+    category: "wanden",
+    uValue: 0.19,
+    materialType: "non_masonry",
+    verticalPosition: "wall",
+    boundaryType: "exterior",
+    isBuiltIn: true,
+    layers: [
+      { materialId: "plaatmateriaal-gipskartonplaat", thickness: 12.5 },
+      { materialId: "folie-dampremmend-pe-folie-0-15mm", thickness: 0 },
+      {
+        materialId: "isolatie-mineraal-minerale-wol-platen",
+        thickness: 235,
+        stud: { materialId: "hout-naaldhout", width: 38, spacing: 600 },
+      },
+      { materialId: "hout-osb", thickness: 12 },
+      { materialId: "spouw-spouw-gevent-rd-0-09", thickness: 25 },
+      { materialId: "plaatmateriaal-vezelcementplaat", thickness: 8 },
+    ],
+  },
+  {
+    id: "hsb-dak-keper",
+    name: "Gips 12.5 | PE-folie | MW 184 (38×184 h.o.h.600) | OSB 12 | Nhout 18",
+    category: "daken",
+    uValue: 0.24,
+    materialType: "non_masonry",
+    verticalPosition: "ceiling",
+    boundaryType: "exterior",
+    isBuiltIn: true,
+    layers: [
+      { materialId: "plaatmateriaal-gipskartonplaat", thickness: 12.5 },
+      { materialId: "folie-dampremmend-pe-folie-0-15mm", thickness: 0 },
+      {
+        materialId: "isolatie-mineraal-minerale-wol-platen",
+        thickness: 184,
+        stud: { materialId: "hout-naaldhout", width: 38, spacing: 600 },
+      },
+      { materialId: "hout-osb", thickness: 12 },
+      { materialId: "hout-naaldhout", thickness: 18 },
     ],
   },
 
@@ -605,7 +701,13 @@ export function resolveConstruction(
   // Check project constructions first (proj- prefix)
   const projEntry = projectConstructions.find((c) => c.id === entryId);
   if (projEntry) {
-    const rcResult = calculateRc(projEntry.layers, projEntry.verticalPosition);
+    // Map CatalogueLayer → LayerInput (inclusief stud)
+    const layerInputs = projEntry.layers.map((l) => ({
+      materialId: l.materialId,
+      thickness: l.thickness,
+      stud: l.stud,
+    }));
+    const rcResult = calculateRc(layerInputs, projEntry.verticalPosition);
     return {
       id: projEntry.id,
       name: projEntry.name,

@@ -104,6 +104,7 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [x] Resultaten weergave + grafieken
 - [x] JSON import/export
 - [x] Rc-calculator met laag-editor
+- [x] Rc-calculator: inhomogene lagen (ISO 6946 combined method) + bevestigingsmiddelencorrectie (Annex F)
 - [x] Glaser-analyse + diagram
 - [x] Constructiebibliotheek + materialendatabase
 - [x] PDF rapportgeneratie

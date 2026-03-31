@@ -36,7 +36,7 @@ export function LayerEditor({
 
   // Rc berekening
   const layerInputs: LayerInput[] = useMemo(
-    () => layers.map((l) => ({ materialId: l.materialId, thickness: l.thickness })),
+    () => layers.map((l) => ({ materialId: l.materialId, thickness: l.thickness, stud: l.stud })),
     [layers],
   );
   const rcResult = useMemo(
