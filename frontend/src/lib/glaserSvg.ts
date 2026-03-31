@@ -21,12 +21,12 @@ import {
 
 const WIDTH = 720;
 const HEIGHT = 460;
-const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
+const MARGIN = { top: 20, right: 55, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
 /** Breedte van de binnen/buiten-lucht zones (px). */
-const AIR_ZONE_W = 15;
+const AIR_ZONE_W = 30;
 /** Kleur van de binnen/buiten-lucht zones (lichtblauw). */
 const AIR_ZONE_COLOR = "#bfdbfe";
 
@@ -129,10 +129,10 @@ function computeStudBands(
 ): StudBand[] {
   if (bandH < 20) return [];
 
-  // Stijlen prominent tonen: elke stud is proportioneel aan stud.width/spacing
+  // Stijlen prominent tonen: 2x proportionele hoogte voor leesbaarheid
   const fraction = stud.width / stud.spacing; // bijv. 38/600 = 0.063
   const count = STUD_COUNT;
-  const studPixelH = Math.max(bandH * fraction, 6);
+  const studPixelH = Math.max(bandH * fraction * 2, 8);
 
   const totalStudH = count * studPixelH;
   const totalGapH = bandH - totalStudH;
@@ -181,6 +181,12 @@ export function generateGlaserSvg(
   const toX = (xMm: number) => MARGIN.left + AIR_ZONE_W + (xMm / totalThickness) * (PLOT_W - 2 * AIR_ZONE_W);
   const toY = (pPa: number) => MARGIN.top + PLOT_H - (pPa / yMax) * PLOT_H;
 
+  // Temperatuurschaal
+  const temps = curvePoints.map((p) => p.temperature);
+  const tempMin = Math.floor(Math.min(...temps) - 2);
+  const tempMax = Math.ceil(Math.max(...temps) + 2);
+  const toYTemp = (t: number) => MARGIN.top + PLOT_H - ((t - tempMin) / (tempMax - tempMin)) * PLOT_H;
+
   // Y-axis ticks
   const yTickCount = 5;
   const yStep = yMax / yTickCount;
@@ -217,8 +223,10 @@ export function generateGlaserSvg(
     const isInsulation = cat ? INSULATION_CATEGORIES.has(cat) : false;
     const patternId = cat && !isInsulation ? resolvePatternId(cat, hatchOverride) : undefined;
 
+    // Witte ondergrond per laag (voorkomt doorbloeden)
+    parts.push(`<rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${Math.max(w, 1).toFixed(1)}" height="${PLOT_H}" fill="white"/>`);
     // Color fill
-    parts.push(`<rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${Math.max(w, 1).toFixed(1)}" height="${PLOT_H}" fill="${color}" fill-opacity="0.55"/>`);
+    parts.push(`<rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${Math.max(w, 1).toFixed(1)}" height="${PLOT_H}" fill="${color}" fill-opacity="0.75"/>`);
 
     // Pattern overlay (niet voor isolatie)
     if (patternId) {
@@ -316,11 +324,31 @@ export function generateGlaserSvg(
     .join(" ");
   parts.push(`<path d="${pActualPath}" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="6,3"/>`);
 
+  // Temperatuurlijn (rood)
+  const tempPath = curvePoints
+    .map((p, i) => `${i === 0 ? "M" : "L"}${toX(p.x).toFixed(1)},${toYTemp(p.temperature).toFixed(1)}`)
+    .join(" ");
+  parts.push(`<path d="${tempPath}" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-linejoin="round" stroke-dasharray="4,2"/>`);
+
   // Interface points
   for (const p of interfacePoints) {
     parts.push(`<circle cx="${toX(p.x).toFixed(1)}" cy="${toY(p.pSat).toFixed(1)}" r="3" fill="#2563eb"/>`);
     parts.push(`<circle cx="${toX(p.x).toFixed(1)}" cy="${toY(p.pActual).toFixed(1)}" r="3" fill="#d97706"/>`);
   }
+
+  // Rechter Y-as: Temperatuur [°C]
+  const tempRange = tempMax - tempMin;
+  const tempTickCount = Math.min(6, Math.max(3, Math.ceil(tempRange / 5)));
+  const tempStep = tempRange / tempTickCount;
+  for (let i = 0; i <= tempTickCount; i++) {
+    const t = Math.round((tempMin + tempStep * i) * 10) / 10;
+    const y = toYTemp(t);
+    parts.push(`<line x1="${MARGIN.left + PLOT_W}" y1="${y.toFixed(1)}" x2="${MARGIN.left + PLOT_W + 4}" y2="${y.toFixed(1)}" stroke="#ef4444" stroke-width="0.8"/>`);
+    parts.push(`<text x="${MARGIN.left + PLOT_W + 7}" y="${(y + 3).toFixed(1)}" font-size="9" fill="#ef4444">${t.toFixed(0)}°</text>`);
+  }
+
+  // Rechter Y-as label
+  parts.push(`<text x="${WIDTH - 8}" y="${MARGIN.top + PLOT_H / 2}" text-anchor="middle" font-size="10" fill="#ef4444" transform="rotate(90, ${WIDTH - 8}, ${MARGIN.top + PLOT_H / 2})">Temperatuur [°C]</text>`);
 
   // Temperature labels at first and last interface
   for (let i = 0; i < interfacePoints.length; i++) {
@@ -337,13 +365,15 @@ export function generateGlaserSvg(
   const lx = MARGIN.left + PLOT_W - 200;
   const ly = MARGIN.top + 8;
   parts.push(`<g transform="translate(${lx}, ${ly})">`);
-  parts.push(`<rect x="-6" y="-4" width="206" height="42" rx="4" fill="white" fill-opacity="0.92" stroke="#d6d3d1" stroke-width="0.5"/>`);
+  parts.push(`<rect x="-6" y="-4" width="206" height="58" rx="4" fill="white" fill-opacity="0.92" stroke="#d6d3d1" stroke-width="0.5"/>`);
   parts.push(`<line x1="0" y1="8" x2="18" y2="8" stroke="#2563eb" stroke-width="2.5"/>`);
   parts.push(`<circle cx="9" cy="8" r="3" fill="#2563eb"/>`);
   parts.push(`<text x="24" y="11" font-size="10" fill="#57534e">Verzadigingsdruk (p_sat)</text>`);
-  parts.push(`<line x1="0" y1="26" x2="18" y2="26" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6,3"/>`);
-  parts.push(`<circle cx="9" cy="26" r="3" fill="#d97706"/>`);
-  parts.push(`<text x="24" y="29" font-size="10" fill="#57534e">Werkelijke dampdruk (p)</text>`);
+  parts.push(`<line x1="0" y1="24" x2="18" y2="24" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6,3"/>`);
+  parts.push(`<circle cx="9" cy="24" r="3" fill="#d97706"/>`);
+  parts.push(`<text x="24" y="27" font-size="10" fill="#57534e">Werkelijke dampdruk (p)</text>`);
+  parts.push(`<line x1="0" y1="40" x2="18" y2="40" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="4,2"/>`);
+  parts.push(`<text x="24" y="43" font-size="10" fill="#ef4444">Temperatuur (°C)</text>`);
   parts.push(`</g>`);
 
   parts.push(`</svg>`);

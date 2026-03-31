@@ -30,12 +30,12 @@ interface GlaserDiagramProps {
 
 const WIDTH = 640;
 const HEIGHT = 420;
-const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
+const MARGIN = { top: 20, right: 55, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
 /** Breedte van de binnen/buiten-lucht zones (px). */
-const AIR_ZONE_W = 15;
+const AIR_ZONE_W = 30;
 /** Kleur van de binnen/buiten-lucht zones (lichtblauw, zelfde als oude spouw). */
 const AIR_ZONE_COLOR = "#bfdbfe";
 
@@ -176,11 +176,10 @@ function computeStudBands(
 ): StudBand[] {
   if (bandH < 20) return []; // Te laag om studs te tonen
 
-  // Stijlen prominent tonen: elke stud is proportioneel aan stud.width/spacing
+  // Stijlen prominent tonen: 2x proportionele hoogte voor leesbaarheid
   const fraction = stud.width / stud.spacing; // bijv. 38/600 = 0.063
   const count = STUD_COUNT;
-  // Elke stud krijgt de volledige proportionele hoogte (niet gedeeld door count)
-  const studPixelH = Math.max(bandH * fraction, 6);
+  const studPixelH = Math.max(bandH * fraction * 2, 8);
 
   // Verdeel evenredig over de hoogte
   const totalStudH = count * studPixelH;
@@ -228,12 +227,15 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
   const hasLayers = curvePoints.length >= 2 && totalThickness > 0;
 
   // Schalen berekenen
-  const { yTicks, toX, toY } = useMemo(() => {
+  const { yTicks, toX, toY, toYTemp, tempMin, tempMax } = useMemo(() => {
     if (!hasLayers) {
       return {
         yTicks: [0, 500, 1000, 1500, 2000, 2500],
         toX: () => MARGIN.left,
         toY: () => MARGIN.top + PLOT_H,
+        toYTemp: () => MARGIN.top + PLOT_H,
+        tempMin: 0,
+        tempMax: 20,
       };
     }
 
@@ -245,10 +247,18 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
     const nMax = niceMax(rawMax * 1.1);
     const ticks = generateTicks(nMax, 5);
 
+    // Temperatuurschaal: van buitentemp tot binnentemp met marge
+    const temps = curvePoints.map((p) => p.temperature);
+    const tMin = Math.floor(Math.min(...temps) - 2);
+    const tMax = Math.ceil(Math.max(...temps) + 2);
+
     return {
       yTicks: ticks,
       toX: (xMm: number) => MARGIN.left + AIR_ZONE_W + (xMm / totalThickness) * (PLOT_W - 2 * AIR_ZONE_W),
       toY: (pPa: number) => MARGIN.top + PLOT_H - (pPa / nMax) * PLOT_H,
+      toYTemp: (t: number) => MARGIN.top + PLOT_H - ((t - tMin) / (tMax - tMin)) * PLOT_H,
+      tempMin: tMin,
+      tempMax: tMax,
     };
   }, [curvePoints, interfacePoints, totalThickness, hasLayers]);
 
@@ -273,6 +283,17 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
       )
       .join(" ");
   }, [interfacePoints, hasLayers, toX, toY]);
+
+  // Temperatuurlijn pad
+  const tempPath = useMemo(() => {
+    if (!hasLayers) return "";
+    return curvePoints
+      .map(
+        (p, i) =>
+          `${i === 0 ? "M" : "L"}${toX(p.x).toFixed(1)},${toYTemp(p.temperature).toFixed(1)}`,
+      )
+      .join(" ");
+  }, [curvePoints, hasLayers, toX, toYTemp]);
 
   // Condensatiezone: gebied waar pActual > pSat
   const condensationPath = useMemo(() => {
@@ -433,6 +454,14 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
 
         return (
           <g key={i}>
+            {/* Witte ondergrond per laag (voorkomt doorbloeden) */}
+            <rect
+              x={band.x}
+              y={MARGIN.top}
+              width={Math.max(band.w, 1)}
+              height={PLOT_H}
+              fill="white"
+            />
             {/* Kleurvulling voor hele laag */}
             <rect
               x={band.x}
@@ -440,7 +469,7 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
               width={Math.max(band.w, 1)}
               height={PLOT_H}
               fill={band.color}
-              fillOpacity={0.7}
+              fillOpacity={0.75}
             />
             {/* Arcering overlay voor hele laag (tiled pattern, niet voor isolatie) */}
             {band.patternId && (
@@ -640,6 +669,16 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
         strokeDasharray="6,3"
       />
 
+      {/* Temperatuurlijn (rood) */}
+      <path
+        d={tempPath}
+        fill="none"
+        stroke="#ef4444"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeDasharray="4,2"
+      />
+
       {/* Punten op interfaces */}
       {interfacePoints.map((p, i) => (
         <g key={i}>
@@ -652,6 +691,52 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
           />
         </g>
       ))}
+
+      {/* Rechter Y-as: Temperatuur [°C] */}
+      {(() => {
+        const tempRange = tempMax - tempMin;
+        const tickCount = Math.min(6, Math.max(3, Math.ceil(tempRange / 5)));
+        const step = tempRange / tickCount;
+        const ticks: number[] = [];
+        for (let i = 0; i <= tickCount; i++) {
+          ticks.push(Math.round((tempMin + step * i) * 10) / 10);
+        }
+        return ticks.map((t) => {
+          const y = toYTemp(t);
+          return (
+            <g key={`temp-${t}`}>
+              <line
+                x1={MARGIN.left + PLOT_W}
+                y1={y}
+                x2={MARGIN.left + PLOT_W + 4}
+                y2={y}
+                stroke="#ef4444"
+                strokeWidth={0.8}
+              />
+              <text
+                x={MARGIN.left + PLOT_W + 7}
+                y={y + 3}
+                fontSize={9}
+                fill="#ef4444"
+              >
+                {t.toFixed(0)}°
+              </text>
+            </g>
+          );
+        });
+      })()}
+
+      {/* Rechter Y-as label */}
+      <text
+        x={WIDTH - 8}
+        y={MARGIN.top + PLOT_H / 2}
+        textAnchor="middle"
+        fontSize={10}
+        fill="#ef4444"
+        transform={`rotate(90, ${WIDTH - 8}, ${MARGIN.top + PLOT_H / 2})`}
+      >
+        Temperatuur [°C]
+      </text>
 
       {/* Temperatuurlabels bij interface-punten */}
       {interfacePoints.map((p, i) => {
@@ -705,7 +790,7 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
           x={-6}
           y={-4}
           width={206}
-          height={42}
+          height={58}
           rx={4}
           fill="white"
           fillOpacity={0.92}
@@ -726,16 +811,28 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
         </text>
         <line
           x1={0}
-          y1={26}
+          y1={24}
           x2={18}
-          y2={26}
+          y2={24}
           stroke="#d97706"
           strokeWidth={2.5}
           strokeDasharray="6,3"
         />
-        <circle cx={9} cy={26} r={3} fill="#d97706" />
-        <text x={24} y={29} fontSize={10} fill="#57534e">
+        <circle cx={9} cy={24} r={3} fill="#d97706" />
+        <text x={24} y={27} fontSize={10} fill="#57534e">
           Werkelijke dampdruk (p)
+        </text>
+        <line
+          x1={0}
+          y1={40}
+          x2={18}
+          y2={40}
+          stroke="#ef4444"
+          strokeWidth={1.8}
+          strokeDasharray="4,2"
+        />
+        <text x={24} y={43} fontSize={10} fill="#ef4444">
+          Temperatuur (°C)
         </text>
       </g>
     </svg>
