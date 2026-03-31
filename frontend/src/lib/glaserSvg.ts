@@ -25,6 +25,11 @@ const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
+/** Breedte van de binnen/buiten-lucht zones (px). */
+const AIR_ZONE_W = 15;
+/** Kleur van de binnen/buiten-lucht zones (lichtblauw). */
+const AIR_ZONE_COLOR = "#bfdbfe";
+
 /** Minimum aantal zichtbare studs per laag. */
 const MIN_VISIBLE_STUDS = 2;
 /** Maximum aantal zichtbare studs per laag. */
@@ -79,6 +84,8 @@ const ZIGZAG_STYLE: Record<string, { strokeWidth: number; offset?: number }> = {
 
 /**
  * Genereer een SVG path (M/L) voor een doorlopend zigzag-patroon binnen een band.
+ * De zigzag loopt VERTICAAL langs de hoogte (langste richting), met lijnen die
+ * van links naar rechts (en terug) overspannen onder ~60° t.o.v. verticaal.
  */
 function generateZigzagPath(
   bandX: number,
@@ -87,23 +94,25 @@ function generateZigzagPath(
   bandH: number,
   periodScale = 1.0,
 ): string {
-  const halfPeriod = (bandH / ZIGZAG_TAN) * periodScale;
-  if (halfPeriod < 0.5 || bandW < 1) return "";
+  if (bandW < 1 || bandH < 1) return "";
 
-  const bottom = bandY + bandH;
-  const top = bandY;
+  const halfPeriod = (bandW / ZIGZAG_TAN) * periodScale;
+  if (halfPeriod < 0.5) return "";
+
+  const left = bandX;
+  const right = bandX + bandW;
 
   const points: string[] = [];
-  let x = bandX;
-  let goingUp = true;
+  let y = bandY;
+  let goingRight = true;
 
-  points.push(`M${x.toFixed(1)},${bottom.toFixed(1)}`);
+  points.push(`M${left.toFixed(1)},${y.toFixed(1)}`);
 
-  while (x < bandX + bandW + halfPeriod) {
-    x += halfPeriod;
-    const y = goingUp ? top : bottom;
+  while (y < bandY + bandH + halfPeriod) {
+    y += halfPeriod;
+    const x = goingRight ? right : left;
     points.push(`L${x.toFixed(1)},${y.toFixed(1)}`);
-    goingUp = !goingUp;
+    goingRight = !goingRight;
   }
 
   return points.join(" ");
@@ -195,6 +204,10 @@ export function generateGlaserSvg(
 
   // Background
   parts.push(`<rect x="${MARGIN.left}" y="${MARGIN.top}" width="${PLOT_W}" height="${PLOT_H}" fill="white" stroke="#e7e5e4" stroke-width="1"/>`);
+  // Binnenlucht zone (links)
+  parts.push(`<rect x="${MARGIN.left}" y="${MARGIN.top}" width="${AIR_ZONE_W}" height="${PLOT_H}" fill="${AIR_ZONE_COLOR}" fill-opacity="0.45"/>`);
+  // Buitenlucht zone (rechts)
+  parts.push(`<rect x="${MARGIN.left + PLOT_W - AIR_ZONE_W}" y="${MARGIN.top}" width="${AIR_ZONE_W}" height="${PLOT_H}" fill="${AIR_ZONE_COLOR}" fill-opacity="0.45"/>`);
 
   // Layer bands with NEN 47 patterns and stud visualization
   let xCum = 0;
@@ -224,12 +237,12 @@ export function generateGlaserSvg(
       const clipId = `insulation-clip-${i}`;
       const style = ZIGZAG_STYLE[cat] ?? { strokeWidth: 0.8 };
       const periodScale = cat === "isolatie_natuurlijk" ? 1.3 : 1.0;
-      const extraWidth = PLOT_H / ZIGZAG_TAN;
+      const extraH = w / ZIGZAG_TAN;
       const mainPath = generateZigzagPath(
-        x - extraWidth,
-        MARGIN.top,
-        w + 2 * extraWidth,
-        PLOT_H,
+        x,
+        MARGIN.top - extraH,
+        w,
+        PLOT_H + 2 * extraH,
         periodScale,
       );
       parts.push(`<clipPath id="${clipId}"><rect x="${x.toFixed(1)}" y="${MARGIN.top}" width="${w.toFixed(1)}" height="${PLOT_H}"/></clipPath>`);
@@ -237,10 +250,10 @@ export function generateGlaserSvg(
       parts.push(`<path d="${mainPath}" fill="none" stroke="#555" stroke-width="${style.strokeWidth}" opacity="0.6" stroke-linejoin="round"/>`);
       if (style.offset) {
         const offsetPath = generateZigzagPath(
-          x - extraWidth + style.offset,
-          MARGIN.top,
-          w + 2 * extraWidth,
-          PLOT_H,
+          x,
+          MARGIN.top - extraH + (style.offset ?? 0),
+          w,
+          PLOT_H + 2 * extraH,
           periodScale,
         );
         parts.push(`<path d="${offsetPath}" fill="none" stroke="#555" stroke-width="${style.strokeWidth}" opacity="0.6" stroke-linejoin="round"/>`);

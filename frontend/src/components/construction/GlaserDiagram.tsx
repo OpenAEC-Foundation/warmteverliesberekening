@@ -34,6 +34,11 @@ const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
 
+/** Breedte van de binnen/buiten-lucht zones (px). */
+const AIR_ZONE_W = 15;
+/** Kleur van de binnen/buiten-lucht zones (lichtblauw, zelfde als oude spouw). */
+const AIR_ZONE_COLOR = "#bfdbfe";
+
 /** Minimum aantal zichtbare studs per laag. */
 const MIN_VISIBLE_STUDS = 2;
 /** Maximum aantal zichtbare studs per laag (voorkomt visuele ruis). */
@@ -90,8 +95,10 @@ const ZIGZAG_STYLE: Record<string, { strokeWidth: number; offset?: number }> = {
 /**
  * Genereer een SVG path (M/L) voor een doorlopend zigzag-patroon binnen een band.
  *
- * De zigzag loopt van de onderkant naar de bovenkant van de band en weer terug,
- * continu herhalend over de breedte. De hoek is ~60° t.o.v. horizontaal.
+ * De zigzag loopt VERTICAAL langs de hoogte van de band (de langste richting).
+ * Elke lijn gaat van de linkerzijde naar de rechterzijde (of terug) onder ~60°
+ * t.o.v. de verticale as. Zo ontstaat het kenmerkende NEN 47 isolatie-patroon
+ * waarbij de lijnen de volledige breedte van de laag overspannen.
  *
  * @param bandX   - linker x-coördinaat van de band
  * @param bandY   - boven y-coördinaat van de band
@@ -107,25 +114,28 @@ function generateZigzagPath(
   bandH: number,
   periodScale = 1.0,
 ): string {
-  // Halve zigzag-breedte: horizontale afstand voor één schuine lijn (onder→boven of boven→onder)
-  const halfPeriod = (bandH / ZIGZAG_TAN) * periodScale;
-  if (halfPeriod < 0.5 || bandW < 1) return "";
+  if (bandW < 1 || bandH < 1) return "";
 
-  const bottom = bandY + bandH;
-  const top = bandY;
+  // Halve zigzag-hoogte: verticale afstand per zijde-oversteek (links→rechts of rechts→links)
+  // Bij 60° t.o.v. verticaal: tan(60°) = bandW / halfPeriod → halfPeriod = bandW / tan(60°)
+  const halfPeriod = (bandW / ZIGZAG_TAN) * periodScale;
+  if (halfPeriod < 0.5) return "";
+
+  const left = bandX;
+  const right = bandX + bandW;
 
   const points: string[] = [];
-  let x = bandX;
-  let goingUp = true;
+  let y = bandY;
+  let goingRight = true;
 
-  // Start linksonder
-  points.push(`M${x.toFixed(1)},${bottom.toFixed(1)}`);
+  // Start linksboven
+  points.push(`M${left.toFixed(1)},${y.toFixed(1)}`);
 
-  while (x < bandX + bandW + halfPeriod) {
-    x += halfPeriod;
-    const y = goingUp ? top : bottom;
+  while (y < bandY + bandH + halfPeriod) {
+    y += halfPeriod;
+    const x = goingRight ? right : left;
     points.push(`L${x.toFixed(1)},${y.toFixed(1)}`);
-    goingUp = !goingUp;
+    goingRight = !goingRight;
   }
 
   return points.join(" ");
@@ -402,6 +412,25 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
         strokeWidth={1}
       />
 
+      {/* Binnenlucht zone (links) */}
+      <rect
+        x={MARGIN.left}
+        y={MARGIN.top}
+        width={AIR_ZONE_W}
+        height={PLOT_H}
+        fill={AIR_ZONE_COLOR}
+        fillOpacity={0.45}
+      />
+      {/* Buitenlucht zone (rechts) */}
+      <rect
+        x={MARGIN.left + PLOT_W - AIR_ZONE_W}
+        y={MARGIN.top}
+        width={AIR_ZONE_W}
+        height={PLOT_H}
+        fill={AIR_ZONE_COLOR}
+        fillOpacity={0.45}
+      />
+
       {/* Laag-banden met kleur, arcering en studs */}
       {layerBands.map((band, i) => {
         const studBands = band.stud
@@ -435,11 +464,12 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
               const clipId = `insulation-clip-${i}`;
               const style = ZIGZAG_STYLE[band.category] ?? { strokeWidth: 0.8 };
               const periodScale = band.category === "isolatie_natuurlijk" ? 1.3 : 1.0;
+              const extraH = band.w / ZIGZAG_TAN;
               const mainPath = generateZigzagPath(
-                band.x - PLOT_H / ZIGZAG_TAN,
-                MARGIN.top,
-                band.w + 2 * (PLOT_H / ZIGZAG_TAN),
-                PLOT_H,
+                band.x,
+                MARGIN.top - extraH,
+                band.w,
+                PLOT_H + 2 * extraH,
                 periodScale,
               );
               return (
@@ -460,10 +490,10 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
                     {style.offset && (
                       <path
                         d={generateZigzagPath(
-                          band.x - PLOT_H / ZIGZAG_TAN + style.offset,
-                          MARGIN.top,
-                          band.w + 2 * (PLOT_H / ZIGZAG_TAN),
-                          PLOT_H,
+                          band.x,
+                          MARGIN.top - extraH + (style.offset ?? 0),
+                          band.w,
+                          PLOT_H + 2 * extraH,
                           periodScale,
                         )}
                         fill="none"
