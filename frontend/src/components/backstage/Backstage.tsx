@@ -450,7 +450,7 @@ function AboutPanel() {
         </div>
         <div className="bs-about-app-info">
           <h1 className="bs-about-app-name">ISSO 51 Warmteverliesberekening</h1>
-          <p className="bs-about-version">{t("aboutPanel.version")} 0.1.0</p>
+          <p className="bs-about-version">{t("aboutPanel.version")} {__APP_VERSION__}</p>
         </div>
       </div>
       <p className="bs-about-tagline">Warmteverliesberekening volgens ISSO 51:2023</p>

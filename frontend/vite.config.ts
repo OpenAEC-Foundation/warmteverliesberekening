@@ -10,6 +10,11 @@ export default defineConfig(({ mode }) => {
   // Load all env vars (incl. without VITE_ prefix) for proxy config
   const env = loadEnv(mode, __dirname, "");
 
+  // Versienummer: Docker build-arg → .env.local → process.env → package.json fallback
+  const appVersion = env.VITE_APP_VERSION
+    || process.env.VITE_APP_VERSION
+    || "dev";
+
   // Tauri plugin modules are only available at runtime in Tauri desktop builds.
   // Mark them as external so Rollup doesn't fail when building for web.
   const tauriExternals = [
@@ -18,6 +23,9 @@ export default defineConfig(({ mode }) => {
   ];
 
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
     plugins: [
       react(),
       oidcSpa({ sessionRestorationMethod: "full page redirect" }),

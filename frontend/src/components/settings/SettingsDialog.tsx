@@ -422,7 +422,7 @@ function AboutTabContent() {
     <div className="settings-section">
       <h3>ISSO 51 Warmteverliesberekening</h3>
       <div style={{ fontSize: 11, lineHeight: 1.8 }}>
-        <p><strong>{t("about.version")}:</strong> 0.1.0</p>
+        <p><strong>{t("about.version")}:</strong> {__APP_VERSION__}</p>
         <p><strong>{t("about.framework")}:</strong> Tauri + React + TypeScript + Rust</p>
         <p><strong>{t("about.license")}:</strong> MIT</p>
         <p style={{ marginTop: 8, color: "var(--theme-dialog-content-secondary)" }}>

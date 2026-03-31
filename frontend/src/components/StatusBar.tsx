@@ -19,7 +19,7 @@ export default function StatusBar() {
 
       <div className="status-bar-center">
         <span className="status-item-label" style={{ fontSize: "11px" }}>
-          Warmteverlies v{import.meta.env.VITE_APP_VERSION || "dev"}
+          Warmteverlies v{__APP_VERSION__}
         </span>
       </div>
 

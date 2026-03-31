@@ -205,7 +205,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-[var(--oaec-border-subtle)] px-4 py-3">
-        <p className="text-2xs text-scaffold-gray">v0.1.0</p>
+        <p className="text-2xs text-scaffold-gray">v{__APP_VERSION__}</p>
       </div>
     </aside>
   );
