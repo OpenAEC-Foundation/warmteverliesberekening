@@ -29,7 +29,7 @@ interface GlaserDiagramProps {
 // ---------- Layout constanten ----------
 
 const WIDTH = 640;
-const HEIGHT = 340;
+const HEIGHT = 420;
 const MARGIN = { top: 20, right: 25, bottom: 60, left: 58 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -176,11 +176,11 @@ function computeStudBands(
 ): StudBand[] {
   if (bandH < 20) return []; // Te laag om studs te tonen
 
-  // Toon studs schematisch, met correcte totale dekking
+  // Stijlen prominent tonen: elke stud is proportioneel aan stud.width/spacing
   const fraction = stud.width / stud.spacing; // bijv. 38/600 = 0.063
   const count = STUD_COUNT;
-  // Verdeel totale stud-dekking over de studs
-  const studPixelH = Math.max((bandH * fraction) / count, 2);
+  // Elke stud krijgt de volledige proportionele hoogte (niet gedeeld door count)
+  const studPixelH = Math.max(bandH * fraction, 6);
 
   // Verdeel evenredig over de hoogte
   const totalStudH = count * studPixelH;
@@ -391,7 +391,7 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       className="w-full"
-      style={{ maxHeight: 380 }}
+      style={{ maxHeight: 460 }}
     >
       <HatchPatterns />
 
@@ -440,7 +440,7 @@ export function GlaserDiagram({ result, thetaI, thetaE }: GlaserDiagramProps) {
               width={Math.max(band.w, 1)}
               height={PLOT_H}
               fill={band.color}
-              fillOpacity={0.55}
+              fillOpacity={0.7}
             />
             {/* Arcering overlay voor hele laag (tiled pattern, niet voor isolatie) */}
             {band.patternId && (

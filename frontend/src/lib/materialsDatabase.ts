@@ -394,7 +394,7 @@ export const MATERIAL_CATEGORY_VISUALS: Record<MaterialCategory, CategoryVisual>
   isolatie_kunststof: { color: "#f9a8d4", patternId: "hatch-insulation-plastic" },
   isolatie_natuurlijk:{ color: "#86efac", patternId: "hatch-insulation-natural" },
   hout:               { color: "#c68642", patternId: "hatch-wood" },
-  spouw:              { color: "#ffffff", patternId: "hatch-cavity" },
+  spouw:              { color: "#ffffff" },
   folie:              { color: "#a5b4fc", patternId: "hatch-foil" },
   afwerking:          { color: "#e7e5e4", patternId: "hatch-finish" },
   plaatmateriaal:     { color: "#fbbf24", patternId: "hatch-board" },
