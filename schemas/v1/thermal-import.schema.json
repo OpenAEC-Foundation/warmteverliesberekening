@@ -1,0 +1,223 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "thermal-import-v1",
+  "title": "Thermal Import",
+  "description": "Revit thermal shell export for warmteverlies import. Contract between PyRevit ThermalExport and warmteverlies import pipeline.",
+  "type": "object",
+  "required": ["version", "source", "exported_at", "rooms", "constructions"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["revit-eam", "revit-raycast", "ifc"]
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "rooms": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Room" },
+      "minItems": 1
+    },
+    "constructions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Construction" }
+    },
+    "openings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Opening" },
+      "default": []
+    },
+    "open_connections": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/OpenConnection" },
+      "default": []
+    }
+  },
+  "definitions": {
+    "Room": {
+      "type": "object",
+      "required": ["id", "name", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable unique identifier (e.g. room-0, room-outside)"
+        },
+        "revit_id": {
+          "type": "integer",
+          "description": "Revit ElementId for round-trip reference"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["heated", "unheated", "outside", "ground", "water"],
+          "description": "Thermal zone type. 'outside', 'ground', 'water' are pseudo-rooms."
+        },
+        "level": {
+          "type": "string",
+          "description": "Revit level name"
+        },
+        "area_m2": {
+          "type": "number",
+          "minimum": 0
+        },
+        "height_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "volume_m3": {
+          "type": "number",
+          "minimum": 0
+        },
+        "boundary_polygon": {
+          "type": "array",
+          "description": "2D boundary polygon as [[x, y], ...] in meters",
+          "items": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 3
+        }
+      }
+    },
+    "Construction": {
+      "type": "object",
+      "required": ["id", "room_a", "room_b", "orientation", "gross_area_m2"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "room_a": {
+          "type": "string",
+          "description": "Interior room ID (the room this construction belongs to)"
+        },
+        "room_b": {
+          "type": "string",
+          "description": "Adjacent room ID (or pseudo-room: outside/ground/water)"
+        },
+        "orientation": {
+          "type": "string",
+          "enum": ["wall", "floor", "ceiling", "roof"]
+        },
+        "compass": {
+          "type": "string",
+          "enum": ["N", "NE", "E", "SE", "S", "SW", "W", "NW"],
+          "description": "Compass direction for walls"
+        },
+        "gross_area_m2": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Gross area including openings"
+        },
+        "revit_element_id": {
+          "type": "integer"
+        },
+        "revit_type_name": {
+          "type": "string"
+        },
+        "layers": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/ConstructionLayer" },
+          "description": "Layer build-up from interior to exterior"
+        }
+      }
+    },
+    "ConstructionLayer": {
+      "type": "object",
+      "required": ["material", "thickness_mm"],
+      "properties": {
+        "material": {
+          "type": "string",
+          "description": "Material name as reported by Revit"
+        },
+        "thickness_mm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "distance_from_interior_mm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Cumulative distance from interior surface"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["solid", "air_gap"],
+          "default": "solid"
+        },
+        "lambda": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Thermal conductivity W/(m·K) if known from Revit material"
+        }
+      }
+    },
+    "Opening": {
+      "type": "object",
+      "required": ["id", "construction_id", "type", "width_mm", "height_mm"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "construction_id": {
+          "type": "string",
+          "description": "ID of the host construction"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["window", "door", "curtain_wall"]
+        },
+        "width_mm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "height_mm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sill_height_mm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "u_value": {
+          "type": "number",
+          "minimum": 0,
+          "description": "U-value in W/(m²·K) if known (e.g. curtain walls)"
+        },
+        "revit_element_id": {
+          "type": "integer"
+        },
+        "revit_type_name": {
+          "type": "string"
+        }
+      }
+    },
+    "OpenConnection": {
+      "type": "object",
+      "required": ["room_a", "room_b", "area_m2"],
+      "properties": {
+        "room_a": {
+          "type": "string"
+        },
+        "room_b": {
+          "type": "string"
+        },
+        "area_m2": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Open area between rooms (room separator without wall)"
+        }
+      }
+    }
+  }
+}

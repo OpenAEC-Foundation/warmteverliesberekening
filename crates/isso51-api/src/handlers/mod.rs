@@ -6,6 +6,7 @@ mod ifc_import;
 mod ifcx;
 mod projects;
 mod report;
+mod thermal_import;
 mod user;
 
 pub use calculation::{calculate, get_schema, health, list_schemas};
@@ -20,4 +21,5 @@ pub use projects::{
     update_project,
 };
 pub use report::generate_report;
+pub use thermal_import::thermal_import_handler;
 pub use user::get_profile;

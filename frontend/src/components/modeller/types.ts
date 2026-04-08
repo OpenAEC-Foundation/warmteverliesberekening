@@ -110,6 +110,20 @@ export type ModellerTool =
   | "annotate_leader"
   | "measure";
 
+// ---------------------------------------------------------------------------
+// Imported thermal boundaries (from Revit thermal import)
+// ---------------------------------------------------------------------------
+
+export interface ImportedBoundary {
+  id: string;
+  roomId: string;
+  adjacentRoomId: string;
+  orientation: 'wall' | 'floor' | 'ceiling' | 'roof';
+  boundaryCondition: 'exterior' | 'ground' | 'water' | 'unheated' | 'adjacent';
+  area_m2: number;
+  compass?: string;
+}
+
 export type ViewMode = "2d" | "3d";
 
 // ---------------------------------------------------------------------------

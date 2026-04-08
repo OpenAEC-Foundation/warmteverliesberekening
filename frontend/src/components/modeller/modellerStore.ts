@@ -7,7 +7,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { ModelRoom, ModelWindow, ModelDoor, WallBoundaryType, ProjectConstruction } from "./types";
+import type { ModelRoom, ModelWindow, ModelDoor, WallBoundaryType, ProjectConstruction, ImportedBoundary } from "./types";
 import { buildLayerName, type CatalogueEntry } from "../../lib/constructionCatalogue";
 import { EXAMPLE_ROOMS, EXAMPLE_WINDOWS } from "./exampleData";
 
@@ -126,6 +126,9 @@ interface ModellerStore {
   // Wall boundary type overrides: "roomId:wallIndex" -> WallBoundaryType
   wallBoundaryTypes: Record<string, WallBoundaryType>;
 
+  // Imported thermal boundaries (from Revit thermal import)
+  importedBoundaries: ImportedBoundary[];
+
   // History (not persisted)
   _past: Snapshot[];
   _future: Snapshot[];
@@ -155,6 +158,10 @@ interface ModellerStore {
 
   // Wall boundary type
   assignWallBoundaryType: (roomId: string, wallIndex: number, boundaryType: WallBoundaryType) => void;
+
+  // Imported boundaries
+  setImportedBoundaries: (boundaries: ImportedBoundary[]) => void;
+  clearImportedBoundaries: () => void;
 
   // Project construction CRUD
   addProjectConstruction: (construction: Omit<ProjectConstruction, "id">) => string;
@@ -233,6 +240,7 @@ export const useModellerStore = create<ModellerStore>()(
       floorConstructions: {},
       roofConstructions: {},
       wallBoundaryTypes: {},
+      importedBoundaries: [],
       _past: [],
       _future: [],
 
@@ -360,6 +368,10 @@ export const useModellerStore = create<ModellerStore>()(
           return { wallBoundaryTypes: next };
         });
       },
+
+      // -- Imported boundaries --
+      setImportedBoundaries: (boundaries) => set({ importedBoundaries: boundaries }),
+      clearImportedBoundaries: () => set({ importedBoundaries: [] }),
 
       // -- Project construction CRUD --
       addProjectConstruction: (construction) => {
@@ -534,6 +546,7 @@ export const useModellerStore = create<ModellerStore>()(
           floorConstructions: {},
           roofConstructions: {},
           wallBoundaryTypes: {},
+          importedBoundaries: [],
           _past: [],
           _future: [],
         }),
@@ -551,6 +564,7 @@ export const useModellerStore = create<ModellerStore>()(
         floorConstructions: state.floorConstructions,
         roofConstructions: state.roofConstructions,
         wallBoundaryTypes: state.wallBoundaryTypes,
+        importedBoundaries: state.importedBoundaries,
       }),
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;

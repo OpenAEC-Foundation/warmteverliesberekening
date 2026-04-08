@@ -15,8 +15,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 
-import type { ModelRoom, ModelWindow, ModelDoor, Selection } from "./types";
+import type { ModelRoom, ModelWindow, ModelDoor, Selection, ImportedBoundary } from "./types";
 import { polygonCenter, getSharedEdges } from "./geometry";
+import { useModellerStore } from "./modellerStore";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -66,6 +67,17 @@ const DOOR_HEAD_H = 2.1;    // m
 const WIREFRAME_COLOR = 0xffffff;
 const WIREFRAME_WIDTH = 2;
 const INTER_FLOOR_GAP_M = 0.3;
+
+// Imported boundary condition colors
+const BOUNDARY_CONDITION_COLORS: Record<ImportedBoundary["boundaryCondition"], number> = {
+  exterior: 0x4a9eff,
+  ground: 0x8b6914,
+  water: 0x1a6b8a,
+  unheated: 0xff9800,
+  adjacent: 0x666666,
+};
+const BOUNDARY_OPACITY = 0.3;
+const BOUNDARY_EDGE_COLOR = 0x333333;
 
 // ---------------------------------------------------------------------------
 // Elevation helper
@@ -128,10 +140,14 @@ export function FloorCanvas3D({
   const componentsRef = useRef<OBC.Components | null>(null);
   const modelGroupRef = useRef<THREE.Group>(new THREE.Group());
   const wireframeGroupRef = useRef<THREE.Group>(new THREE.Group());
+  const boundaryGroupRef = useRef<THREE.Group>(new THREE.Group());
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
   const surfaceMeshMapRef = useRef(new Map<THREE.Mesh, SurfaceId>());
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+
+  // Read imported boundaries from store
+  const importedBoundaries = useModellerStore((s) => s.importedBoundaries);
 
   // Derive selectedRoomId from selection
   const selectedRoomId = selection?.type === "room" ? selection.roomId
@@ -243,10 +259,12 @@ export function FloorCanvas3D({
 
     scene.add(modelGroupRef.current);
     scene.add(wireframeGroupRef.current);
+    scene.add(boundaryGroupRef.current);
 
     return () => {
       modelGroupRef.current.removeFromParent();
       wireframeGroupRef.current.removeFromParent();
+      boundaryGroupRef.current.removeFromParent();
       components.dispose();
       componentsRef.current = null;
       rendererRef.current = null;
@@ -421,6 +439,158 @@ export function FloorCanvas3D({
       group.add(sprite);
     }
   }, [rooms, windows, doors, selectedRoomId, selectedWallIndex, renderMode, wallConstructions, floorConstructions, roofConstructions, catalogueUValues]);
+
+  // -----------------------------------------------------------------------
+  // Build imported boundary meshes
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    const bGroup = boundaryGroupRef.current;
+    clearGroup(bGroup);
+
+    if (importedBoundaries.length === 0) return;
+
+    // Build a room lookup for polygon and height data
+    const roomMap = new Map<string, ModelRoom>();
+    for (const room of rooms) {
+      roomMap.set(room.id, room);
+    }
+
+    for (const boundary of importedBoundaries) {
+      const room = roomMap.get(boundary.roomId);
+      if (!room) continue;
+
+      const color = BOUNDARY_CONDITION_COLORS[boundary.boundaryCondition] ?? 0x999999;
+      const floorY = roomFloorY(room);
+      const h = room.height / 1000;
+      const poly = room.polygon;
+      const n = poly.length;
+
+      if (boundary.orientation === 'floor') {
+        // Floor boundary: render at floor level using room polygon
+        const geom = createPolygonGeometry(poly);
+        const mat = new THREE.MeshStandardMaterial({
+          color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: BOUNDARY_OPACITY,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.position.y = floorY + 0.002;
+        mesh.renderOrder = 3;
+        bGroup.add(mesh);
+
+        // Wireframe edge for the floor polygon
+        const edgePositions: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const ni = (i + 1) % n;
+          edgePositions.push(
+            poly[i]!.x / 1000, floorY + 0.003, poly[i]!.y / 1000,
+            poly[ni]!.x / 1000, floorY + 0.003, poly[ni]!.y / 1000,
+          );
+        }
+        const edgeGeom = new THREE.BufferGeometry();
+        edgeGeom.setAttribute("position", new THREE.Float32BufferAttribute(edgePositions, 3));
+        const edgeMat = new THREE.LineBasicMaterial({ color: BOUNDARY_EDGE_COLOR, linewidth: 1 });
+        bGroup.add(new THREE.LineSegments(edgeGeom, edgeMat));
+
+      } else if (boundary.orientation === 'ceiling' || boundary.orientation === 'roof') {
+        // Ceiling/roof boundary: render at ceiling level using room polygon
+        const geom = createPolygonGeometry(poly);
+        const mat = new THREE.MeshStandardMaterial({
+          color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: BOUNDARY_OPACITY,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.position.y = floorY + h + 0.002;
+        mesh.renderOrder = 3;
+        bGroup.add(mesh);
+
+        // Wireframe edge for the ceiling polygon
+        const edgePositions: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const ni = (i + 1) % n;
+          edgePositions.push(
+            poly[i]!.x / 1000, floorY + h + 0.003, poly[i]!.y / 1000,
+            poly[ni]!.x / 1000, floorY + h + 0.003, poly[ni]!.y / 1000,
+          );
+        }
+        const edgeGeom = new THREE.BufferGeometry();
+        edgeGeom.setAttribute("position", new THREE.Float32BufferAttribute(edgePositions, 3));
+        const edgeMat = new THREE.LineBasicMaterial({ color: BOUNDARY_EDGE_COLOR, linewidth: 1 });
+        bGroup.add(new THREE.LineSegments(edgeGeom, edgeMat));
+
+      } else if (boundary.orientation === 'wall') {
+        // Wall boundary: distribute across room polygon edges proportionally.
+        // Without exact vertex data we render a rectangular plane on each edge,
+        // distributing the boundary area proportionally across all edges.
+        const totalPerimeter = poly.reduce((sum, p, i) => {
+          const np = poly[(i + 1) % n]!;
+          return sum + Math.hypot(np.x - p.x, np.y - p.y) / 1000;
+        }, 0);
+
+        for (let i = 0; i < n; i++) {
+          const ni = (i + 1) % n;
+          const a = poly[i]!;
+          const b = poly[ni]!;
+          const edgeLenM = Math.hypot(b.x - a.x, b.y - a.y) / 1000;
+          if (edgeLenM < 0.01) continue;
+
+          // Fraction of total perimeter this edge represents
+          const fraction = edgeLenM / totalPerimeter;
+          // Proportional area for this edge
+          const edgeArea = boundary.area_m2 * fraction;
+          // Wall height for this edge (area / width), capped to room height
+          const wallH = Math.min(edgeArea / edgeLenM, h);
+
+          const ax = a.x / 1000;
+          const az = a.y / 1000;
+          const bx = b.x / 1000;
+          const bz = b.y / 1000;
+
+          const positions = new Float32Array([
+            ax, 0, az,
+            bx, 0, bz,
+            bx, wallH, bz,
+            ax, wallH, az,
+          ]);
+          const indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+          const geom = new THREE.BufferGeometry();
+          geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+          geom.setIndex(new THREE.BufferAttribute(indices, 1));
+          geom.computeVertexNormals();
+
+          const mat = new THREE.MeshStandardMaterial({
+            color,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: BOUNDARY_OPACITY,
+            depthWrite: false,
+          });
+          const mesh = new THREE.Mesh(geom, mat);
+          mesh.position.y = floorY;
+          mesh.renderOrder = 3;
+          bGroup.add(mesh);
+
+          // Wireframe edge for the wall quad
+          const edgePositions = new Float32Array([
+            ax, floorY, az, bx, floorY, bz,
+            bx, floorY, bz, bx, floorY + wallH, bz,
+            bx, floorY + wallH, bz, ax, floorY + wallH, az,
+            ax, floorY + wallH, az, ax, floorY, az,
+          ]);
+          const edgeGeom = new THREE.BufferGeometry();
+          edgeGeom.setAttribute("position", new THREE.BufferAttribute(edgePositions, 3));
+          const edgeMat = new THREE.LineBasicMaterial({ color: BOUNDARY_EDGE_COLOR, linewidth: 1 });
+          bGroup.add(new THREE.LineSegments(edgeGeom, edgeMat));
+        }
+      }
+    }
+  }, [importedBoundaries, rooms]);
 
   // -----------------------------------------------------------------------
   // Click handler (room selection)

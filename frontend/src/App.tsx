@@ -10,6 +10,7 @@ import { RcCalculator } from "./pages/RcCalculator";
 import { Results } from "./pages/Results";
 import { Modeller } from "./pages/Modeller";
 import { ProjectConstructions } from "./pages/ProjectConstructions";
+import { ThermalImportWizard } from "./components/import/ThermalImportWizard";
 import { isTauri } from "./lib/backend";
 
 /** Whether OIDC env vars are baked in at build time. */
@@ -82,6 +83,7 @@ export function App() {
           <Route path="/materialen" element={<Library initialSection="materialen" />} />
           <Route path="/results" element={<Results />} />
           <Route path="/modeller" element={<Modeller />} />
+          <Route path="/import/thermal" element={<ThermalImportWizard />} />
           <Route path="/projects" element={<Projects />} />
         </Routes>
       </AppShell>

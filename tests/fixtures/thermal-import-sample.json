@@ -1,0 +1,261 @@
+{
+  "version": "1.0",
+  "source": "revit-eam",
+  "exported_at": "2026-04-08T10:30:00",
+  "project_name": "Woonhuis Gouda",
+  "rooms": [
+    {
+      "id": "room-0",
+      "revit_id": 123456,
+      "name": "Woonkamer",
+      "type": "heated",
+      "level": "Begane grond",
+      "area_m2": 28.5,
+      "height_m": 2.6,
+      "volume_m3": 74.1,
+      "boundary_polygon": [[0, 0], [6, 0], [6, 4.75], [0, 4.75]]
+    },
+    {
+      "id": "room-1",
+      "revit_id": 123457,
+      "name": "Hal",
+      "type": "unheated",
+      "level": "Begane grond",
+      "area_m2": 8.2,
+      "height_m": 2.6,
+      "volume_m3": 21.3,
+      "boundary_polygon": [[6, 0], [9, 0], [9, 4.75], [6, 4.75]]
+    },
+    {
+      "id": "room-2",
+      "revit_id": 123458,
+      "name": "Slaapkamer",
+      "type": "heated",
+      "level": "1e verdieping",
+      "area_m2": 14.0,
+      "height_m": 2.6,
+      "volume_m3": 36.4,
+      "boundary_polygon": [[0, 0], [4, 0], [4, 3.5], [0, 3.5]]
+    },
+    {
+      "id": "room-outside",
+      "name": "Buiten",
+      "type": "outside"
+    },
+    {
+      "id": "room-ground",
+      "name": "Grond",
+      "type": "ground"
+    }
+  ],
+  "constructions": [
+    {
+      "id": "constr-0",
+      "room_a": "room-0",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "compass": "N",
+      "gross_area_m2": 12.35,
+      "revit_element_id": 200001,
+      "revit_type_name": "Spouwmuur 300mm",
+      "layers": [
+        {
+          "material": "Gipsplaat",
+          "thickness_mm": 12.5,
+          "distance_from_interior_mm": 0,
+          "type": "solid",
+          "lambda": 0.25
+        },
+        {
+          "material": "Minerale wol",
+          "thickness_mm": 150,
+          "distance_from_interior_mm": 12.5,
+          "type": "solid",
+          "lambda": 0.035
+        },
+        {
+          "material": "Luchtspouw",
+          "thickness_mm": 40,
+          "distance_from_interior_mm": 162.5,
+          "type": "air_gap"
+        },
+        {
+          "material": "Baksteen",
+          "thickness_mm": 100,
+          "distance_from_interior_mm": 202.5,
+          "type": "solid",
+          "lambda": 0.9
+        }
+      ]
+    },
+    {
+      "id": "constr-1",
+      "room_a": "room-0",
+      "room_b": "room-1",
+      "orientation": "wall",
+      "compass": "E",
+      "gross_area_m2": 7.8,
+      "revit_element_id": 200002,
+      "revit_type_name": "Binnenwand 100mm",
+      "layers": [
+        {
+          "material": "Gipsplaat",
+          "thickness_mm": 12.5,
+          "distance_from_interior_mm": 0,
+          "type": "solid",
+          "lambda": 0.25
+        },
+        {
+          "material": "Kalkzandsteen",
+          "thickness_mm": 100,
+          "distance_from_interior_mm": 12.5,
+          "type": "solid",
+          "lambda": 1.0
+        },
+        {
+          "material": "Gipsplaat",
+          "thickness_mm": 12.5,
+          "distance_from_interior_mm": 112.5,
+          "type": "solid",
+          "lambda": 0.25
+        }
+      ]
+    },
+    {
+      "id": "constr-2",
+      "room_a": "room-0",
+      "room_b": "room-ground",
+      "orientation": "floor",
+      "gross_area_m2": 28.5,
+      "revit_element_id": 200003,
+      "revit_type_name": "Begane grondvloer",
+      "layers": [
+        {
+          "material": "Tegels",
+          "thickness_mm": 10,
+          "distance_from_interior_mm": 0,
+          "type": "solid",
+          "lambda": 1.3
+        },
+        {
+          "material": "Dekvloer",
+          "thickness_mm": 60,
+          "distance_from_interior_mm": 10,
+          "type": "solid",
+          "lambda": 1.4
+        },
+        {
+          "material": "EPS isolatie",
+          "thickness_mm": 100,
+          "distance_from_interior_mm": 70,
+          "type": "solid",
+          "lambda": 0.034
+        },
+        {
+          "material": "Beton",
+          "thickness_mm": 200,
+          "distance_from_interior_mm": 170,
+          "type": "solid",
+          "lambda": 1.7
+        }
+      ]
+    },
+    {
+      "id": "constr-3",
+      "room_a": "room-2",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "compass": "S",
+      "gross_area_m2": 9.1,
+      "revit_element_id": 200004,
+      "revit_type_name": "Spouwmuur 300mm",
+      "layers": [
+        {
+          "material": "Gipsplaat",
+          "thickness_mm": 12.5,
+          "distance_from_interior_mm": 0,
+          "type": "solid",
+          "lambda": 0.25
+        },
+        {
+          "material": "Minerale wol",
+          "thickness_mm": 150,
+          "distance_from_interior_mm": 12.5,
+          "type": "solid",
+          "lambda": 0.035
+        },
+        {
+          "material": "Luchtspouw",
+          "thickness_mm": 40,
+          "distance_from_interior_mm": 162.5,
+          "type": "air_gap"
+        },
+        {
+          "material": "Baksteen",
+          "thickness_mm": 100,
+          "distance_from_interior_mm": 202.5,
+          "type": "solid",
+          "lambda": 0.9
+        }
+      ]
+    },
+    {
+      "id": "constr-4",
+      "room_a": "room-2",
+      "room_b": "room-outside",
+      "orientation": "roof",
+      "gross_area_m2": 14.0,
+      "revit_element_id": 200005,
+      "revit_type_name": "Hellend dak",
+      "layers": []
+    }
+  ],
+  "openings": [
+    {
+      "id": "opening-0",
+      "construction_id": "constr-0",
+      "type": "window",
+      "width_mm": 1200,
+      "height_mm": 1500,
+      "sill_height_mm": 900,
+      "revit_element_id": 300001,
+      "revit_type_name": "Raam 1200x1500"
+    },
+    {
+      "id": "opening-1",
+      "construction_id": "constr-0",
+      "type": "window",
+      "width_mm": 1800,
+      "height_mm": 2100,
+      "sill_height_mm": 300,
+      "revit_element_id": 300002,
+      "revit_type_name": "Schuifpui 1800x2100"
+    },
+    {
+      "id": "opening-2",
+      "construction_id": "constr-1",
+      "type": "door",
+      "width_mm": 830,
+      "height_mm": 2115,
+      "revit_element_id": 300003,
+      "revit_type_name": "Binnendeur 83"
+    },
+    {
+      "id": "opening-3",
+      "construction_id": "constr-3",
+      "type": "window",
+      "width_mm": 1000,
+      "height_mm": 1200,
+      "sill_height_mm": 900,
+      "revit_element_id": 300004,
+      "revit_type_name": "Raam 1000x1200"
+    }
+  ],
+  "open_connections": [
+    {
+      "room_a": "room-0",
+      "room_b": "room-1",
+      "area_m2": 4.2
+    }
+  ]
+}
