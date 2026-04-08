@@ -2,6 +2,7 @@
 //!
 //! Supports importing from Revit thermal exports (via PyRevit ThermalExport).
 
+pub mod sfb;
 pub mod thermal;
 
 pub use thermal::{map_thermal_import, ThermalImport, ThermalImportResult};

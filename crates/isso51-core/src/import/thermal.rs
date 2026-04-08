@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::sfb::build_sfb_name;
 use crate::model::{
     BoundaryType, Building, BuildingType, ConstructionElement, DesignConditions, GroundParameters,
     HeatingSystem, InfiltrationMethod, MaterialType, Project, ProjectInfo, Room, RoomFunction,
@@ -259,8 +260,21 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
         }
 
         // Map constructions for this room.
-        let mut elements: Vec<ConstructionElement> = Vec::new();
+        // Phase 1: Collect individual construction surfaces and openings.
+        let mut raw_elements: Vec<ConstructionElement> = Vec::new();
+        let mut opening_elements: Vec<ConstructionElement> = Vec::new();
         let mut elem_counter: u32 = 0;
+
+        // Track grouping info per element: (revit_type_name, boundary_type, orientation, layers)
+        // Used for grouping in phase 2.
+        struct GroupingInfo {
+            revit_type_name: String,
+            boundary_type: BoundaryType,
+            orientation: ThermalOrientation,
+            layers: Vec<ThermalLayer>,
+            adjacent_room_id: Option<String>,
+        }
+        let mut grouping_infos: Vec<GroupingInfo> = Vec::new();
 
         if let Some(constructions) = constructions_by_room.get(thermal_room.id.as_str()) {
             for construction in constructions {
@@ -322,63 +336,65 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                     .unwrap_or(0.0);
                 let net_area = (construction.gross_area_m2 - total_opening_area).max(0.0);
 
-                // Build description.
-                let description = format!(
-                    "{} — {}",
-                    construction
-                        .revit_type_name
-                        .as_deref()
-                        .unwrap_or("constructie"),
-                    construction
-                        .compass
-                        .as_deref()
-                        .unwrap_or(match construction.orientation {
-                            ThermalOrientation::Floor => "vloer",
-                            ThermalOrientation::Ceiling => "plafond",
-                            ThermalOrientation::Roof => "dak",
-                            ThermalOrientation::Wall => "wand",
-                        }),
-                );
-
-                // Adjacent room info.
-                let adjacent_room_id = if boundary_type == BoundaryType::AdjacentRoom
-                    || boundary_type == BoundaryType::UnheatedSpace
-                {
-                    Some(construction.room_b.clone())
+                // Filter: skip 0 m² construction surfaces.
+                if net_area <= 0.0 {
+                    warnings.push(format!(
+                        "Constructie '{}' ({}) overgeslagen: netto oppervlak is 0 m²",
+                        construction.id,
+                        construction.revit_type_name.as_deref().unwrap_or("onbekend"),
+                    ));
                 } else {
-                    None
-                };
+                    // Adjacent room info.
+                    let adjacent_room_id = if boundary_type == BoundaryType::AdjacentRoom
+                        || boundary_type == BoundaryType::UnheatedSpace
+                    {
+                        Some(construction.room_b.clone())
+                    } else {
+                        None
+                    };
 
-                // Ground parameters for ground elements.
-                let ground_params = if boundary_type == BoundaryType::Ground {
-                    Some(GroundParameters {
-                        u_equivalent: 0.0,
-                        ground_water_factor: 1.0,
-                        fg2: 1.0,
-                    })
-                } else {
-                    None
-                };
+                    // Ground parameters for ground elements.
+                    let ground_params = if boundary_type == BoundaryType::Ground {
+                        Some(GroundParameters {
+                            u_equivalent: 0.0,
+                            ground_water_factor: 1.0,
+                            fg2: 1.0,
+                        })
+                    } else {
+                        None
+                    };
 
-                elem_counter += 1;
-                elements.push(ConstructionElement {
-                    id: format!("{}-c{}", thermal_room.id, elem_counter),
-                    description,
-                    area: net_area,
-                    u_value: 0.0, // placeholder — user calculates via Rc-calculator
-                    boundary_type,
-                    material_type: MaterialType::Masonry, // default; user adjusts
-                    temperature_factor: None,
-                    adjacent_room_id,
-                    adjacent_temperature: None,
-                    vertical_position,
-                    use_forfaitaire_thermal_bridge: boundary_type == BoundaryType::Exterior,
-                    custom_delta_u_tb: None,
-                    ground_params,
-                    has_embedded_heating: false,
-                });
+                    elem_counter += 1;
+                    raw_elements.push(ConstructionElement {
+                        id: format!("{}-c{}", thermal_room.id, elem_counter),
+                        description: String::new(), // will be set during grouping
+                        area: net_area,
+                        u_value: 0.0, // placeholder — user calculates via Rc-calculator
+                        boundary_type,
+                        material_type: MaterialType::Masonry, // default; user adjusts
+                        temperature_factor: None,
+                        adjacent_room_id: adjacent_room_id.clone(),
+                        adjacent_temperature: None,
+                        vertical_position,
+                        use_forfaitaire_thermal_bridge: boundary_type == BoundaryType::Exterior,
+                        custom_delta_u_tb: None,
+                        ground_params,
+                        has_embedded_heating: false,
+                    });
 
-                // Map openings as separate ConstructionElements.
+                    grouping_infos.push(GroupingInfo {
+                        revit_type_name: construction
+                            .revit_type_name
+                            .clone()
+                            .unwrap_or_else(|| "onbekend".to_string()),
+                        boundary_type,
+                        orientation: construction.orientation,
+                        layers: construction.layers.clone(),
+                        adjacent_room_id,
+                    });
+                }
+
+                // Map openings as separate ConstructionElements (not grouped).
                 if let Some(ops) = openings_in_construction {
                     for opening in ops {
                         let opening_area = (opening.width_mm * opening.height_mm) / 1_000_000.0;
@@ -399,7 +415,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                         );
 
                         elem_counter += 1;
-                        elements.push(ConstructionElement {
+                        opening_elements.push(ConstructionElement {
                             id: format!("{}-c{}", thermal_room.id, elem_counter),
                             description: opening_desc,
                             area: opening_area,
@@ -426,6 +442,100 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                 }
             }
         }
+
+        // Phase 2: Group construction surfaces by (revit_type_name, boundary_type, orientation).
+        // Surfaces with the same key are merged: areas summed, SfB-based name assigned.
+        let mut elements: Vec<ConstructionElement> = Vec::new();
+
+        // Group key: (revit_type_name, boundary_type discriminant, orientation discriminant)
+        type GroupKey = (String, u8, u8);
+
+        fn boundary_discriminant(bt: BoundaryType) -> u8 {
+            match bt {
+                BoundaryType::Exterior => 0,
+                BoundaryType::Ground => 1,
+                BoundaryType::UnheatedSpace => 2,
+                BoundaryType::AdjacentRoom => 3,
+                BoundaryType::AdjacentBuilding => 4,
+            }
+        }
+
+        fn orientation_discriminant(o: ThermalOrientation) -> u8 {
+            match o {
+                ThermalOrientation::Wall => 0,
+                ThermalOrientation::Floor => 1,
+                ThermalOrientation::Ceiling => 2,
+                ThermalOrientation::Roof => 3,
+            }
+        }
+
+        // Build groups, preserving insertion order.
+        let mut group_order: Vec<GroupKey> = Vec::new();
+        let mut groups: HashMap<GroupKey, Vec<usize>> = HashMap::new();
+
+        for (idx, info) in grouping_infos.iter().enumerate() {
+            let key: GroupKey = (
+                info.revit_type_name.clone(),
+                boundary_discriminant(info.boundary_type),
+                orientation_discriminant(info.orientation),
+            );
+            let entry = groups.entry(key.clone()).or_default();
+            if entry.is_empty() {
+                group_order.push(key);
+            }
+            entry.push(idx);
+        }
+
+        let mut group_counter: u32 = 0;
+        for key in &group_order {
+            let indices = &groups[key];
+            let first_idx = indices[0];
+            let first_info = &grouping_infos[first_idx];
+            let first_elem = &raw_elements[first_idx];
+
+            // Sum areas across all surfaces in this group.
+            let total_area: f64 = indices.iter().map(|&i| raw_elements[i].area).sum();
+
+            // Generate SfB-based description.
+            let description = build_sfb_name(
+                first_info.boundary_type,
+                first_info.orientation,
+                &first_info.layers,
+            );
+
+            // Log grouping info when multiple surfaces are merged.
+            if indices.len() > 1 {
+                warnings.push(format!(
+                    "Ruimte '{}': {} grensvlakken van type '{}' samengevoegd tot '{}' (totaal {:.2} m²)",
+                    thermal_room.name,
+                    indices.len(),
+                    first_info.revit_type_name,
+                    description,
+                    total_area,
+                ));
+            }
+
+            group_counter += 1;
+            elements.push(ConstructionElement {
+                id: format!("{}-g{}", thermal_room.id, group_counter),
+                description,
+                area: total_area,
+                u_value: first_elem.u_value,
+                boundary_type: first_elem.boundary_type,
+                material_type: first_elem.material_type,
+                temperature_factor: first_elem.temperature_factor,
+                adjacent_room_id: first_info.adjacent_room_id.clone(),
+                adjacent_temperature: first_elem.adjacent_temperature,
+                vertical_position: first_elem.vertical_position,
+                use_forfaitaire_thermal_bridge: first_elem.use_forfaitaire_thermal_bridge,
+                custom_delta_u_tb: first_elem.custom_delta_u_tb,
+                ground_params: first_elem.ground_params.clone(),
+                has_embedded_heating: first_elem.has_embedded_heating,
+            });
+        }
+
+        // Add opening elements (not grouped).
+        elements.extend(opening_elements);
 
         if elements.is_empty() {
             warnings.push(format!(
@@ -802,5 +912,496 @@ mod tests {
             .expect("room-0 polygon not found");
         assert_eq!(poly_0.polygon.len(), 4);
         assert_eq!(poly_0.height_m, 2.6);
+    }
+
+    // ─── New tests: grouping, 0 m² filtering, SfB naming ───
+
+    #[test]
+    fn test_zero_area_filtered_with_warning() {
+        // Create a construction where openings consume all area → net_area = 0.
+        let input = ThermalImport {
+            version: "1.0".to_string(),
+            source: "test".to_string(),
+            exported_at: "2026-04-08".to_string(),
+            project_name: Some("Zero Area Test".to_string()),
+            rooms: vec![
+                ThermalRoom {
+                    id: "r1".to_string(),
+                    revit_id: None,
+                    name: "Kamer".to_string(),
+                    room_type: ThermalRoomType::Heated,
+                    level: None,
+                    area_m2: Some(10.0),
+                    height_m: Some(2.6),
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+                ThermalRoom {
+                    id: "r-out".to_string(),
+                    revit_id: None,
+                    name: "Buiten".to_string(),
+                    room_type: ThermalRoomType::Outside,
+                    level: None,
+                    area_m2: None,
+                    height_m: None,
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+            ],
+            constructions: vec![
+                // This construction has gross_area exactly equal to the opening area.
+                ThermalConstruction {
+                    id: "c-zero".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("N".to_string()),
+                    gross_area_m2: 2.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Wand met pui".to_string()),
+                    layers: vec![],
+                },
+                // Normal construction with area.
+                ThermalConstruction {
+                    id: "c-normal".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("S".to_string()),
+                    gross_area_m2: 8.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Spouwmuur".to_string()),
+                    layers: vec![],
+                },
+            ],
+            openings: vec![
+                // Opening consumes all area of c-zero.
+                ThermalOpening {
+                    id: "o1".to_string(),
+                    construction_id: "c-zero".to_string(),
+                    opening_type: ThermalOpeningType::Window,
+                    width_mm: 2000.0,
+                    height_mm: 1000.0,
+                    sill_height_mm: None,
+                    u_value: Some(1.6),
+                    revit_element_id: None,
+                    revit_type_name: Some("Pui".to_string()),
+                },
+            ],
+            open_connections: vec![],
+        };
+
+        let result = map_thermal_import(input);
+        let room = &result.project.rooms[0];
+
+        // The zero-area construction should be filtered out.
+        // Only the normal construction (masonry) + the opening (non-masonry) should remain.
+        let masonry: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.material_type == MaterialType::Masonry)
+            .collect();
+        assert_eq!(masonry.len(), 1, "Should have 1 masonry element (the normal wall)");
+        assert!((masonry[0].area - 8.0).abs() < 0.01, "Normal wall should have 8.0 m²");
+
+        // Should have a warning about the zero-area construction.
+        let zero_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("c-zero") && w.contains("0 m²"))
+            .collect();
+        assert!(
+            !zero_warnings.is_empty(),
+            "Should warn about zero area construction. Warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_grouping_same_type_constructions() {
+        // 3 constructions with same revit_type_name, boundary_type, and orientation
+        // should be merged into 1 with summed area.
+        let input = ThermalImport {
+            version: "1.0".to_string(),
+            source: "test".to_string(),
+            exported_at: "2026-04-08".to_string(),
+            project_name: Some("Grouping Test".to_string()),
+            rooms: vec![
+                ThermalRoom {
+                    id: "r1".to_string(),
+                    revit_id: None,
+                    name: "Woonkamer".to_string(),
+                    room_type: ThermalRoomType::Heated,
+                    level: None,
+                    area_m2: Some(30.0),
+                    height_m: Some(2.6),
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+                ThermalRoom {
+                    id: "r-out".to_string(),
+                    revit_id: None,
+                    name: "Buiten".to_string(),
+                    room_type: ThermalRoomType::Outside,
+                    level: None,
+                    area_m2: None,
+                    height_m: None,
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+            ],
+            constructions: vec![
+                ThermalConstruction {
+                    id: "c1".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("N".to_string()),
+                    gross_area_m2: 5.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Spouwmuur 300mm".to_string()),
+                    layers: vec![
+                        ThermalLayer {
+                            material: "Kalkzandsteen".to_string(),
+                            thickness_mm: 100.0,
+                            distance_from_interior_mm: Some(0.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(1.0),
+                        },
+                        ThermalLayer {
+                            material: "PIR isolatie".to_string(),
+                            thickness_mm: 120.0,
+                            distance_from_interior_mm: Some(100.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(0.023),
+                        },
+                        ThermalLayer {
+                            material: "Luchtspouw".to_string(),
+                            thickness_mm: 40.0,
+                            distance_from_interior_mm: Some(220.0),
+                            layer_type: ThermalLayerType::AirGap,
+                            lambda: None,
+                        },
+                        ThermalLayer {
+                            material: "Baksteen".to_string(),
+                            thickness_mm: 100.0,
+                            distance_from_interior_mm: Some(260.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(0.9),
+                        },
+                    ],
+                },
+                ThermalConstruction {
+                    id: "c2".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("E".to_string()),
+                    gross_area_m2: 8.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Spouwmuur 300mm".to_string()),
+                    layers: vec![
+                        ThermalLayer {
+                            material: "Kalkzandsteen".to_string(),
+                            thickness_mm: 100.0,
+                            distance_from_interior_mm: Some(0.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(1.0),
+                        },
+                        ThermalLayer {
+                            material: "PIR isolatie".to_string(),
+                            thickness_mm: 120.0,
+                            distance_from_interior_mm: Some(100.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(0.023),
+                        },
+                        ThermalLayer {
+                            material: "Luchtspouw".to_string(),
+                            thickness_mm: 40.0,
+                            distance_from_interior_mm: Some(220.0),
+                            layer_type: ThermalLayerType::AirGap,
+                            lambda: None,
+                        },
+                        ThermalLayer {
+                            material: "Baksteen".to_string(),
+                            thickness_mm: 100.0,
+                            distance_from_interior_mm: Some(260.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(0.9),
+                        },
+                    ],
+                },
+                ThermalConstruction {
+                    id: "c3".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("W".to_string()),
+                    gross_area_m2: 7.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Spouwmuur 300mm".to_string()),
+                    layers: vec![
+                        ThermalLayer {
+                            material: "Kalkzandsteen".to_string(),
+                            thickness_mm: 100.0,
+                            distance_from_interior_mm: Some(0.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(1.0),
+                        },
+                        ThermalLayer {
+                            material: "PIR isolatie".to_string(),
+                            thickness_mm: 120.0,
+                            distance_from_interior_mm: Some(100.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(0.023),
+                        },
+                        ThermalLayer {
+                            material: "Luchtspouw".to_string(),
+                            thickness_mm: 40.0,
+                            distance_from_interior_mm: Some(220.0),
+                            layer_type: ThermalLayerType::AirGap,
+                            lambda: None,
+                        },
+                        ThermalLayer {
+                            material: "Baksteen".to_string(),
+                            thickness_mm: 100.0,
+                            distance_from_interior_mm: Some(260.0),
+                            layer_type: ThermalLayerType::Solid,
+                            lambda: Some(0.9),
+                        },
+                    ],
+                },
+            ],
+            openings: vec![],
+            open_connections: vec![],
+        };
+
+        let result = map_thermal_import(input);
+        let room = &result.project.rooms[0];
+
+        // 3 constructions with same type should be grouped into 1.
+        let masonry: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.material_type == MaterialType::Masonry)
+            .collect();
+        assert_eq!(
+            masonry.len(),
+            1,
+            "3 same-type constructions should be grouped into 1. Got: {:?}",
+            masonry.iter().map(|c| &c.description).collect::<Vec<_>>()
+        );
+
+        // Total area should be 5 + 8 + 7 = 20.
+        assert!(
+            (masonry[0].area - 20.0).abs() < 0.01,
+            "Grouped area should be 20.0, got {}",
+            masonry[0].area
+        );
+
+        // Should have a grouping info warning.
+        let group_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("samengevoegd"))
+            .collect();
+        assert!(
+            !group_warnings.is_empty(),
+            "Should have a grouping info message. Warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_sfb_based_naming() {
+        let import = load_fixture();
+        let result = map_thermal_import(import);
+
+        let room_0 = result
+            .project
+            .rooms
+            .iter()
+            .find(|r| r.id == "room-0")
+            .expect("room-0 not found");
+
+        // constr-0: Exterior Wall with layers [Gipsplaat, Minerale wol, Luchtspouw, Baksteen]
+        // → SfB 21, layers: Gips, MW, Spouw, Klinker → "21_Gips_MW_Spouw_Klinker"
+        let ext_wall = room_0
+            .constructions
+            .iter()
+            .find(|c| {
+                c.boundary_type == BoundaryType::Exterior
+                    && c.material_type == MaterialType::Masonry
+                    && c.vertical_position == VerticalPosition::Wall
+            })
+            .expect("Should have exterior masonry wall");
+        assert_eq!(
+            ext_wall.description, "21_Gips_MW_Spouw_Klinker",
+            "Exterior wall should have SfB-based name"
+        );
+
+        // constr-1: UnheatedSpace Wall with layers [Gipsplaat, Kalkzandsteen, Gipsplaat]
+        // → SfB 22, layers: Gips, KZS, Gips → "22_Gips_KZS_Gips"
+        let unheated_wall = room_0
+            .constructions
+            .iter()
+            .find(|c| {
+                c.boundary_type == BoundaryType::UnheatedSpace
+                    && c.material_type == MaterialType::Masonry
+            })
+            .expect("Should have unheated space masonry wall");
+        assert_eq!(
+            unheated_wall.description, "22_Gips_KZS_Gips",
+            "Unheated wall should have SfB-based name"
+        );
+
+        // constr-2: Ground Floor with layers [Tegels, Dekvloer, EPS isolatie, Beton]
+        // → SfB 23, layers: Tegels, Dekvloer, EPS, Beton → "23_Tegels_Dekvloer_EPS_Beton"
+        let ground_floor = room_0
+            .constructions
+            .iter()
+            .find(|c| {
+                c.boundary_type == BoundaryType::Ground
+                    && c.material_type == MaterialType::Masonry
+            })
+            .expect("Should have ground floor element");
+        assert_eq!(
+            ground_floor.description, "23_Tegels_Dekvloer_EPS_Beton",
+            "Ground floor should have SfB-based name"
+        );
+
+        // room-2: constr-4 is Exterior Roof with no layers → just "27"
+        let room_2 = result
+            .project
+            .rooms
+            .iter()
+            .find(|r| r.id == "room-2")
+            .expect("room-2 not found");
+        let roof = room_2
+            .constructions
+            .iter()
+            .find(|c| {
+                c.vertical_position == VerticalPosition::Ceiling
+                    && c.material_type == MaterialType::Masonry
+            })
+            .expect("Should have roof element");
+        assert_eq!(
+            roof.description, "27",
+            "Roof without layers should just be SfB code"
+        );
+    }
+
+    #[test]
+    fn test_different_types_not_grouped() {
+        // Constructions with different revit_type_name or different boundary_type
+        // should NOT be grouped.
+        let input = ThermalImport {
+            version: "1.0".to_string(),
+            source: "test".to_string(),
+            exported_at: "2026-04-08".to_string(),
+            project_name: Some("No-Group Test".to_string()),
+            rooms: vec![
+                ThermalRoom {
+                    id: "r1".to_string(),
+                    revit_id: None,
+                    name: "Kamer".to_string(),
+                    room_type: ThermalRoomType::Heated,
+                    level: None,
+                    area_m2: Some(20.0),
+                    height_m: Some(2.6),
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+                ThermalRoom {
+                    id: "r-out".to_string(),
+                    revit_id: None,
+                    name: "Buiten".to_string(),
+                    room_type: ThermalRoomType::Outside,
+                    level: None,
+                    area_m2: None,
+                    height_m: None,
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+                ThermalRoom {
+                    id: "r-unheated".to_string(),
+                    revit_id: None,
+                    name: "Berging".to_string(),
+                    room_type: ThermalRoomType::Unheated,
+                    level: None,
+                    area_m2: Some(5.0),
+                    height_m: Some(2.6),
+                    volume_m3: None,
+                    boundary_polygon: None,
+                },
+            ],
+            constructions: vec![
+                // Same revit_type_name but different boundary_type → should NOT group.
+                ThermalConstruction {
+                    id: "c1".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("N".to_string()),
+                    gross_area_m2: 5.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Spouwmuur".to_string()),
+                    layers: vec![],
+                },
+                ThermalConstruction {
+                    id: "c2".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-unheated".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("S".to_string()),
+                    gross_area_m2: 6.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Spouwmuur".to_string()),
+                    layers: vec![],
+                },
+                // Different revit_type_name, same boundary_type → should NOT group.
+                ThermalConstruction {
+                    id: "c3".to_string(),
+                    room_a: "r1".to_string(),
+                    room_b: "r-out".to_string(),
+                    orientation: ThermalOrientation::Wall,
+                    compass: Some("E".to_string()),
+                    gross_area_m2: 4.0,
+                    revit_element_id: None,
+                    revit_type_name: Some("Binnenwand 100mm".to_string()),
+                    layers: vec![],
+                },
+            ],
+            openings: vec![],
+            open_connections: vec![],
+        };
+
+        let result = map_thermal_import(input);
+        let room = &result.project.rooms[0];
+
+        // Should have 3 separate masonry elements (nothing grouped).
+        let masonry: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.material_type == MaterialType::Masonry)
+            .collect();
+        assert_eq!(
+            masonry.len(),
+            3,
+            "3 different constructions should remain separate. Got: {:?}",
+            masonry.iter().map(|c| (&c.description, c.area)).collect::<Vec<_>>()
+        );
+
+        // No grouping warnings (nothing was merged).
+        let group_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("samengevoegd"))
+            .collect();
+        assert!(
+            group_warnings.is_empty(),
+            "Should have no grouping messages. Warnings: {:?}",
+            result.warnings
+        );
     }
 }
