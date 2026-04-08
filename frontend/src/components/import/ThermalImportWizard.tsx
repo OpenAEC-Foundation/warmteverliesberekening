@@ -68,6 +68,8 @@ export function ThermalImportWizard() {
   // Editable copies of rooms and openings
   const [editedRooms, setEditedRooms] = useState<ThermalRoom[]>([]);
   const [editedOpenings, setEditedOpenings] = useState<ThermalOpening[]>([]);
+  // U-values calculated via LayerEditor in step 3
+  const [constructionUValues, setConstructionUValues] = useState<Map<string, number>>(new Map());
 
   // Step 1 complete handler: parse file, call backend
   const handleFileAccepted = useCallback(
@@ -95,11 +97,12 @@ export function ThermalImportWizard() {
   const handleFinalImport = useCallback(() => {
     if (!importResult || !importFile) return;
 
-    // 1. Merge user edits (room types, U-values) into the backend-mapped project
+    // 1. Merge user edits (room types, U-values, LayerEditor results) into the backend-mapped project
     const mergedProject = applyEditsToProject(
       importResult.project,
       editedRooms,
       editedOpenings,
+      constructionUValues,
     );
     setProject(mergedProject);
 
@@ -110,7 +113,16 @@ export function ThermalImportWizard() {
 
     // 3. Navigate to modeller
     navigate("/modeller");
-  }, [importResult, importFile, editedRooms, editedOpenings, setProject, setImportedBoundaries, navigate]);
+  }, [importResult, importFile, editedRooms, editedOpenings, constructionUValues, setProject, setImportedBoundaries, navigate]);
+
+  // LayerEditor U-value callback
+  const handleConstructionUValue = useCallback((constructionId: string, uValue: number) => {
+    setConstructionUValues((prev) => {
+      const next = new Map(prev);
+      next.set(constructionId, uValue);
+      return next;
+    });
+  }, []);
 
   // Navigation
   const canGoNext = currentStep < STEPS.length - 1;
@@ -212,6 +224,7 @@ export function ThermalImportWizard() {
             constructions={importFile.constructions}
             rooms={editedRooms}
             constructionLayers={importResult.construction_layers}
+            onConstructionUValue={handleConstructionUValue}
           />
         )}
         {currentStep === 3 && importFile && (

@@ -252,6 +252,7 @@ export function applyEditsToProject(
   project: Project,
   editedRooms: ThermalRoom[],
   editedOpenings: ThermalOpening[],
+  constructionUValues?: Map<string, number>,
 ): Project {
   // Build lookup of edited room types
   const roomTypeMap = new Map(editedRooms.map((r) => [r.id, r.type]));
@@ -273,11 +274,17 @@ export function applyEditsToProject(
         updatedRoom = { ...room, function: "storage" as any };
       }
 
-      // Update U-values for openings in this room's constructions
+      // Update U-values on constructions from LayerEditor and openings
       const updatedConstructions = updatedRoom.constructions.map((ce) => {
-        const newU = openingUMap.get(ce.id);
-        if (newU != null && newU > 0) {
-          return { ...ce, u_value: newU };
+        // Check LayerEditor-calculated U-values first
+        const calcU = constructionUValues?.get(ce.id);
+        if (calcU != null && calcU > 0) {
+          return { ...ce, u_value: calcU };
+        }
+        // Then check opening U-values
+        const openingU = openingUMap.get(ce.id);
+        if (openingU != null && openingU > 0) {
+          return { ...ce, u_value: openingU };
         }
         return ce;
       });
