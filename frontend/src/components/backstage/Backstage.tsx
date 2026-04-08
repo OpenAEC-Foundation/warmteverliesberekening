@@ -170,12 +170,24 @@ export default function Backstage({
 
       try {
         const text = await file.text();
-        const { project: imported, result: importedResult } =
-          importProject(text);
-        extractAndLinkConstructions(imported);
-        setProject(imported);
-        if (importedResult) {
-          useProjectStore.getState().setResult(importedResult);
+        const imported = importProject(text);
+
+        // Thermal import detected — redirect to wizard with raw JSON
+        if (imported.type === "thermal") {
+          onClose();
+          onNavigate?.("/import/thermal");
+          // Store raw JSON in sessionStorage so the wizard can pick it up
+          sessionStorage.setItem("thermalImportJson", imported.rawJson);
+          addToast("Thermal import gedetecteerd — wizard geopend", "info");
+          e.target.value = "";
+          return;
+        }
+
+        // Regular project import
+        extractAndLinkConstructions(imported.project);
+        setProject(imported.project);
+        if (imported.result) {
+          useProjectStore.getState().setResult(imported.result);
         }
         onClose();
         onNavigate?.("/rooms");

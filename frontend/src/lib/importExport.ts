@@ -3,6 +3,7 @@
  *
  * Export wraps the project + result in a versioned envelope.
  * Import accepts both the envelope format and raw Project JSON.
+ * Auto-detects thermal import files (Revit/IFC) and signals the caller.
  */
 import type { ConstructionElement, Project, ProjectResult, VerticalPosition } from "../types";
 import type { CatalogueCategory } from "./constructionCatalogue";
@@ -11,6 +12,16 @@ import { useModellerStore } from "../components/modeller/modellerStore";
 
 const SCHEMA_ID = "isso51-project-v1";
 const EXPORT_VERSION = "1.0.0";
+
+/** Sources that indicate a thermal import file (Revit/IFC export). */
+const THERMAL_SOURCES = ["revit-eam", "revit-raycast", "ifc"] as const;
+
+/** Returned when the imported JSON is a thermal import file, not a regular project. */
+export interface ThermalImportDetected {
+  type: "thermal";
+  /** Raw JSON string to pass to the thermal import wizard. */
+  rawJson: string;
+}
 
 /** Envelope format written to disk. */
 interface ProjectEnvelope {
@@ -21,8 +32,9 @@ interface ProjectEnvelope {
   result: ProjectResult | null;
 }
 
-/** Result of a successful import. */
+/** Result of a successful regular project import. */
 export interface ImportResult {
+  type: "project";
   project: Project;
   result: ProjectResult | null;
 }
@@ -62,8 +74,10 @@ export function exportProject(
  * Accepts:
  * - Wrapped format: `{ schema: "isso51-project-v1", project: {...} }`
  * - Raw Project JSON: `{ info: {...}, building: {...}, ... }`
+ * - Thermal import JSON (auto-detected via `source` field) — returns
+ *   `ThermalImportDetected` so the caller can redirect to the wizard.
  */
-export function importProject(jsonString: string): ImportResult {
+export function importProject(jsonString: string): ImportResult | ThermalImportDetected {
   let data: unknown;
   try {
     data = JSON.parse(jsonString);
@@ -77,16 +91,24 @@ export function importProject(jsonString: string): ImportResult {
 
   const obj = data as Record<string, unknown>;
 
+  // Auto-detect thermal import format (Revit/IFC export).
+  if (
+    typeof obj.source === "string" &&
+    (THERMAL_SOURCES as readonly string[]).includes(obj.source)
+  ) {
+    return { type: "thermal", rawJson: jsonString };
+  }
+
   // Detect envelope format.
   if (obj.schema === SCHEMA_ID && obj.project) {
     const project = validateProject(obj.project);
     const result = validateProjectResult(obj.result);
-    return { project, result };
+    return { type: "project", project, result };
   }
 
   // Try as raw Project JSON.
   const project = validateProject(data);
-  return { project, result: null };
+  return { type: "project", project, result: null };
 }
 
 /**

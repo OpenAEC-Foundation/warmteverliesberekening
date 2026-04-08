@@ -8,7 +8,7 @@
  * 4. Opening review (U-value editing)
  * 5. Summary + final import
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload,
@@ -27,7 +27,12 @@ import type {
   ThermalRoom,
   ThermalOpening,
 } from "../../lib/thermalImport";
-import { importThermal, toImportedBoundaries, applyEditsToProject } from "../../lib/thermalImport";
+import {
+  importThermal,
+  parseThermalImportFile,
+  toImportedBoundaries,
+  applyEditsToProject,
+} from "../../lib/thermalImport";
 import { useProjectStore } from "../../store/projectStore";
 import { useModellerStore } from "../modeller/modellerStore";
 
@@ -92,6 +97,26 @@ export function ThermalImportWizard() {
     },
     [],
   );
+
+  // Auto-load pre-supplied thermal JSON from sessionStorage (set by regular import auto-detect)
+  useEffect(() => {
+    const preloaded = sessionStorage.getItem("thermalImportJson");
+    if (!preloaded) return;
+
+    // Clean up immediately so it doesn't fire again on re-mount
+    sessionStorage.removeItem("thermalImportJson");
+
+    try {
+      const parsed = parseThermalImportFile(preloaded);
+      // Trigger the same flow as a manual file upload
+      handleFileAccepted(parsed);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Automatische thermal import mislukt",
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Final import action — applies user edits before loading into stores
   const handleFinalImport = useCallback(() => {

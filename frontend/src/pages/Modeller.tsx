@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   FloorCanvas,
@@ -37,6 +38,7 @@ export function Modeller() {
   const [selection, setSelection] = useState<Selection>(null);
   const [isImporting, setIsImporting] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
+  const navigate = useNavigate();
 
   // Store
   const rooms = useModellerStore((s) => s.rooms);
@@ -407,6 +409,16 @@ export function Modeller() {
       reader.onload = () => {
         try {
           const imported = importProject(reader.result as string);
+
+          // Thermal import detected — redirect to wizard
+          if (imported.type === "thermal") {
+            sessionStorage.setItem("thermalImportJson", imported.rawJson);
+            navigate("/import/thermal");
+            addToast("Thermal import gedetecteerd — wizard geopend", "info");
+            return;
+          }
+
+          // Regular project import
           extractAndLinkConstructions(imported.project);
           useProjectStore.getState().setProject(imported.project);
           if (imported.result) {
@@ -421,7 +433,7 @@ export function Modeller() {
       reader.readAsText(file);
     };
     input.click();
-  }, [addToast]);
+  }, [addToast, navigate]);
 
   const handleClearView = useCallback(() => {
     importModel([], [], []);

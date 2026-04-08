@@ -119,6 +119,16 @@ export function ProjectSetup() {
       reader.onload = () => {
         try {
           const imported = importProject(reader.result as string);
+
+          // Thermal import detected — redirect to wizard
+          if (imported.type === "thermal") {
+            sessionStorage.setItem("thermalImportJson", imported.rawJson);
+            navigate("/import/thermal");
+            addToast("Thermal import gedetecteerd — wizard geopend", "info");
+            return;
+          }
+
+          // Regular project import
           extractAndLinkConstructions(imported.project);
           const { setProject, setResult } = useProjectStore.getState();
           setProject(imported.project);
@@ -134,7 +144,7 @@ export function ProjectSetup() {
       // Reset input so the same file can be re-imported.
       e.target.value = "";
     },
-    [setError],
+    [setError, navigate, addToast],
   );
 
   const numVal = (v: string) => (v === "" ? 0 : Number(v));
