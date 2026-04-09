@@ -249,6 +249,7 @@ fn map_construction(
         custom_delta_u_tb: constr.custom_delta_u_tb,
         ground_params,
         has_embedded_heating: constr.has_embedded_heating,
+        catalog_ref: None,
     }
 }
 

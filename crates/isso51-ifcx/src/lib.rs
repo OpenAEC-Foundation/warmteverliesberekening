@@ -108,6 +108,7 @@ mod tests {
                         custom_delta_u_tb: None,
                         ground_params: None,
                         has_embedded_heating: false,
+                        catalog_ref: None,
                     },
                     construction::ConstructionElement {
                         id: "c2".to_string(),
@@ -124,6 +125,7 @@ mod tests {
                         custom_delta_u_tb: None,
                         ground_params: None,
                         has_embedded_heating: false,
+                        catalog_ref: None,
                     },
                 ],
                 heating_system: HeatingSystem::RadiatorLt,
@@ -267,6 +269,7 @@ mod tests {
                     custom_delta_u_tb: None,
                     ground_params: None,
                     has_embedded_heating: false,
+                    catalog_ref: None,
                 },
                 construction::ConstructionElement {
                     id: "c2".to_string(),
@@ -283,6 +286,7 @@ mod tests {
                     custom_delta_u_tb: None,
                     ground_params: None,
                     has_embedded_heating: false,
+                    catalog_ref: None,
                 },
             ],
             heating_system: HeatingSystem::RadiatorLt,
@@ -314,6 +318,7 @@ mod tests {
                 custom_delta_u_tb: None,
                 ground_params: None,
                 has_embedded_heating: false,
+                catalog_ref: None,
             });
 
         // Roundtrip
@@ -375,6 +380,7 @@ mod tests {
                     fg2: 0.45,
                 }),
                 has_embedded_heating: false,
+                catalog_ref: None,
             });
 
         // Roundtrip
