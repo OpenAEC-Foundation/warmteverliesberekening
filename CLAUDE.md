@@ -180,6 +180,14 @@ De 8 huidige pagina's mappen als volgt naar het Ribbon-model:
 
 ---
 
+## Agent Broker
+- **project_id:** `warmteverlies`
+- **display_name:** `Warmteverlies Calculator`
+- **capabilities:** `["nen-12831", "isso-51", "rust", "tauri"]`
+- **subscriptions:** `["bim/*", "shared/*"]`
+
+---
+
 ## Orchestrator — Sessie afsluiting
 
 **ALTIJD uitvoeren aan het einde van elke sessie** (of na een significante mijlpaal):
