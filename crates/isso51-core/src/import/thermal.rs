@@ -443,12 +443,23 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
             }
         }
 
-        // Phase 2: Group construction surfaces by (revit_type_name, boundary_type, orientation).
+        // Phase 2: Group construction surfaces by
+        // (revit_type_name, boundary_type, orientation, adjacent_room_id?).
         // Surfaces with the same key are merged: areas summed, SfB-based name assigned.
+        //
+        // The `adjacent_room_id` component is only included for interior boundaries
+        // (`AdjacentRoom` / `UnheatedSpace`) so walls that look identical but separate
+        // different rooms (e.g. 3 binnenwanden van hetzelfde type naar 3 verschillende
+        // kamers) worden niet meer onterecht tot één entry gemerged — anders zou de
+        // gebruiker de adjacency-info (cruciaal voor temperatuur-factor checks en voor
+        // verificatie door de gebruiker) kwijtraken in de geaggregeerde `adjacent_room_id`.
+        // Voor `Exterior`, `Ground` en `AdjacentBuilding` is er geen adjacent room,
+        // dus dan is deze component simpelweg `None` en verandert het gedrag niet.
         let mut elements: Vec<ConstructionElement> = Vec::new();
 
-        // Group key: (revit_type_name, boundary_type discriminant, orientation discriminant)
-        type GroupKey = (String, u8, u8);
+        // Group key: (revit_type_name, boundary_type discriminant, orientation
+        // discriminant, adjacent_room_id for interior boundaries only).
+        type GroupKey = (String, u8, u8, Option<String>);
 
         fn boundary_discriminant(bt: BoundaryType) -> u8 {
             match bt {
@@ -469,15 +480,42 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
             }
         }
 
+        /// Returns the adjacency discriminator used in the grouping key.
+        ///
+        /// Interior boundaries (`AdjacentRoom` / `UnheatedSpace`) return the
+        /// per-element `adjacent_room_id` so walls that separate different
+        /// rooms are kept as distinct groups. Non-interior boundary types
+        /// always return `None`.
+        ///
+        /// This is intentionally written as an exhaustive match (no `_` arm):
+        /// when a new `BoundaryType` variant is added, the compiler forces us
+        /// to decide here whether it carries adjacency semantics, preventing
+        /// silent mis-grouping bugs.
+        fn adjacency_key(bt: BoundaryType, adjacent_room_id: &Option<String>) -> Option<String> {
+            match bt {
+                BoundaryType::AdjacentRoom | BoundaryType::UnheatedSpace => {
+                    adjacent_room_id.clone()
+                }
+                BoundaryType::Exterior
+                | BoundaryType::Ground
+                | BoundaryType::AdjacentBuilding => None,
+            }
+        }
+
         // Build groups, preserving insertion order.
         let mut group_order: Vec<GroupKey> = Vec::new();
         let mut groups: HashMap<GroupKey, Vec<usize>> = HashMap::new();
 
         for (idx, info) in grouping_infos.iter().enumerate() {
+            // For interior boundaries the adjacency key discriminates groups;
+            // for Exterior/Ground/AdjacentBuilding it is always `None` so those
+            // paths stay behaviour-compatible with the pre-fix grouping.
+            let adj_key = adjacency_key(info.boundary_type, &info.adjacent_room_id);
             let key: GroupKey = (
                 info.revit_type_name.clone(),
                 boundary_discriminant(info.boundary_type),
                 orientation_discriminant(info.orientation),
+                adj_key,
             );
             let entry = groups.entry(key.clone()).or_default();
             if entry.is_empty() {
@@ -497,6 +535,14 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
             let total_area: f64 = indices.iter().map(|&i| raw_elements[i].area).sum();
 
             // Generate SfB-based description.
+            //
+            // Bewust geen adjacent-room suffix toegevoegd aan de SfB description voor
+            // interior boundaries: de `adjacent_room_id` blijft bewaard als apart veld
+            // op `ConstructionElement` (zie het `first_info.adjacent_room_id.clone()`
+            // een paar regels lager), dus de frontend kan de bestemmingsruimte direct
+            // uit dat veld tonen. SfB-namen vervuilen met room-IDs maakt groeperingen
+            // onleesbaar en dupliceert bovendien informatie die al gestructureerd
+            // beschikbaar is.
             let description = build_sfb_name(
                 first_info.boundary_type,
                 first_info.orientation,
@@ -1401,6 +1447,295 @@ mod tests {
         assert!(
             group_warnings.is_empty(),
             "Should have no grouping messages. Warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    // ─── Bug B regression tests: adjacent_room_id in grouping key ───
+
+    /// Helper: build a minimal ThermalImport with a heated source room plus the
+    /// supplied peer rooms and constructions. Keeps the bug-B tests compact.
+    fn make_import_for_adjacent_test(
+        peer_rooms: Vec<ThermalRoom>,
+        constructions: Vec<ThermalConstruction>,
+    ) -> ThermalImport {
+        let mut rooms = vec![ThermalRoom {
+            id: "r1".to_string(),
+            revit_id: None,
+            name: "Woonkamer".to_string(),
+            room_type: ThermalRoomType::Heated,
+            level: None,
+            area_m2: Some(30.0),
+            height_m: Some(2.6),
+            volume_m3: None,
+            boundary_polygon: None,
+        }];
+        rooms.extend(peer_rooms);
+        ThermalImport {
+            version: "1.0".to_string(),
+            source: "test".to_string(),
+            exported_at: "2026-04-09".to_string(),
+            project_name: Some("Bug B regression".to_string()),
+            rooms,
+            constructions,
+            openings: vec![],
+            open_connections: vec![],
+        }
+    }
+
+    /// Helper: quickly create a peer room with a specific room type.
+    fn peer_room(id: &str, name: &str, room_type: ThermalRoomType) -> ThermalRoom {
+        ThermalRoom {
+            id: id.to_string(),
+            revit_id: None,
+            name: name.to_string(),
+            room_type,
+            level: None,
+            area_m2: Some(10.0),
+            height_m: Some(2.6),
+            volume_m3: None,
+            boundary_polygon: None,
+        }
+    }
+
+    /// Helper: build a bare Wall construction between `r1` and `room_b` with a given type.
+    fn wall_to(
+        id: &str,
+        room_b: &str,
+        revit_type: &str,
+        gross_area_m2: f64,
+    ) -> ThermalConstruction {
+        ThermalConstruction {
+            id: id.to_string(),
+            room_a: "r1".to_string(),
+            room_b: room_b.to_string(),
+            orientation: ThermalOrientation::Wall,
+            compass: None,
+            gross_area_m2,
+            revit_element_id: None,
+            revit_type_name: Some(revit_type.to_string()),
+            layers: vec![],
+        }
+    }
+
+    #[test]
+    fn test_interior_walls_to_different_rooms_not_merged() {
+        // 3 walls, same revit_type_name/boundary_type/orientation, but each adjacent
+        // to a different heated room → must remain 3 separate ConstructionElements
+        // so the per-wall `adjacent_room_id` survives.
+        let input = make_import_for_adjacent_test(
+            vec![
+                peer_room("r-b", "Keuken", ThermalRoomType::Heated),
+                peer_room("r-c", "Slaapkamer", ThermalRoomType::Heated),
+                peer_room("r-d", "Badkamer", ThermalRoomType::Heated),
+            ],
+            vec![
+                wall_to("c1", "r-b", "Binnenwand 100mm", 5.0),
+                wall_to("c2", "r-c", "Binnenwand 100mm", 6.0),
+                wall_to("c3", "r-d", "Binnenwand 100mm", 7.0),
+            ],
+        );
+
+        let result = map_thermal_import(input);
+        let room = result
+            .project
+            .rooms
+            .iter()
+            .find(|r| r.id == "r1")
+            .expect("r1 not found");
+
+        let interior: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.boundary_type == BoundaryType::AdjacentRoom)
+            .collect();
+        assert_eq!(
+            interior.len(),
+            3,
+            "3 walls to different rooms must NOT be merged. Got: {:?}",
+            interior
+                .iter()
+                .map(|c| (&c.description, c.adjacent_room_id.clone(), c.area))
+                .collect::<Vec<_>>()
+        );
+
+        // Each adjacent_room_id must appear exactly once.
+        let mut adjacents: Vec<String> = interior
+            .iter()
+            .map(|c| c.adjacent_room_id.clone().expect("adjacent_room_id missing"))
+            .collect();
+        adjacents.sort();
+        assert_eq!(adjacents, vec!["r-b".to_string(), "r-c".to_string(), "r-d".to_string()]);
+
+        // Areas must match the inputs (nothing summed).
+        let areas_by_adj: HashMap<String, f64> = interior
+            .iter()
+            .map(|c| (c.adjacent_room_id.clone().unwrap(), c.area))
+            .collect();
+        assert!((areas_by_adj["r-b"] - 5.0).abs() < 0.01);
+        assert!((areas_by_adj["r-c"] - 6.0).abs() < 0.01);
+        assert!((areas_by_adj["r-d"] - 7.0).abs() < 0.01);
+
+        // No grouping-merge warnings: every group has exactly 1 entry.
+        let group_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("samengevoegd"))
+            .collect();
+        assert!(
+            group_warnings.is_empty(),
+            "No grouping should have happened. Warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_interior_walls_to_same_room_still_merged() {
+        // 2 walls of the same type between r1 and the same adjacent heated room
+        // should still be merged into 1 ConstructionElement (areas summed).
+        let input = make_import_for_adjacent_test(
+            vec![peer_room("r-b", "Keuken", ThermalRoomType::Heated)],
+            vec![
+                wall_to("c1", "r-b", "Binnenwand 100mm", 4.0),
+                wall_to("c2", "r-b", "Binnenwand 100mm", 3.5),
+            ],
+        );
+
+        let result = map_thermal_import(input);
+        let room = result
+            .project
+            .rooms
+            .iter()
+            .find(|r| r.id == "r1")
+            .expect("r1 not found");
+
+        let interior: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.boundary_type == BoundaryType::AdjacentRoom)
+            .collect();
+        assert_eq!(
+            interior.len(),
+            1,
+            "2 walls to same adjacent room must be merged. Got: {:?}",
+            interior.iter().map(|c| &c.description).collect::<Vec<_>>()
+        );
+        assert!(
+            (interior[0].area - 7.5).abs() < 0.01,
+            "Merged area should be 7.5 m², got {}",
+            interior[0].area
+        );
+        assert_eq!(interior[0].adjacent_room_id.as_deref(), Some("r-b"));
+
+        // A grouping warning should be produced because 2 surfaces were merged.
+        let group_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("samengevoegd"))
+            .collect();
+        assert_eq!(
+            group_warnings.len(),
+            1,
+            "Expected exactly 1 merge warning. Warnings: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn test_exterior_walls_still_merged() {
+        // 2 exterior walls of the same type → still 1 merged entry.
+        // adjacent_room_id is irrelevant for Exterior, so the new key component
+        // (None) does not split them.
+        let input = make_import_for_adjacent_test(
+            vec![peer_room("r-out", "Buiten", ThermalRoomType::Outside)],
+            vec![
+                wall_to("c1", "r-out", "Spouwmuur 300mm", 10.0),
+                wall_to("c2", "r-out", "Spouwmuur 300mm", 12.0),
+            ],
+        );
+
+        let result = map_thermal_import(input);
+        let room = result
+            .project
+            .rooms
+            .iter()
+            .find(|r| r.id == "r1")
+            .expect("r1 not found");
+
+        let exterior: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.boundary_type == BoundaryType::Exterior)
+            .collect();
+        assert_eq!(
+            exterior.len(),
+            1,
+            "2 exterior walls of same type must still be merged. Got: {:?}",
+            exterior.iter().map(|c| &c.description).collect::<Vec<_>>()
+        );
+        assert!(
+            (exterior[0].area - 22.0).abs() < 0.01,
+            "Merged exterior area should be 22.0 m², got {}",
+            exterior[0].area
+        );
+        // Exterior boundaries must never carry an adjacent_room_id.
+        assert!(exterior[0].adjacent_room_id.is_none());
+    }
+
+    #[test]
+    fn test_unheated_space_walls_split_by_adjacent_room() {
+        // Walls of the same type adjacent to two different unheated spaces
+        // must not be merged — the adjacent_room_id discriminator applies to
+        // UnheatedSpace exactly like it does to AdjacentRoom.
+        let input = make_import_for_adjacent_test(
+            vec![
+                peer_room("r-berg", "Berging", ThermalRoomType::Unheated),
+                peer_room("r-zolder", "Zolder", ThermalRoomType::Unheated),
+            ],
+            vec![
+                wall_to("c1", "r-berg", "Binnenwand 100mm", 4.0),
+                wall_to("c2", "r-zolder", "Binnenwand 100mm", 5.0),
+            ],
+        );
+
+        let result = map_thermal_import(input);
+        let room = result
+            .project
+            .rooms
+            .iter()
+            .find(|r| r.id == "r1")
+            .expect("r1 not found");
+
+        let unheated: Vec<&ConstructionElement> = room
+            .constructions
+            .iter()
+            .filter(|c| c.boundary_type == BoundaryType::UnheatedSpace)
+            .collect();
+        assert_eq!(
+            unheated.len(),
+            2,
+            "2 walls to different unheated spaces must NOT be merged. Got: {:?}",
+            unheated
+                .iter()
+                .map(|c| (&c.description, c.adjacent_room_id.clone(), c.area))
+                .collect::<Vec<_>>()
+        );
+        let mut adjacents: Vec<String> = unheated
+            .iter()
+            .map(|c| c.adjacent_room_id.clone().expect("adjacent_room_id missing"))
+            .collect();
+        adjacents.sort();
+        assert_eq!(adjacents, vec!["r-berg".to_string(), "r-zolder".to_string()]);
+
+        // No merge warnings: each group contains exactly 1 wall.
+        let group_warnings: Vec<&String> = result
+            .warnings
+            .iter()
+            .filter(|w| w.contains("samengevoegd"))
+            .collect();
+        assert!(
+            group_warnings.is_empty(),
+            "No grouping should have happened. Warnings: {:?}",
             result.warnings
         );
     }
