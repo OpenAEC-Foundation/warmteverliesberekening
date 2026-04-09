@@ -32,6 +32,7 @@ import {
   parseThermalImportFile,
   toImportedBoundaries,
   applyEditsToProject,
+  importCatalogToProjectConstructions,
 } from "../../lib/thermalImport";
 import { useProjectStore } from "../../store/projectStore";
 import { useModellerStore } from "../modeller/modellerStore";
@@ -62,6 +63,7 @@ export function ThermalImportWizard() {
   const navigate = useNavigate();
   const setProject = useProjectStore((s) => s.setProject);
   const setImportedBoundaries = useModellerStore((s) => s.setImportedBoundaries);
+  const ensureProjectConstruction = useModellerStore((s) => s.ensureProjectConstruction);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -126,22 +128,45 @@ export function ThermalImportWizard() {
     if (!importResult || !importFile) return;
 
     // 1. Merge user edits (room types, U-values, LayerEditor results) into the backend-mapped project
-    const mergedProject = applyEditsToProject(
+    let mergedProject = applyEditsToProject(
       importResult.project,
       editedRooms,
       editedOpenings,
       catalogUValues,
     );
+
+    // 2. Convert catalog entries to ProjectConstructions in modellerStore.
+    //    Returns a map from CatalogEntry.id → ProjectConstruction.id.
+    const refMap = importCatalogToProjectConstructions(
+      importResult.construction_catalog,
+      ensureProjectConstruction,
+    );
+
+    // 3. Stamp project_construction_id on every ConstructionElement that has
+    //    a catalog_ref. Openings (catalog_ref == null) are left untouched.
+    mergedProject = {
+      ...mergedProject,
+      rooms: mergedProject.rooms.map((room) => ({
+        ...room,
+        constructions: room.constructions.map((ce) => {
+          if (!ce.catalog_ref) return ce;
+          const projectConstructionId = refMap.get(ce.catalog_ref);
+          if (!projectConstructionId) return ce;
+          return { ...ce, project_construction_id: projectConstructionId };
+        }),
+      })),
+    };
+
     setProject(mergedProject);
 
-    // 2. Load imported boundaries into modellerStore for 3D viewer
+    // 4. Load imported boundaries into modellerStore for 3D viewer
     //    Use editedRooms so boundary conditions reflect user's type changes
     const boundaries = toImportedBoundaries(importFile.constructions, editedRooms);
     setImportedBoundaries(boundaries);
 
-    // 3. Navigate to modeller
+    // 5. Navigate to modeller
     navigate("/modeller");
-  }, [importResult, importFile, editedRooms, editedOpenings, catalogUValues, setProject, setImportedBoundaries, navigate]);
+  }, [importResult, importFile, editedRooms, editedOpenings, catalogUValues, ensureProjectConstruction, setProject, setImportedBoundaries, navigate]);
 
   // LayerEditor U-value callback — keyed by CatalogEntry.id
   const handleConstructionUValue = useCallback((catalogId: string, uValue: number) => {

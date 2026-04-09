@@ -7,6 +7,11 @@ import { API_PREFIX } from "./constants";
 import { authFetch } from "./backend";
 import type { Project } from "../types";
 import type { ImportedBoundary } from "../components/modeller/types";
+import type {
+  CatalogueCategory,
+  CatalogueLayer,
+} from "./constructionCatalogue";
+import type { MaterialType, VerticalPosition } from "../types";
 
 // ---------------------------------------------------------------------------
 // Input types (from Revit thermal export JSON)
@@ -317,5 +322,90 @@ export function applyEditsToProject(
 
       return { ...updatedRoom, constructions: updatedConstructions };
     }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Catalog → ProjectConstruction bridge
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape accepted by `modellerStore.ensureProjectConstruction`. Kept in sync
+ * with the store's signature so we don't need to import the store type here.
+ */
+type EnsureProjectConstructionInput = {
+  name: string;
+  category: CatalogueCategory;
+  materialType: MaterialType;
+  verticalPosition: VerticalPosition;
+  layers: CatalogueLayer[];
+  catalogueSourceId?: string;
+};
+
+/**
+ * Convert thermal-import catalog entries to ProjectConstructions and add them
+ * to the modellerStore via the `ensureProjectConstruction` callback. Returns a
+ * Map from catalog entry id (e.g. "cat-3") to the assigned project
+ * construction id (e.g. "proj-<uuid>").
+ *
+ * Material ids are passed through as-is from Revit material names (trimmed
+ * and lowercased). Unknown material ids fall back to the raw string in
+ * `SHORT_NAMES` lookups, which is the existing behaviour for non-catalogue
+ * materials.
+ */
+export function importCatalogToProjectConstructions(
+  catalog: CatalogEntry[],
+  ensureProjectConstruction: (data: EnsureProjectConstructionInput) => string,
+): Map<string, string> {
+  const refMap = new Map<string, string>();
+  for (const entry of catalog) {
+    const projConstr = catalogEntryToProjectConstruction(entry);
+    const id = ensureProjectConstruction(projConstr);
+    refMap.set(entry.id, id);
+  }
+  return refMap;
+}
+
+/** Convert a single CatalogEntry to the shape expected by ensureProjectConstruction. */
+function catalogEntryToProjectConstruction(
+  entry: CatalogEntry,
+): EnsureProjectConstructionInput {
+  // Derive category and verticalPosition from the first used_for combo.
+  // Fallback on "wall" when no usage info is available.
+  const firstUse = entry.used_for[0];
+  const orientation = firstUse?.[1] ?? "wall";
+
+  const category: CatalogueCategory =
+    orientation === "wall"
+      ? "wanden"
+      : orientation === "floor"
+        ? "vloeren_plafonds"
+        : orientation === "ceiling"
+          ? "vloeren_plafonds"
+          : orientation === "roof"
+            ? "daken"
+            : "wanden";
+
+  const verticalPosition: VerticalPosition =
+    orientation === "wall"
+      ? "wall"
+      : orientation === "floor"
+        ? "floor"
+        : "ceiling";
+
+  // Convert ThermalImportConstructionLayer[] → CatalogueLayer[].
+  // materialId = trimmed lowercased Revit material name. Unknown ids fall
+  // back to the raw string in SHORT_NAMES lookups (see constructionCatalogue).
+  const layers: CatalogueLayer[] = entry.layers.map((l) => ({
+    materialId: l.material.trim().toLowerCase() || "onbekend",
+    thickness: l.thickness_mm,
+  }));
+
+  return {
+    name: entry.description,
+    category,
+    materialType: "masonry", // default; user can edit later
+    verticalPosition,
+    layers,
   };
 }
