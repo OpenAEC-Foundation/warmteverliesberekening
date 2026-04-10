@@ -16,7 +16,7 @@ import {
   type CatalogueCategory,
   type CatalogueEntry,
 } from "../lib/constructionCatalogue";
-import { calculateRc, type RcResult } from "../lib/rcCalculation";
+import { calculateRc, roundUValue, type RcResult } from "../lib/rcCalculation";
 
 const CATEGORY_ORDER: CatalogueCategory[] = [
   "wanden",
@@ -277,7 +277,7 @@ function ProjectConstructionCard({
   // Bij entries zonder lagen (kozijnen/vullingen) tonen we de directe
   // `pc.uValue` — anders zou de card "geen U-waarde" tonen voor glas/deur.
   const uValue = rcResult
-    ? Math.round(rcResult.uValue * 1000) / 1000
+    ? roundUValue(rcResult.uValue)
     : pc.uValue ?? null;
   const totalThickness = rcResult
     ? rcResult.layers.reduce((sum, l) => sum + l.thickness, 0)

@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
 import type { CatalogueEntry } from "../../lib/constructionCatalogue";
-import { calculateRc } from "../../lib/rcCalculation";
 import {
   createConstruction,
   createConstructionFromCatalogue,
@@ -10,6 +9,7 @@ import {
 import { useProjectStore } from "../../store/projectStore";
 import type { ConstructionElement, Room } from "../../types";
 import { useModellerStore } from "../modeller/modellerStore";
+import { getProjectConstructionUValue } from "../modeller/projectConstructionUtils";
 import type { ProjectConstruction } from "../modeller/types";
 import { ConstructionCells } from "./ConstructionRow";
 import { ConstructionPicker } from "./ConstructionPicker";
@@ -146,13 +146,14 @@ function RoomGroup({
       // Auto-register als project construction. Ook entries zonder lagen
       // (kozijnen/vullingen: triple-glas, buitendeur, etc.) krijgen een
       // project entry zodat ze via de project-picker opnieuw kiesbaar zijn.
+      // `ensureProjectConstruction` normaliseert de uValue-invariant zelf.
       const pcId = ensureProjectConstruction({
         name: entry.name,
         category: entry.category,
         materialType: entry.materialType,
         verticalPosition: entry.verticalPosition,
         layers: (entry.layers ?? []).map((l) => ({ ...l })),
-        uValue: entry.layers && entry.layers.length > 0 ? undefined : entry.uValue,
+        uValue: entry.uValue,
         catalogueSourceId: entry.id,
       });
       ce.project_construction_id = pcId;
@@ -164,18 +165,11 @@ function RoomGroup({
 
   const handleSelectProject = useCallback(
     (pc: ProjectConstruction) => {
-      const rcResult = pc.layers.length > 0
-        ? calculateRc(pc.layers, pc.verticalPosition)
-        : null;
       const ce: ConstructionElement = {
         id: crypto.randomUUID(),
         description: pc.name,
         area: 0,
-        // Fallback naar directe pc.uValue voor kozijnen/vullingen die geen
-        // laag-gebaseerde Rc-berekening hebben (triple-glas, buitendeur).
-        u_value: rcResult
-          ? Math.round(rcResult.uValue * 1000) / 1000
-          : pc.uValue ?? 0,
+        u_value: getProjectConstructionUValue(pc),
         boundary_type: "exterior",
         material_type: pc.materialType,
         vertical_position: pc.verticalPosition,

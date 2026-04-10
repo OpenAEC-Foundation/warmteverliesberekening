@@ -9,6 +9,7 @@ import { persist } from "zustand/middleware";
 
 import type { ModelRoom, ModelWindow, ModelDoor, WallBoundaryType, ProjectConstruction, ImportedBoundary } from "./types";
 import { buildLayerName, type CatalogueEntry } from "../../lib/constructionCatalogue";
+import { normalizeProjectConstructionUValue } from "./projectConstructionUtils";
 import { EXAMPLE_ROOMS, EXAMPLE_WINDOWS } from "./exampleData";
 
 // ---------------------------------------------------------------------------
@@ -443,7 +444,7 @@ export const useModellerStore = create<ModellerStore>()(
               materialType: entry.materialType,
               verticalPosition: entry.verticalPosition,
               layers,
-              uValue: layers.length === 0 ? entry.uValue : undefined,
+              uValue: normalizeProjectConstructionUValue(layers, entry.uValue),
               catalogueSourceId: entry.id,
             },
           ],
@@ -466,12 +467,16 @@ export const useModellerStore = create<ModellerStore>()(
             );
         if (existing) return existing.id;
 
+        // Invariant: uValue is alleen geldig wanneer layers leeg is.
+        // Normaliseer hier zodat callers niet zelf hoeven te beslissen.
         const id = `proj-${crypto.randomUUID()}`;
+        const normalized: ProjectConstruction = {
+          ...data,
+          id,
+          uValue: data.layers.length === 0 ? data.uValue : undefined,
+        };
         set({
-          projectConstructions: [
-            ...state.projectConstructions,
-            { ...data, id },
-          ],
+          projectConstructions: [...state.projectConstructions, normalized],
         });
         return id;
       },

@@ -11,7 +11,7 @@ import {
   isFrameOverrideActive,
 } from "../../lib/frameOverride";
 import { getMaterialById } from "../../lib/materialsDatabase";
-import { calculateRc } from "../../lib/rcCalculation";
+import { roundUValue } from "../../lib/rcCalculation";
 import { useProjectStore } from "../../store/projectStore";
 import type {
   BoundaryType,
@@ -21,6 +21,7 @@ import type {
   VerticalPosition,
 } from "../../types";
 import { useModellerStore } from "../modeller/modellerStore";
+import { getProjectConstructionUValue } from "../modeller/projectConstructionUtils";
 import type { ProjectConstruction } from "../modeller/types";
 import { LayerEditor } from "../construction/LayerEditor";
 import { BoundaryBadge } from "./BoundaryBadge";
@@ -119,7 +120,7 @@ export const ConstructionCells = memo(function ConstructionCells({
     (layers: ConstructionElementLayer[], uValue: number) => {
       onUpdate({
         layers: layers.length > 0 ? layers : undefined,
-        u_value: Math.round(uValue * 1000) / 1000,
+        u_value: roundUValue(uValue),
       });
       setLayerEditorOpen(false);
     },
@@ -137,15 +138,9 @@ export const ConstructionCells = memo(function ConstructionCells({
         (c: ProjectConstruction) => c.id === pcId,
       );
       if (!pc) return;
-      const rcResult =
-        pc.layers.length > 0
-          ? calculateRc(pc.layers, pc.verticalPosition)
-          : null;
-      // Prioriteit: (1) rcResult uit lagen, (2) directe pc.uValue voor
-      // kozijnen/vullingen, (3) huidige waarde behouden als laatste redmiddel.
-      const nextUValue = rcResult
-        ? Math.round(rcResult.uValue * 1000) / 1000
-        : pc.uValue ?? construction.u_value;
+      // Prioriteit via helper: (1) rcResult uit lagen, (2) directe pc.uValue
+      // voor kozijnen/vullingen, (3) huidige waarde behouden als laatste redmiddel.
+      const nextUValue = getProjectConstructionUValue(pc, construction.u_value);
       onUpdate({
         description: pc.name,
         u_value: nextUValue,

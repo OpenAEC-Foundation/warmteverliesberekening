@@ -9,8 +9,8 @@ import {
 } from "../../lib/constructionCatalogue";
 import { useCatalogueStore } from "../../store/catalogueStore";
 import { useModellerStore } from "../modeller/modellerStore";
+import { getProjectConstructionUValue } from "../modeller/projectConstructionUtils";
 import type { ProjectConstruction } from "../modeller/types";
-import { calculateRc } from "../../lib/rcCalculation";
 
 interface ConstructionPickerProps {
   onSelectCatalogue: (entry: CatalogueEntry) => void;
@@ -87,16 +87,11 @@ export function ConstructionPicker({
         onSelectProject(pc);
       } else {
         // Fallback: convert to catalogue-like entry for the existing handler
-        const rcResult = pc.layers.length > 0
-          ? calculateRc(pc.layers, pc.verticalPosition)
-          : null;
         const asCatalogue: CatalogueEntry = {
           id: pc.id,
           name: pc.name,
           category: pc.category,
-          uValue: rcResult
-            ? Math.round(rcResult.uValue * 1000) / 1000
-            : pc.uValue ?? 0,
+          uValue: getProjectConstructionUValue(pc),
           materialType: pc.materialType,
           verticalPosition: pc.verticalPosition,
           layers: pc.layers,
@@ -167,12 +162,7 @@ export function ConstructionPicker({
               Project constructies
             </div>
             {filteredProject.map((pc) => {
-              const rcResult = pc.layers.length > 0
-                ? calculateRc(pc.layers, pc.verticalPosition)
-                : null;
-              const uVal = rcResult
-                ? Math.round(rcResult.uValue * 1000) / 1000
-                : pc.uValue ?? 0;
+              const uVal = getProjectConstructionUValue(pc);
 
               return (
                 <button

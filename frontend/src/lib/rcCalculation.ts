@@ -21,6 +21,18 @@ const R_SI: Record<VerticalPosition, number> = {
 /** Buitenoppervlakteweerstand Rse [m²·K/W]. */
 const R_SE = 0.04;
 
+/** Aantal decimalen waarop U-waarden in de UI en opslag worden afgerond. */
+const UVALUE_DECIMALS = 3;
+
+/**
+ * Rond een U-waarde af op 3 decimalen (W/(m²·K)). Single source of truth —
+ * voorheen stond `Math.round(x * 1000) / 1000` verspreid door de codebase.
+ */
+export function roundUValue(value: number): number {
+  const factor = 10 ** UVALUE_DECIMALS;
+  return Math.round(value * factor) / factor;
+}
+
 // ---------- Bouwbesluit 2024 minimale Rc-eisen (nieuwbouw) ----------
 
 /** Minimale Rc [m²·K/W] per constructiepositie (Bouwbesluit 2024 nieuwbouw). */
