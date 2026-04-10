@@ -7,6 +7,7 @@ const COLOR_CLASSES: Record<string, string> = {
   green: "bg-green-600/15 text-green-400",
   amber: "bg-amber-600/15 text-amber-400",
   stone: "bg-[var(--oaec-hover)] text-on-surface-muted",
+  teal: "bg-teal-600/15 text-teal-400",
 };
 
 interface BoundaryBadgeProps {

@@ -209,6 +209,7 @@ export function Results() {
             <ConstructionLossChart
               rooms={project.rooms}
               thetaE={project.climate.theta_e ?? -10}
+              thetaWater={project.climate.theta_water}
             />
           </div>
           <p className="mt-1 text-center text-[10px] text-on-surface-muted">

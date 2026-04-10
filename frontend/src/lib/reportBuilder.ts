@@ -6,9 +6,10 @@
 import type { Project, ProjectResult, RoomResult } from "../types";
 import {
   BUILDING_TYPE_LABELS,
+  DEFAULT_THETA_WATER,
+  HEATING_SYSTEM_LABELS,
   SECURITY_CLASS_LABELS,
   VENTILATION_SYSTEM_LABELS,
-  HEATING_SYSTEM_LABELS,
 } from "./constants";
 
 /** Format number as string without locale (PDF renderer handelt opmaak). */
@@ -26,6 +27,22 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Detecteer of het project ten minste één construction-element met
+ * `boundary_type === "water"` heeft. Wordt in metadata meegestuurd zodat de
+ * rapport-generator conditioneel een water-voetnoot kan toevoegen.
+ */
+function hasWaterBoundariesInProject(project: Project): boolean {
+  for (const room of project.rooms) {
+    for (const ce of room.constructions) {
+      if (ce.boundary_type === "water") {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** Build BM Reports JSON from project input + calculation result. */
 export function buildReportData(
   project: Project,
@@ -33,6 +50,8 @@ export function buildReportData(
 ): Record<string, unknown> {
   const today = todayIso();
   const projectName = project.info.name || "Naamloos project";
+  const thetaWater = project.climate.theta_water ?? DEFAULT_THETA_WATER;
+  const waterBoundariesPresent = hasWaterBoundariesInProject(project);
 
   return {
     template: "blank",
@@ -89,6 +108,8 @@ export function buildReportData(
     metadata: {
       engine: "isso51-core",
       generated_at: new Date().toISOString(),
+      theta_water: thetaWater,
+      water_boundaries_present: waterBoundariesPresent,
     },
   };
 }

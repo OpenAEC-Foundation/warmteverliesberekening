@@ -14,6 +14,7 @@ import { exportProject, importProject, extractAndLinkConstructions } from "../li
 import { useToastStore } from "../store/toastStore";
 import {
   BUILDING_TYPE_LABELS,
+  DEFAULT_THETA_WATER,
   SECURITY_CLASS_LABELS,
   VENTILATION_SYSTEM_LABELS,
 } from "../lib/constants";
@@ -323,7 +324,22 @@ export function ProjectSetup() {
               value={climate.wind_factor ?? 1.0}
               onChange={(e) => updateClimate({ wind_factor: numVal(e.target.value) })}
             />
+            <Input
+              id="theta_water"
+              label="Watertemperatuur θ_w"
+              type="number"
+              unit="°C"
+              value={climate.theta_water ?? DEFAULT_THETA_WATER}
+              onChange={(e) => updateClimate({ theta_water: numVal(e.target.value) })}
+            />
           </div>
+          <p className="mt-2 text-xs text-on-surface-muted">
+            Watertemperatuur is een engineering-aanname voor grensvlakken aan water
+            (bv. woonboten). Geen norm-waarde; default {DEFAULT_THETA_WATER} °C is
+            conservatief voor Nederlandse binnenwateren in winterconditie. Komt
+            automatisch terug in het PDF-rapport als er water-grensvlakken in het
+            project zitten.
+          </p>
         </Card>
 
         {/* Ventilation */}

@@ -36,6 +36,7 @@ const DEFAULT_PROJECT: Project = {
     theta_b_residential: 17,
     theta_b_non_residential: 14,
     wind_factor: 1.0,
+    theta_water: 5,
   },
   ventilation: {
     system_type: "system_c",

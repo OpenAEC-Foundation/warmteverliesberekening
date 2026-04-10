@@ -62,6 +62,7 @@ export const BOUNDARY_TYPE_LABELS: Record<string, string> = {
   adjacent_room: "Aangrenzend",
   adjacent_building: "Naburig gebouw",
   ground: "Grond",
+  water: "Water",
 };
 
 /** Boundary type color keys for Tailwind classes. */
@@ -71,7 +72,14 @@ export const BOUNDARY_COLORS: Record<string, string> = {
   adjacent_room: "green",
   adjacent_building: "amber",
   ground: "stone",
+  water: "teal",
 };
+
+/**
+ * Default engineering-aanname voor ontwerp-watertemperatuur (°C).
+ * Geen norm-waarde; conservatief voor Nederlandse binnenwateren in winterconditie.
+ */
+export const DEFAULT_THETA_WATER = 5;
 
 /** Vertical position labels (NL). */
 export const VERTICAL_POSITION_LABELS: Record<string, string> = {

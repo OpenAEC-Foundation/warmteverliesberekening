@@ -9,6 +9,8 @@ import { useMemo } from "react";
 
 import type { Room, BoundaryType } from "../../types";
 import { CONSTRUCTION_CATEGORY_COLORS } from "../../lib/chartColors";
+import { DEFAULT_THETA_WATER } from "../../lib/constants";
+import { buildRoomLookup, computeDeltaT } from "./deltaT";
 
 // ---------------------------------------------------------------------------
 // Category grouping
@@ -55,6 +57,11 @@ const CATEGORIES: CategoryGroup[] = [
       ce.boundary_type === "adjacent_building" ||
       ce.boundary_type === "unheated_space",
   },
+  {
+    label: "Grensvlak water",
+    color: CONSTRUCTION_CATEGORY_COLORS.floors,
+    matchFn: (ce) => ce.boundary_type === "water",
+  },
 ];
 
 const FALLBACK_LABEL = "Overig";
@@ -82,6 +89,8 @@ function isGlazing(description: string): boolean {
 interface ConstructionLossChartProps {
   rooms: Room[];
   thetaE: number;
+  /** Ontwerp-watertemperatuur (°C). Valt terug op DEFAULT_THETA_WATER. */
+  thetaWater?: number;
 }
 
 interface BarData {
@@ -90,15 +99,24 @@ interface BarData {
   value: number;
 }
 
-export function ConstructionLossChart({ rooms, thetaE }: ConstructionLossChartProps) {
+export function ConstructionLossChart({
+  rooms,
+  thetaE,
+  thetaWater,
+}: ConstructionLossChartProps) {
   const bars = useMemo(() => {
     const totals = new Map<string, { color: string; value: number }>();
+    const thetaW = thetaWater ?? DEFAULT_THETA_WATER;
+    const roomLookup = buildRoomLookup(rooms);
 
     for (const room of rooms) {
       const thetaI = room.custom_temperature ?? defaultTemperature(room.function);
 
       for (const ce of room.constructions) {
-        const dT = computeDeltaT(ce.boundary_type, thetaI, thetaE, ce);
+        const dT = computeDeltaT(ce.boundary_type, thetaI, thetaE, ce, {
+          rooms: roomLookup,
+          thetaWater: thetaW,
+        });
         const phiT = ce.u_value * ce.area * dT;
         if (phiT <= 0) continue;
 
@@ -127,7 +145,7 @@ export function ConstructionLossChart({ rooms, thetaE }: ConstructionLossChartPr
     }
     result.sort((a, b) => b.value - a.value);
     return result;
-  }, [rooms, thetaE]);
+  }, [rooms, thetaE, thetaWater]);
 
   if (bars.length === 0) return null;
 
@@ -202,6 +220,12 @@ export function ConstructionLossChart({ rooms, thetaE }: ConstructionLossChartPr
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Default interne temperaturen per room-function voor chart-weergave.
+ * Wijken (bewust) licht af van `ROOM_FUNCTION_TEMPERATURES`: deze tabel
+ * is historisch gebonden aan de visualisatie en wordt alleen gebruikt
+ * voor `thetaI` van de "self"-ruimte in de chart.
+ */
 const DEFAULT_TEMPERATURES: Record<string, number> = {
   living_room: 20,
   kitchen: 20,
@@ -217,31 +241,4 @@ const DEFAULT_TEMPERATURES: Record<string, number> = {
 
 function defaultTemperature(fn: string): number {
   return DEFAULT_TEMPERATURES[fn] ?? 20;
-}
-
-function computeDeltaT(
-  boundaryType: BoundaryType,
-  thetaI: number,
-  thetaE: number,
-  ce: { temperature_factor?: number | null; adjacent_temperature?: number | null },
-): number {
-  switch (boundaryType) {
-    case "exterior":
-      return thetaI - thetaE;
-    case "ground":
-      return thetaI - thetaE;
-    case "unheated_space":
-      if (ce.temperature_factor != null) {
-        return ce.temperature_factor * (thetaI - thetaE);
-      }
-      return thetaI - thetaE;
-    case "adjacent_building":
-      return thetaI - (ce.adjacent_temperature ?? thetaE);
-    case "adjacent_room":
-      return ce.adjacent_temperature != null
-        ? thetaI - ce.adjacent_temperature
-        : 0;
-    default:
-      return thetaI - thetaE;
-  }
 }

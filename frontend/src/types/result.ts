@@ -7,6 +7,11 @@ export interface TransmissionResult {
   h_t_unheated: number;
   h_t_adjacent_buildings: number;
   h_t_ground: number;
+  /**
+   * Transmissieverlies naar water (H_T,iw) in W/K. Optioneel voor
+   * backward-compat met oude backend-responses zonder water boundary.
+   */
+  h_t_water?: number;
   phi_t: number;
   norm_refs?: string[];
 }

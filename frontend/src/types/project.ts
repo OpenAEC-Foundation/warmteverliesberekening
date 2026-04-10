@@ -6,7 +6,8 @@ export type BoundaryType =
   | "unheated_space"
   | "adjacent_room"
   | "adjacent_building"
-  | "ground";
+  | "ground"
+  | "water";
 
 export type BuildingType =
   | "detached"
@@ -143,6 +144,12 @@ export interface DesignConditions {
   theta_b_residential?: number;
   theta_b_non_residential?: number;
   wind_factor?: number;
+  /**
+   * Ontwerp-watertemperatuur voor grensvlakken aan water (°C). Geen norm-waarde;
+   * engineering-aanname. Default 5 °C voor Nederlandse binnenwateren onder
+   * winterconditie. Optioneel voor backward-compat met oude projecten.
+   */
+  theta_water?: number;
 }
 
 export interface VentilationConfig {
