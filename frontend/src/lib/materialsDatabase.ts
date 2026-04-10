@@ -191,6 +191,7 @@ const RAW_MATERIALS: RawMaterial[] = [
   { categorie: "Beton", naam: "Schuimbeton 600", lambda: 0.22, lambda_nat: 0.28, mu: 6, rho: 600, rd_vast: null, keywords: ["schuimbeton"] },
   { categorie: "Beton", naam: "Cementdekvloer", lambda: 1.4, lambda_nat: 1.70, mu: 30, rho: 2000, rd_vast: null, keywords: ["dekvloer", "cement", "afwerk"] },
   { categorie: "Beton", naam: "Anhydriet dekvloer", lambda: 1.2, lambda_nat: 1.50, mu: 20, rho: 2100, rd_vast: null, keywords: ["anhydriet", "dekvloer", "giet"] },
+  { categorie: "Beton", naam: "Magnesiet dekvloer", lambda: 0.47, lambda_nat: 0.60, mu: 15, rho: 1400, rd_vast: null, keywords: ["magnesiet", "dekvloer", "sorel", "steinholz"] },
   { categorie: "Beton", naam: "Breedplaatvloer", lambda: 1.7, lambda_nat: 2.10, mu: 80, rho: 2400, rd_vast: null, keywords: ["breedplaat", "vloer", "prefab"] },
   { categorie: "Beton", naam: "Kanaalplaatvloer", lambda: 1.5, lambda_nat: 1.85, mu: 70, rho: 1800, rd_vast: null, keywords: ["kanaalplaat", "vloer", "hol"] },
 
