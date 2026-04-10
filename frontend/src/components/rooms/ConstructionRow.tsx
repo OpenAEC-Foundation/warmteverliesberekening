@@ -80,11 +80,14 @@ export const ConstructionCells = memo(function ConstructionCells({
     (s) => s.project.frameUValueOverride,
   );
 
+  const isFrame = useMemo(
+    () => isFrameConstruction(construction, projectConstructions),
+    [construction, projectConstructions],
+  );
+
   const frameOverrideActive = useMemo(
-    () =>
-      isFrameOverrideActive(frameUValueOverride) &&
-      isFrameConstruction(construction, projectConstructions),
-    [frameUValueOverride, construction, projectConstructions],
+    () => isFrameOverrideActive(frameUValueOverride) && isFrame,
+    [frameUValueOverride, isFrame],
   );
 
   const adjacentRoomOptions = useMemo(
@@ -271,17 +274,19 @@ export const ConstructionCells = memo(function ConstructionCells({
               type="number"
               unit="W/m²K"
             />
-            <button
-              onClick={() => setLayerEditorOpen(true)}
-              className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
-                layerCount > 0
-                  ? "bg-blue-600/15 text-blue-400 hover:bg-blue-600/25"
-                  : "text-on-surface-muted hover:bg-[var(--oaec-hover)] hover:text-on-surface"
-              }`}
-              title="Constructie-opbouw bewerken"
-            >
-              {layerCount > 0 ? `${layerCount} lagen` : "Lagen"}
-            </button>
+            {!isFrame && (
+              <button
+                onClick={() => setLayerEditorOpen(true)}
+                className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
+                  layerCount > 0
+                    ? "bg-blue-600/15 text-blue-400 hover:bg-blue-600/25"
+                    : "text-on-surface-muted hover:bg-[var(--oaec-hover)] hover:text-on-surface"
+                }`}
+                title="Constructie-opbouw bewerken"
+              >
+                {layerCount > 0 ? `${layerCount} lagen` : "Lagen"}
+              </button>
+            )}
           </div>
           {frameOverrideActive && (
             <span
