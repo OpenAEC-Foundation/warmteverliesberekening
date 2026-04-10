@@ -36,8 +36,12 @@ Thumbs.db
 # Frontend
 node_modules/
 frontend/dist/
+frontend/tsconfig.tsbuildinfo
 
 # Tauri
 src-tauri/icons/*.png
 src-tauri/icons/*.ico
 src-tauri/icons/*.icns
+
+# Stray working files
+mockup-brandbook.html
