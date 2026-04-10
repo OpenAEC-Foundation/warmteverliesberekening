@@ -11,6 +11,15 @@ import {
   SECURITY_CLASS_LABELS,
   VENTILATION_SYSTEM_LABELS,
 } from "./constants";
+import {
+  buildConstructionLossSvg,
+  buildStackedBarSvg,
+  buildSummaryDonutSvg,
+  svgToBase64,
+} from "./reportCharts";
+
+/** Default buitentemperatuur (°C) voor fallback in rapport charts. */
+const DEFAULT_THETA_E = -10;
 
 /** Format number as string without locale (PDF renderer handelt opmaak). */
 function fmtW(value: number): string {
@@ -94,6 +103,10 @@ export function buildReportData(
       buildUitgangspuntenSection(project),
       buildVertrekkenOverzichtSection(result),
       ...buildRoomSections(project, result),
+      ...(() => {
+        const diagrammen = buildDiagrammenSection(project, result);
+        return diagrammen ? [diagrammen] : [];
+      })(),
       buildGebouwresultatenSection(result),
     ],
 
@@ -281,6 +294,84 @@ function buildRoomDetailSection(
         ],
       },
     ],
+  };
+}
+
+/**
+ * Sectie Diagrammen — gestapelde bar, donut, constructie-losses.
+ *
+ * Elke chart wordt individueel overgeslagen wanneer er geen data is.
+ * Wanneer alle charts leeg zijn returnt de functie `null` en wordt
+ * de sectie volledig uit het rapport weggelaten.
+ */
+function buildDiagrammenSection(
+  project: Project,
+  result: ProjectResult,
+): Record<string, unknown> | null {
+  const STACKED_WIDTH_MM = 170;
+  const DONUT_WIDTH_MM = 170;
+  const CONSTRUCTION_WIDTH_MM = 150;
+  const SPACER_MM = 4;
+
+  const content: Record<string, unknown>[] = [];
+
+  const stackedSvg = buildStackedBarSvg(result.rooms);
+  if (stackedSvg) {
+    content.push({
+      type: "image",
+      src: {
+        data: svgToBase64(stackedSvg),
+        media_type: "image/svg+xml",
+        filename: "verliezen-per-vertrek.svg",
+      },
+      caption: "Warmteverliezen per vertrek",
+      width_mm: STACKED_WIDTH_MM,
+      alignment: "center",
+    });
+    content.push({ type: "spacer", height_mm: SPACER_MM });
+  }
+
+  const donutSvg = buildSummaryDonutSvg(result.summary);
+  if (donutSvg) {
+    content.push({
+      type: "image",
+      src: {
+        data: svgToBase64(donutSvg),
+        media_type: "image/svg+xml",
+        filename: "gebouwtotaal.svg",
+      },
+      caption: "Gebouwtotaal warmteverliezen per type",
+      width_mm: DONUT_WIDTH_MM,
+      alignment: "center",
+    });
+    content.push({ type: "spacer", height_mm: SPACER_MM });
+  }
+
+  const constructionSvg = buildConstructionLossSvg(
+    project.rooms,
+    project.climate.theta_e ?? DEFAULT_THETA_E,
+    project.climate.theta_water,
+  );
+  if (constructionSvg) {
+    content.push({
+      type: "image",
+      src: {
+        data: svgToBase64(constructionSvg),
+        media_type: "image/svg+xml",
+        filename: "verlies-per-constructietype.svg",
+      },
+      caption: "Verlies per constructietype",
+      width_mm: CONSTRUCTION_WIDTH_MM,
+      alignment: "center",
+    });
+  }
+
+  if (content.length === 0) return null;
+
+  return {
+    title: "Diagrammen",
+    level: 1,
+    content,
   };
 }
 

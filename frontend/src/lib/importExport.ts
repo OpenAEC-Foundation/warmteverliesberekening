@@ -264,6 +264,7 @@ export function extractAndLinkConstructions(project: Project): void {
         materialType: ce.material_type,
         verticalPosition: (ce.vertical_position ?? "wall") as VerticalPosition,
         layers: ce.layers ? structuredClone(ce.layers) : [],
+        uValue: (!ce.layers || ce.layers.length === 0) ? ce.u_value : undefined,
       });
     }
   }
