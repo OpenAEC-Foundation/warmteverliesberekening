@@ -61,6 +61,7 @@ export function RcCalculator() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const editId = searchParams.get("edit");
+  const editProjectId = searchParams.get("editProject");
 
   // Metadata
   const [name, setName] = useState("");
@@ -98,6 +99,7 @@ export function RcCalculator() {
   // Tracks of de edit-load al succesvol is uitgevoerd. Voorkomt dat latere
   // store-updates (bv. na async persist hydratie) de user's edits overschrijven.
   const hasInitializedEditRef = useRef<boolean>(false);
+  const hasInitializedEditProjectRef = useRef<boolean>(false);
 
   // Opslaan feedback
   const [saved, setSaved] = useState(false);
@@ -108,6 +110,10 @@ export function RcCalculator() {
   const allEntries = useCatalogueStore((s) => s.entries);
   const addProjectConstruction = useModellerStore(
     (s) => s.addProjectConstruction,
+  );
+  const projectConstructions = useModellerStore((s) => s.projectConstructions);
+  const updateProjectConstruction = useModellerStore(
+    (s) => s.updateProjectConstruction,
   );
   const addToast = useToastStore((s) => s.addToast);
 
@@ -135,6 +141,29 @@ export function RcCalculator() {
     }
     hasInitializedEditRef.current = true;
   }, [editId, allEntries]);
+
+  // Load project construction when editing from project constructions page.
+  // Re-runt bij projectConstructions-updates tot initialisatie lukt; daarna
+  // ref-guard zodat verdere store-updates de user's edits niet overschrijven.
+  useEffect(() => {
+    if (!editProjectId || hasInitializedEditProjectRef.current) return;
+    const pc = projectConstructions.find((p) => p.id === editProjectId);
+    if (!pc) return;
+    setName(pc.name);
+    setCategory(pc.category);
+    setMaterialType(pc.materialType);
+    if (pc.layers.length) {
+      setLayers(
+        pc.layers.map((l) => ({
+          materialId: l.materialId,
+          thickness: l.thickness,
+          lambdaOverride: l.lambdaOverride,
+          stud: l.stud,
+        })),
+      );
+    }
+    hasInitializedEditProjectRef.current = true;
+  }, [editProjectId, projectConstructions]);
 
   // Afgeleide waarden
   const position = CATEGORY_POSITION[category] ?? "wall";
@@ -344,20 +373,32 @@ export function RcCalculator() {
     if (validLayers.length === 0) return;
 
     const layerName = buildLayerName(validLayers);
+    const mappedLayers = validLayers.map((l) => ({
+      materialId: l.materialId,
+      thickness: l.thickness,
+      lambdaOverride: l.lambdaOverride,
+      stud: l.stud,
+    }));
     const entryData = {
       name: layerName,
       category,
       uValue: Math.round(rcResult.uValue * 1000) / 1000,
       materialType,
       verticalPosition: position,
-      layers: validLayers.map((l) => ({
-        materialId: l.materialId,
-        thickness: l.thickness,
-        stud: l.stud,
-      })),
+      layers: mappedLayers,
     };
 
-    if (editId) {
+    if (editProjectId) {
+      updateProjectConstruction(editProjectId, {
+        name: layerName,
+        category,
+        materialType,
+        verticalPosition: position,
+        layers: mappedLayers,
+        uValue: Math.round(rcResult.uValue * 1000) / 1000,
+      });
+      setName(layerName);
+    } else if (editId) {
       updateEntry(editId, entryData);
       setName(layerName);
     } else {
@@ -367,9 +408,22 @@ export function RcCalculator() {
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
-      if (editId) navigate("/library");
+      if (editProjectId) navigate("/constructies");
+      else if (editId) navigate("/library");
     }, 1000);
-  }, [category, materialType, position, layers, rcResult.uValue, addEntry, updateEntry, editId, navigate]);
+  }, [
+    category,
+    materialType,
+    position,
+    layers,
+    rcResult.uValue,
+    addEntry,
+    updateEntry,
+    editId,
+    editProjectId,
+    updateProjectConstruction,
+    navigate,
+  ]);
 
   const handleSaveToProject = useCallback(() => {
     const validLayers = layers.filter((l) => l.materialId);

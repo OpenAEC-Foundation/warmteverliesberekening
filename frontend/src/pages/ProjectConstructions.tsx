@@ -14,6 +14,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { useModellerStore } from "../components/modeller/modellerStore";
 import type { ProjectConstruction } from "../components/modeller/types";
@@ -36,7 +37,12 @@ const CATEGORY_ORDER: CatalogueCategory[] = [
 const NAME_EDIT_INPUT_CLASS =
   "min-w-0 flex-1 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-input)] px-1.5 py-0 text-sm font-medium text-on-surface outline-none focus:border-primary";
 
+const U_VALUE_EDIT_INPUT_CLASS =
+  "w-20 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-input)] px-1.5 py-0 text-xs text-on-surface outline-none focus:border-primary";
+
 const NAME_EDIT_ICON_SIZE_CLASS = "h-3.5 w-3.5";
+
+const FRAME_CATEGORY = "kozijnen_vullingen" as const;
 
 type ViewTab = "project" | "catalogus";
 
@@ -256,11 +262,18 @@ function ProjectConstructionCard({
   const updateProjectConstruction = useModellerStore(
     (s) => s.updateProjectConstruction,
   );
+  const navigate = useNavigate();
+
+  const isFrame = pc.category === FRAME_CATEGORY;
 
   // Local edit state (niet in de store — UI state per card).
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState(pc.name);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [isEditingUValue, setIsEditingUValue] = useState(false);
+  const [draftUValue, setDraftUValue] = useState<string>("");
+  const uValueInputRef = useRef<HTMLInputElement | null>(null);
 
   // Focus + select-all bij openen van edit-mode.
   useEffect(() => {
@@ -269,6 +282,13 @@ function ProjectConstructionCard({
       nameInputRef.current.select();
     }
   }, [isEditingName]);
+
+  useEffect(() => {
+    if (isEditingUValue && uValueInputRef.current) {
+      uValueInputRef.current.focus();
+      uValueInputRef.current.select();
+    }
+  }, [isEditingUValue]);
 
   const startEditName = (e: ReactMouseEvent<HTMLButtonElement>): void => {
     e.stopPropagation();
@@ -301,6 +321,44 @@ function ProjectConstructionCard({
     } else if (e.key === "Escape") {
       e.preventDefault();
       cancelEditName();
+    }
+  };
+
+  const startEditUValue = (e: ReactMouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation();
+    setDraftUValue(pc.uValue !== undefined ? pc.uValue.toString() : "");
+    setIsEditingUValue(true);
+  };
+
+  const cancelEditUValue = (): void => {
+    setIsEditingUValue(false);
+    setDraftUValue("");
+  };
+
+  const commitEditUValue = (): void => {
+    const parsed = Number(draftUValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      cancelEditUValue();
+      return;
+    }
+    if (pc.uValue !== undefined && parsed === pc.uValue) {
+      cancelEditUValue();
+      return;
+    }
+    updateProjectConstruction(pc.id, { uValue: parsed });
+    setIsEditingUValue(false);
+  };
+
+  const handleUValueKeyDown = (
+    e: ReactKeyboardEvent<HTMLInputElement>,
+  ): void => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEditUValue();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditUValue();
     }
   };
 
@@ -361,9 +419,53 @@ function ProjectConstructionCard({
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-on-surface-muted">
             {uValue !== null && (
-              <span>
-                U = {uValue} W/(m{"\u00B2"}{"\u00B7"}K)
-              </span>
+              isFrame ? (
+                <span
+                  className="flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  {isEditingUValue ? (
+                    <>
+                      <span>U =</span>
+                      <input
+                        ref={uValueInputRef}
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={draftUValue}
+                        onChange={(e) => setDraftUValue(e.target.value)}
+                        onKeyDown={handleUValueKeyDown}
+                        onBlur={commitEditUValue}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className={U_VALUE_EDIT_INPUT_CLASS}
+                        aria-label="U-waarde bewerken"
+                      />
+                      <span>W/(m{"\u00B2"}{"\u00B7"}K)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        U = {uValue} W/(m{"\u00B2"}{"\u00B7"}K)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={startEditUValue}
+                        className="rounded p-0.5 text-on-surface-muted hover:bg-[var(--oaec-hover)] hover:text-on-surface-secondary"
+                        aria-label="U-waarde bewerken"
+                        title="U-waarde bewerken"
+                      >
+                        <Pencil className={NAME_EDIT_ICON_SIZE_CLASS} />
+                      </button>
+                    </>
+                  )}
+                </span>
+              ) : (
+                <span>
+                  U = {uValue} W/(m{"\u00B2"}{"\u00B7"}K)
+                </span>
+              )
             )}
             {rcResult && (
               <span>
@@ -402,12 +504,15 @@ function ProjectConstructionCard({
           className="flex shrink-0 items-center gap-2"
           onClick={(e) => e.stopPropagation()}
         >
-          <a
-            href="/rc"
-            className="rounded border border-[var(--oaec-border)] px-2.5 py-1 text-xs text-on-surface-secondary hover:bg-[var(--oaec-hover)]"
-          >
-            Bewerken
-          </a>
+          {!isFrame && hasLayers && (
+            <button
+              type="button"
+              onClick={() => navigate(`/rc?editProject=${pc.id}`)}
+              className="rounded border border-[var(--oaec-border)] px-2.5 py-1 text-xs text-on-surface-secondary hover:bg-[var(--oaec-hover)]"
+            >
+              Bewerken
+            </button>
+          )}
           {confirmDelete ? (
             <div className="flex gap-1">
               <button
