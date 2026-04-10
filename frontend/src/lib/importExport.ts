@@ -221,7 +221,12 @@ function categoryFromElement(ce: ConstructionElement): CatalogueCategory {
  */
 export function extractAndLinkConstructions(project: Project): void {
   const store = useModellerStore.getState();
-  const existing = store.projectConstructions;
+
+  // Clear stale project constructions to ensure categories are re-evaluated.
+  // Without this, persisted entries from localStorage retain outdated categories
+  // (e.g. "wanden" for elements that should now be "kozijnen_vullingen").
+  store.importProjectConstructions([]);
+  const existing: readonly ProjectConstruction[] = [];
 
   // Map fingerprint → project construction ID (existing + new)
   const fpToId = new Map<string, string>();
