@@ -78,7 +78,10 @@ function isGlazing(description: string): boolean {
     d.includes("beglazing") ||
     d.includes("hr++") ||
     d.includes("hr+") ||
-    d.includes("triple")
+    d.includes("triple") ||
+    d.includes("cwa") ||
+    d.includes("vliesgevel") ||
+    d.includes("curtain")
   );
 }
 
