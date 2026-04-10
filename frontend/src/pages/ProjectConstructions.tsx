@@ -5,7 +5,15 @@
  * imported from IFC, or created via Rc-calculator). Users can browse the
  * standard catalogue and copy entries into their project.
  */
-import { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 import { useModellerStore } from "../components/modeller/modellerStore";
 import type { ProjectConstruction } from "../components/modeller/types";
@@ -24,6 +32,11 @@ const CATEGORY_ORDER: CatalogueCategory[] = [
   "daken",
   "kozijnen_vullingen",
 ];
+
+const NAME_EDIT_INPUT_CLASS =
+  "min-w-0 flex-1 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-input)] px-1.5 py-0 text-sm font-medium text-on-surface outline-none focus:border-primary";
+
+const NAME_EDIT_ICON_SIZE_CLASS = "h-3.5 w-3.5";
 
 type ViewTab = "project" | "catalogus";
 
@@ -199,44 +212,14 @@ export function ProjectConstructions() {
                   {CATALOGUE_CATEGORY_LABELS[cat]}
                 </h2>
                 <div className="space-y-2">
-                  {entries.map((entry) => {
-                    const inProject = isInProject(entry.id);
-
-                    return (
-                      <div
-                        key={entry.id}
-                        className="flex items-center gap-4 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-lighter)] px-4 py-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-on-surface">
-                            {entry.name}
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-3 text-xs text-on-surface-muted">
-                            <span>
-                              U = {entry.uValue} W/(m{"\u00B2"}{"\u00B7"}K)
-                            </span>
-                            {entry.layers && entry.layers.length > 0 && (
-                              <span>{entry.layers.length} lagen</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="shrink-0">
-                          {inProject ? (
-                            <span className="rounded bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700">
-                              In project
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => copyFromCatalogue(entry)}
-                              className="rounded bg-amber-600/15 px-3 py-1 text-xs font-medium text-amber-400 hover:bg-amber-600/15"
-                            >
-                              Toevoegen aan project
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {entries.map((entry) => (
+                    <CatalogueEntryCard
+                      key={entry.id}
+                      entry={entry}
+                      inProject={isInProject(entry.id)}
+                      onCopy={() => copyFromCatalogue(entry)}
+                    />
+                  ))}
                 </div>
               </div>
             );
@@ -270,6 +253,57 @@ function ProjectConstructionCard({
   onDelete: () => void;
   onCancelDelete: () => void;
 }) {
+  const updateProjectConstruction = useModellerStore(
+    (s) => s.updateProjectConstruction,
+  );
+
+  // Local edit state (niet in de store — UI state per card).
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(pc.name);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Focus + select-all bij openen van edit-mode.
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  const startEditName = (e: ReactMouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation();
+    setDraftName(pc.name);
+    setIsEditingName(true);
+  };
+
+  const cancelEditName = (): void => {
+    setIsEditingName(false);
+    setDraftName(pc.name);
+  };
+
+  const commitEditName = (): void => {
+    const trimmed = draftName.trim();
+    if (trimmed.length === 0 || trimmed === pc.name) {
+      cancelEditName();
+      return;
+    }
+    updateProjectConstruction(pc.id, { name: trimmed });
+    setIsEditingName(false);
+  };
+
+  const handleNameKeyDown = (
+    e: ReactKeyboardEvent<HTMLInputElement>,
+  ): void => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEditName();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditName();
+    }
+  };
+
   const hasLayers = pc.layers.length > 0;
   const rcResult: RcResult | null = hasLayers
     ? calculateRc(pc.layers, pc.verticalPosition)
@@ -295,9 +329,35 @@ function ProjectConstructionCard({
             <span className="text-xs text-on-surface-muted">
               {isExpanded ? "\u25BC" : "\u25B6"}
             </span>
-            <span className="text-sm font-medium text-on-surface">
-              {pc.name}
-            </span>
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={handleNameKeyDown}
+                onBlur={commitEditName}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={NAME_EDIT_INPUT_CLASS}
+                aria-label="Constructienaam bewerken"
+              />
+            ) : (
+              <>
+                <span className="text-sm font-medium text-on-surface">
+                  {pc.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={startEditName}
+                  className="rounded p-0.5 text-on-surface-muted hover:bg-[var(--oaec-hover)] hover:text-on-surface-secondary"
+                  aria-label="Naam bewerken"
+                  title="Naam bewerken"
+                >
+                  <Pencil className={NAME_EDIT_ICON_SIZE_CLASS} />
+                </button>
+              </>
+            )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-on-surface-muted">
             {uValue !== null && (
@@ -440,6 +500,129 @@ function ProjectConstructionCard({
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue entry card (standaard bibliotheek tab)
+// ---------------------------------------------------------------------------
+
+function CatalogueEntryCard({
+  entry,
+  inProject,
+  onCopy,
+}: {
+  entry: CatalogueEntry;
+  inProject: boolean;
+  onCopy: () => void;
+}) {
+  const updateEntry = useCatalogueStore((s) => s.updateEntry);
+
+  // Local edit state (niet in de store — UI state per card).
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(entry.name);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Focus + select-all bij openen van edit-mode.
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  const startEditName = (e: ReactMouseEvent<HTMLButtonElement>): void => {
+    e.stopPropagation();
+    setDraftName(entry.name);
+    setIsEditingName(true);
+  };
+
+  const cancelEditName = (): void => {
+    setIsEditingName(false);
+    setDraftName(entry.name);
+  };
+
+  const commitEditName = (): void => {
+    const trimmed = draftName.trim();
+    if (trimmed.length === 0 || trimmed === entry.name) {
+      cancelEditName();
+      return;
+    }
+    updateEntry(entry.id, { name: trimmed });
+    setIsEditingName(false);
+  };
+
+  const handleNameKeyDown = (
+    e: ReactKeyboardEvent<HTMLInputElement>,
+  ): void => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEditName();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditName();
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-4 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-lighter)] px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {isEditingName ? (
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onKeyDown={handleNameKeyDown}
+              onBlur={commitEditName}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              className={NAME_EDIT_INPUT_CLASS}
+              aria-label="Constructienaam bewerken"
+            />
+          ) : (
+            <>
+              <span className="text-sm font-medium text-on-surface">
+                {entry.name}
+              </span>
+              <button
+                type="button"
+                onClick={startEditName}
+                className="rounded p-0.5 text-on-surface-muted hover:bg-[var(--oaec-hover)] hover:text-on-surface-secondary"
+                aria-label="Naam bewerken"
+                title="Naam bewerken"
+              >
+                <Pencil className={NAME_EDIT_ICON_SIZE_CLASS} />
+              </button>
+            </>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-3 text-xs text-on-surface-muted">
+          <span>
+            U = {entry.uValue} W/(m{"\u00B2"}{"\u00B7"}K)
+          </span>
+          {entry.layers && entry.layers.length > 0 && (
+            <span>{entry.layers.length} lagen</span>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0">
+        {inProject ? (
+          <span className="rounded bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700">
+            In project
+          </span>
+        ) : (
+          <button
+            onClick={onCopy}
+            className="rounded bg-amber-600/15 px-3 py-1 text-xs font-medium text-amber-400 hover:bg-amber-600/15"
+          >
+            Toevoegen aan project
+          </button>
+        )}
+      </div>
     </div>
   );
 }
