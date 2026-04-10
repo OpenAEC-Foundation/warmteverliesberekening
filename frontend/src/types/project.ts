@@ -79,6 +79,13 @@ export interface ConstructionElementLayer {
   materialId: string;
   /** Laagdikte in mm. */
   thickness: number;
+  /**
+   * Optionele lambda override [W/(m·K)]. Gebruikt door de thermal import
+   * wanneer de Revit exporter een lambda meegeeft die niet via de material
+   * database te matchen is. Priority in Rc-berekening:
+   *   rdFixed (spouw) > lambdaOverride > material.lambda.
+   */
+  lambdaOverride?: number;
   /** Stijl/keper configuratie voor inhomogene lagen. */
   stud?: {
     materialId: string;

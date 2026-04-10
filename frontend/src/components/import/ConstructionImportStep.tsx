@@ -117,9 +117,16 @@ function catalogLayersToEditorLayers(
       }
     }
 
+    // Carry the exporter's lambda through as an override so the Rc-
+    // calculator can still produce a sensible R-value when the material
+    // could not be matched against the database.
+    const lambdaOverride =
+      typeof tl.lambda === "number" && tl.lambda > 0 ? tl.lambda : undefined;
+
     return {
       materialId,
       thickness: tl.thickness_mm ?? 0,
+      lambdaOverride,
     };
   });
 }

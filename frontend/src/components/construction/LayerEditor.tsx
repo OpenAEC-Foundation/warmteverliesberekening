@@ -45,7 +45,13 @@ export function LayerEditor({
 
   // Rc berekening
   const layerInputs: LayerInput[] = useMemo(
-    () => layers.map((l) => ({ materialId: l.materialId, thickness: l.thickness, stud: l.stud })),
+    () =>
+      layers.map((l) => ({
+        materialId: l.materialId,
+        thickness: l.thickness,
+        stud: l.stud,
+        lambdaOverride: l.lambdaOverride,
+      })),
     [layers],
   );
   const rcResult = useMemo(
@@ -131,8 +137,14 @@ export function LayerEditor({
 
   // Toepassen
   const handleApply = useCallback(() => {
-    // Filter lege lagen
-    const validLayers = layers.filter((l) => l.materialId);
+    // Filter lege lagen: houd lagen met een materialId, of lagen die een
+    // bruikbare lambdaOverride hebben (geïmporteerd uit thermal export
+    // zonder database-match).
+    const validLayers = layers.filter(
+      (l) =>
+        !!l.materialId ||
+        (l.lambdaOverride !== undefined && l.lambdaOverride > 0),
+    );
     onApply(validLayers, rcResult.uValue);
   }, [layers, rcResult.uValue, onApply]);
 

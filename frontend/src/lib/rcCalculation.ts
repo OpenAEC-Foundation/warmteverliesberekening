@@ -100,13 +100,13 @@ export interface RcResult {
 
 // ---------- Helpers ----------
 
-/** Bereken R-waarde voor één homogene laag. */
+/** Bereken R-waarde voor één homogene laag wanneer een database-match bestaat. */
 function layerResistance(
   material: Material,
   thicknessMm: number,
   lambdaOverride?: number,
 ): number {
-  // Spouwen/folies met vaste Rd-waarde
+  // Spouwen/folies met vaste Rd-waarde (database wint van override)
   if (material.rdFixed !== null) {
     return material.rdFixed;
   }
@@ -117,6 +117,24 @@ function layerResistance(
   // d in meters
   const dMeters = thicknessMm / 1000;
   return dMeters / lambda;
+}
+
+/**
+ * Bereken R-waarde voor een laag waarvan het materiaal NIET in de database
+ * staat. Gebruikt uitsluitend `lambdaOverride` — als die ontbreekt of ≤ 0
+ * retourneert de functie 0 (de laag draagt dan niets bij).
+ *
+ * Deze fallback is bedoeld voor geïmporteerde constructies (Revit thermal
+ * export) waar de exporter wel een lambda meegeeft maar de material-naam
+ * niet gematched kan worden tegen de materialsDatabase.
+ */
+function fallbackResistance(
+  thicknessMm: number,
+  lambdaOverride?: number,
+): number {
+  if (lambdaOverride === undefined || lambdaOverride <= 0) return 0;
+  const dMeters = thicknessMm / 1000;
+  return dMeters / lambdaOverride;
 }
 
 // ---------- Berekening ----------
@@ -144,11 +162,21 @@ export function calculateRc(
   const layerResults: LayerResult[] = layers.map((input) => {
     const material = getMaterialById(input.materialId);
     if (!material) {
+      // Geen database-match: gebruik de lambdaOverride wanneer die beschikbaar
+      // is (bijv. uit een Revit thermal export). Zonder override is R=0 en
+      // toont de UI "Onbekend materiaal".
+      const rFallback = fallbackResistance(
+        input.thickness,
+        input.lambdaOverride,
+      );
       return {
         name: "Onbekend materiaal",
         thickness: input.thickness,
-        lambda: null,
-        r: 0,
+        lambda:
+          input.lambdaOverride !== undefined && input.lambdaOverride > 0
+            ? input.lambdaOverride
+            : null,
+        r: rFallback,
       };
     }
 
@@ -256,7 +284,17 @@ function calculateCombined(
   for (let i = 0; i < inputs.length; i++) {
     const input = inputs[i]!;
     const material = getMaterialById(input.materialId);
-    if (!material) continue;
+    if (!material) {
+      // Geen database-match — gebruik lambdaOverride voor homogene bijdrage.
+      const rFallback = fallbackResistance(
+        input.thickness,
+        input.lambdaOverride,
+      );
+      rTotalA += rFallback;
+      rTotalB += rFallback;
+      rLowerSum += rFallback;
+      continue;
+    }
 
     const dMeters = input.thickness / 1000;
 

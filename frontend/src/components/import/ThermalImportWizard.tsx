@@ -34,6 +34,7 @@ import {
   applyEditsToProject,
   importCatalogToProjectConstructions,
 } from "../../lib/thermalImport";
+import { calculateRc } from "../../lib/rcCalculation";
 import { useProjectStore } from "../../store/projectStore";
 import { useModellerStore } from "../modeller/modellerStore";
 
@@ -127,22 +128,54 @@ export function ThermalImportWizard() {
   const handleFinalImport = useCallback(() => {
     if (!importResult || !importFile) return;
 
-    // 1. Merge user edits (room types, U-values, LayerEditor results) into the backend-mapped project
-    let mergedProject = applyEditsToProject(
-      importResult.project,
-      editedRooms,
-      editedOpenings,
-      catalogUValues,
-    );
-
-    // 2. Convert catalog entries to ProjectConstructions in modellerStore.
-    //    Returns a map from CatalogEntry.id → ProjectConstruction.id.
+    // 1. Convert catalog entries to ProjectConstructions in modellerStore.
+    //    Returns a map from CatalogEntry.id → ProjectConstruction.id. We do
+    //    this BEFORE applyEditsToProject so we can compute Rc/U per
+    //    construction and feed the auto-calculated U-values into the merge.
     const refMap = importCatalogToProjectConstructions(
       importResult.construction_catalog,
       ensureProjectConstruction,
     );
 
-    // 3. Stamp project_construction_id on every ConstructionElement that has
+    // 2. Auto-compute U-values via calculateRc for every imported catalog
+    //    entry, using the ProjectConstruction just created. User edits from
+    //    the LayerEditor (catalogUValues) win over the auto-values, so the
+    //    workflow stays: user opens LayerEditor → handmatige waarde; anders
+    //    pakt de backend de Rc-berekening uit de geïmporteerde lambdas.
+    const autoUValues = new Map<string, number>();
+    const { projectConstructions } = useModellerStore.getState();
+    for (const entry of importResult.construction_catalog) {
+      const pcId = refMap.get(entry.id);
+      if (!pcId) continue;
+      const pc = projectConstructions.find((c) => c.id === pcId);
+      if (!pc || pc.layers.length === 0) continue;
+      const rc = calculateRc(
+        pc.layers.map((l) => ({
+          materialId: l.materialId,
+          thickness: l.thickness,
+          stud: l.stud,
+          lambdaOverride: l.lambdaOverride,
+        })),
+        pc.verticalPosition,
+      );
+      if (rc.uValue > 0) {
+        autoUValues.set(entry.id, Math.round(rc.uValue * 1000) / 1000);
+      }
+    }
+
+    // Merge: start with auto values, override with user edits.
+    const mergedUValues = new Map(autoUValues);
+    catalogUValues.forEach((v, k) => mergedUValues.set(k, v));
+
+    // 3. Merge user edits (room types, U-values, LayerEditor results) into the backend-mapped project
+    let mergedProject = applyEditsToProject(
+      importResult.project,
+      editedRooms,
+      editedOpenings,
+      mergedUValues,
+    );
+
+    // 4. Stamp project_construction_id on every ConstructionElement that has
     //    a catalog_ref. Openings (catalog_ref == null) are left untouched.
     mergedProject = {
       ...mergedProject,
@@ -159,12 +192,12 @@ export function ThermalImportWizard() {
 
     setProject(mergedProject);
 
-    // 4. Load imported boundaries into modellerStore for 3D viewer
+    // 5. Load imported boundaries into modellerStore for 3D viewer
     //    Use editedRooms so boundary conditions reflect user's type changes
     const boundaries = toImportedBoundaries(importFile.constructions, editedRooms);
     setImportedBoundaries(boundaries);
 
-    // 5. Navigate to modeller
+    // 6. Navigate to modeller
     navigate("/modeller");
   }, [importResult, importFile, editedRooms, editedOpenings, catalogUValues, ensureProjectConstruction, setProject, setImportedBoundaries, navigate]);
 

@@ -1,6 +1,7 @@
 import { memo, useCallback, useState, useMemo } from "react";
 
 import { BOUNDARY_TYPE_LABELS, VERTICAL_POSITION_LABELS } from "../../lib/constants";
+import { getMaterialById } from "../../lib/materialsDatabase";
 import { calculateRc } from "../../lib/rcCalculation";
 import type {
   BoundaryType,
@@ -87,6 +88,18 @@ export const ConstructionCells = memo(function ConstructionCells({
 
   const layerCount = construction.layers?.length ?? 0;
   const isLinked = !!construction.project_construction_id;
+
+  // Fallback labels per laag: wanneer een materialId geen database-match
+  // oplevert (typisch bij Revit thermal-import layers met raw namen als
+  // `i1_hout_bamboe`), tonen we de raw string zodat de gebruiker ziet wat
+  // uit de import kwam. Zelfde patroon als in ConstructionImportStep.
+  const layerDisplayOverrides = useMemo<(string | null)[]>(
+    () =>
+      (construction.layers ?? []).map((l) =>
+        getMaterialById(l.materialId) ? null : l.materialId || null,
+      ),
+    [construction.layers],
+  );
 
   // Build dropdown options
   const dropdownValue = construction.project_construction_id ?? "__manual__";
@@ -198,6 +211,7 @@ export const ConstructionCells = memo(function ConstructionCells({
           position={construction.vertical_position ?? "wall"}
           onApply={handleApplyLayers}
           onClose={() => setLayerEditorOpen(false)}
+          layerDisplayOverrides={layerDisplayOverrides}
         />
       )}
     </>

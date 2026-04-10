@@ -397,15 +397,20 @@ function catalogEntryToProjectConstruction(
   // Convert ThermalImportConstructionLayer[] → CatalogueLayer[].
   // Try to match each Revit material name against the materials database
   // (existing IFC material matcher); fall back to the raw lowercased name
-  // so the layer is still visible even when no match exists.
+  // so the layer is still visible even when no match exists. The lambda
+  // coming from the Revit exporter is carried through as `lambdaOverride`
+  // so the Rc-calculator can compute R-values even for unmatched materials.
   const layers: CatalogueLayer[] = entry.layers.map((l) => {
     const match = matchIfcMaterial(l.material);
     const materialId = match.material
       ? match.material.id
       : l.material.trim().toLowerCase() || "onbekend";
+    const lambdaOverride =
+      typeof l.lambda === "number" && l.lambda > 0 ? l.lambda : undefined;
     return {
       materialId,
       thickness: l.thickness_mm,
+      lambdaOverride,
     };
   });
 

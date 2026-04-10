@@ -6,6 +6,12 @@ export interface CatalogueLayer {
   materialId: string;
   /** Laagdikte in mm. */
   thickness: number;
+  /**
+   * Optionele lambda override [W/(m·K)]. Gebruikt door de thermal import om
+   * de geëxporteerde lambda-waarde door te geven wanneer er geen database
+   * match is. Zie `ConstructionElementLayer.lambdaOverride`.
+   */
+  lambdaOverride?: number;
   /** Stijl/keper configuratie voor inhomogene lagen. */
   stud?: {
     materialId: string;
