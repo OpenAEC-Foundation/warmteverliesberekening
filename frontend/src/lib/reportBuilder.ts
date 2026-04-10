@@ -75,7 +75,7 @@ export function buildReportData(
       opdrachtgever_naam: project.info.client ?? "",
       adviseur_bedrijf: "3BM Bouwkunde",
       adviseur_naam: project.info.engineer ?? "",
-      normen: "ISSO 51:2023 — Warmteverliesberekening voor woningen en utiliteitsgebouwen",
+      normen: "ISSO 51:2023 — Warmteverliesberekening voor woningen en woongebouwen",
       datum: project.info.date ?? today,
       fase: "",
       status_colofon: "CONCEPT",
@@ -117,6 +117,8 @@ export function buildReportData(
 /** Sectie 1: Uitgangspunten. */
 function buildUitgangspuntenSection(project: Project): Record<string, unknown> {
   const { building, climate, ventilation } = project;
+  const thetaWater = climate.theta_water ?? DEFAULT_THETA_WATER;
+  const waterBoundariesPresent = hasWaterBoundariesInProject(project);
 
   return {
     title: "Uitgangspunten",
@@ -143,8 +145,10 @@ function buildUitgangspuntenSection(project: Project): Record<string, unknown> {
         headers: ["Parameter", "Waarde"],
         rows: [
           ["Buitentemperatuur (θ_e)", `${climate.theta_e ?? -10} °C`],
-          ["Grondtemperatuur woning (θ_b)", `${climate.theta_b_residential ?? 17} °C`],
-          ["Grondtemperatuur utiliteit (θ_b)", `${climate.theta_b_non_residential ?? 14} °C`],
+          ["Grondtemperatuur (θ_b)", `${climate.theta_b_residential ?? 17} °C`],
+          ...(waterBoundariesPresent
+            ? [["Watertemperatuur (θ_w)", `${thetaWater} °C`]]
+            : []),
           ["Windfactor", String(climate.wind_factor ?? 1.0)],
         ],
       },
