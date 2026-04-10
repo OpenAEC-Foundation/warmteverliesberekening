@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { ConstructionElement, Project, ProjectResult, Room } from "../types";
+import type {
+  ConstructionElement,
+  HeatingSystem,
+  Project,
+  ProjectResult,
+  Room,
+} from "../types";
 
 // ---------------------------------------------------------------------------
 // Undo/Redo history
@@ -30,6 +36,7 @@ const DEFAULT_PROJECT: Project = {
     has_night_setback: true,
     warmup_time: 2,
     num_floors: 1,
+    default_heating_system: "radiator_ht",
   },
   climate: {
     theta_e: -10,
@@ -116,6 +123,9 @@ interface ProjectStore {
   ) => void;
   /** Remove a construction from a room. */
   removeConstruction: (roomId: string, constructionId: string) => void;
+
+  /** Apply a heating_system to all rooms in the project in one mutation (with undo). */
+  applyHeatingSystemToAllRooms: (system: HeatingSystem) => void;
 
   /** Undo last project mutation. */
   undo: () => void;
@@ -313,6 +323,23 @@ export const useProjectStore = create<ProjectStore>()(
                   }
                 : r,
             ),
+          },
+          isDirty: true,
+          error: null,
+          _past: [...state._past, snap].slice(-MAX_HISTORY),
+          _future: [],
+        }));
+      },
+
+      applyHeatingSystemToAllRooms: (system) => {
+        const snap = takeProjectSnapshot(get());
+        set((state) => ({
+          project: {
+            ...state.project,
+            rooms: state.project.rooms.map((r) => ({
+              ...r,
+              heating_system: system,
+            })),
           },
           isDirty: true,
           error: null,

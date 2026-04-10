@@ -144,6 +144,19 @@ export interface Building {
   warmup_time?: number;
   building_height?: number | null;
   num_floors?: number;
+  /**
+   * Project-brede standaard verwarmingssysteem. Wordt gebruikt bij het
+   * aanmaken van nieuwe ruimten (via createRoom) en kan met één klik op
+   * alle bestaande ruimten worden toegepast. Optioneel voor backward
+   * compat met oude projecten; frontend valt terug op "radiator_ht".
+   *
+   * NOTE: Dit veld is HANDMATIG toegevoegd buiten de JSON-schema generatie
+   * om (zie header comment bovenaan). Bij de volgende
+   * `npm run generate-types` moet dit veld óók in het Rust `Building`
+   * struct + schema landen, anders overschrijft de generator deze regel.
+   * TODO: propagate default_heating_system naar Rust crates/isso51-core/src/model.
+   */
+  default_heating_system?: HeatingSystem;
 }
 
 export interface DesignConditions {

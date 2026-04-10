@@ -1,6 +1,11 @@
 import type { CatalogueEntry } from "./constructionCatalogue";
 
-import type { ConstructionElement, Room, RoomFunction } from "../types";
+import type {
+  ConstructionElement,
+  HeatingSystem,
+  Room,
+  RoomFunction,
+} from "../types";
 
 /** BBL specific ventilation rate for verblijfsruimten in dm³/s per m². */
 const BBL_QV_SPEC_LIVING = 0.9;
@@ -38,8 +43,17 @@ export function bblMinimumVentilationRate(
   }
 }
 
-/** Create a new Room with sensible defaults. */
-export function createRoom(): Room {
+/**
+ * Create a new Room with sensible defaults.
+ *
+ * @param defaultHeatingSystem - Project-brede default voor verwarmingssysteem.
+ *   Wordt doorgaans uit `project.building.default_heating_system` gelezen; als
+ *   het project (nog) geen default heeft valt dit terug op `"radiator_ht"`
+ *   (ISSO 51 meest voorkomend).
+ */
+export function createRoom(
+  defaultHeatingSystem: HeatingSystem = "radiator_ht",
+): Room {
   return {
     id: crypto.randomUUID(),
     name: "Nieuw vertrek",
@@ -47,7 +61,7 @@ export function createRoom(): Room {
     floor_area: 0,
     height: 2.6,
     constructions: [],
-    heating_system: "radiator_ht",
+    heating_system: defaultHeatingSystem,
   };
 }
 

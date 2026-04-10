@@ -28,7 +28,7 @@ export default function VertrekkenTab() {
   const hasRooms = project.rooms.length > 0;
 
   const handleAddRoom = () => {
-    addRoom(createRoom());
+    addRoom(createRoom(project.building.default_heating_system));
     navigate("/rooms");
   };
 

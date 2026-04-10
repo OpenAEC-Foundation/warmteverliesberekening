@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from "react";
 
+import { HEATING_SYSTEM_LABELS } from "../../lib/constants";
 import { bblMinimumVentilationRate } from "../../lib/roomDefaults";
-import type { Room } from "../../types";
+import type { HeatingSystem, Room } from "../../types";
 
 interface VentilationRowProps {
   room: Room;
@@ -47,6 +48,13 @@ export function VentilationRow({ room, onUpdate }: VentilationRowProps) {
   const handleFractionChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onUpdate({ fraction_outside_air: Number(e.target.value) || 0 });
+    },
+    [onUpdate],
+  );
+
+  const handleHeatingSystemChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      onUpdate({ heating_system: e.target.value as HeatingSystem });
     },
     [onUpdate],
   );
@@ -111,6 +119,33 @@ export function VentilationRow({ room, onUpdate }: VentilationRowProps) {
               className="w-14 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-input)] px-1.5 py-0.5 text-right text-xs text-on-surface tabular-nums focus:border-primary focus:outline-none"
               placeholder="1.0"
             />
+          </label>
+
+          {/* Visuele scheiding tussen ventilatie- en verwarmingssectie */}
+          <div className="h-8 w-px bg-[var(--oaec-border)]" aria-hidden="true" />
+
+          {/* Verwarmingssysteem per vertrek */}
+          <label
+            className="flex items-center gap-1.5"
+            title="ISSO 51 Tabel 2.12 — bepaalt Δθ₁/Δθ₂/Δθᵥ correcties"
+          >
+            <span className="flex flex-col leading-tight">
+              <span className="font-medium text-on-surface-muted">Verwarming</span>
+              <span className="text-[10px] text-on-surface-muted">
+                ISSO 51 Tabel 2.12
+              </span>
+            </span>
+            <select
+              value={room.heating_system}
+              onChange={handleHeatingSystemChange}
+              className="min-w-32 rounded border border-[var(--oaec-border)] bg-[var(--oaec-bg-input)] px-1.5 py-0.5 text-xs text-on-surface focus:border-primary focus:outline-none"
+            >
+              {Object.entries(HEATING_SYSTEM_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
       </td>

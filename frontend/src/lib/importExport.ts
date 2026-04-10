@@ -5,7 +5,14 @@
  * Import accepts both the envelope format and raw Project JSON.
  * Auto-detects thermal import files (Revit/IFC) and signals the caller.
  */
-import type { ConstructionElement, Project, ProjectResult, VerticalPosition } from "../types";
+import type {
+  ConstructionElement,
+  HeatingSystem,
+  Project,
+  ProjectResult,
+  Room,
+  VerticalPosition,
+} from "../types";
 import type { CatalogueCategory } from "./constructionCatalogue";
 import type { ProjectConstruction } from "../components/modeller/types";
 import { useModellerStore } from "../components/modeller/modellerStore";
@@ -167,7 +174,22 @@ export function validateProject(data: unknown): Project {
     (obj as Record<string, unknown>).info = { name: "" };
   }
 
-  return data as Project;
+  const project = data as Project;
+
+  // Backfill heating_system voor legacy JSONs van vóór de ISSO 51
+  // installatie-UI. Het Rust core type vereist `heating_system` als
+  // verplicht veld (geen serde default) — zonder fill crasht
+  // `backend.calculate()` met een missing-field fout. Default = de
+  // project-brede standaard als die al in de JSON stond, anders
+  // radiator_ht (ISSO 51 meest voorkomend).
+  const fallbackHs: HeatingSystem =
+    project.building.default_heating_system ?? "radiator_ht";
+  project.rooms = project.rooms.map((r: Room) => ({
+    ...r,
+    heating_system: r.heating_system ?? fallbackHs,
+  }));
+
+  return project;
 }
 
 // ---------------------------------------------------------------------------

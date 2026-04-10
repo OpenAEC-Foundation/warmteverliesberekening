@@ -18,10 +18,20 @@ import { useToastStore } from "../store/toastStore";
 import {
   BUILDING_TYPE_LABELS,
   DEFAULT_THETA_WATER,
+  HEATING_SYSTEM_LABELS,
   SECURITY_CLASS_LABELS,
   VENTILATION_SYSTEM_LABELS,
 } from "../lib/constants";
-import type { Building, DesignConditions, ProjectInfo, VentilationConfig } from "../types";
+import type {
+  Building,
+  DesignConditions,
+  HeatingSystem,
+  ProjectInfo,
+  VentilationConfig,
+} from "../types";
+
+const BULK_APPLY_CONFIRM_THRESHOLD = 5;
+const DEFAULT_HEATING_SYSTEM: HeatingSystem = "radiator_ht";
 
 function toOptions(labels: Record<string, string>) {
   return Object.entries(labels).map(([value, label]) => ({ value, label }));
@@ -34,7 +44,7 @@ export function ProjectSetup() {
   const {
     project, updateProject, isCalculating, setCalculating,
     setResult, setError, activeProjectId, setActiveProjectId,
-    serverUpdatedAt, setFrameUValueOverride,
+    serverUpdatedAt, setFrameUValueOverride, applyHeatingSystemToAllRooms,
   } = useProjectStore();
   const projectConstructions = useModellerStore((s) => s.projectConstructions);
   const addToast = useToastStore((s) => s.addToast);
@@ -289,8 +299,26 @@ export function ProjectSetup() {
               value={building.warmup_time ?? 2}
               onChange={(e) => updateBuilding({ warmup_time: numVal(e.target.value) })}
             />
+            <div>
+              <Select
+                id="default_heating_system"
+                label="Standaard verwarmingssysteem"
+                value={building.default_heating_system ?? DEFAULT_HEATING_SYSTEM}
+                options={toOptions(HEATING_SYSTEM_LABELS)}
+                onChange={(e) =>
+                  updateBuilding({
+                    default_heating_system: e.target.value as HeatingSystem,
+                  })
+                }
+              />
+              <p className="mt-1 text-[10px] leading-tight text-on-surface-muted">
+                Wordt gebruikt bij nieuwe vertrekken. Gebruik de knop hieronder
+                om dit systeem op alle bestaande vertrekken toe te passen.
+                Bepaalt Δθ₁/Δθ₂/Δθᵥ correcties (ISSO 51 Tabel 2.12).
+              </p>
+            </div>
           </div>
-          <div className="mt-3">
+          <div className="mt-3 flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -300,6 +328,37 @@ export function ProjectSetup() {
               />
               Nachtreductie
             </label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const system =
+                  building.default_heating_system ?? DEFAULT_HEATING_SYSTEM;
+                const count = project.rooms.length;
+                if (count === 0) {
+                  addToast("Geen vertrekken om aan te passen", "info", 2000);
+                  return;
+                }
+                if (count > BULK_APPLY_CONFIRM_THRESHOLD) {
+                  const label = HEATING_SYSTEM_LABELS[system] ?? system;
+                  if (
+                    !window.confirm(
+                      `Weet je zeker dat je "${label}" wilt toepassen op alle ${count} vertrekken? Dit overschrijft eventuele per-vertrek afwijkingen.`,
+                    )
+                  ) {
+                    return;
+                  }
+                }
+                applyHeatingSystemToAllRooms(system);
+                addToast(
+                  `Verwarmingssysteem toegepast op ${count} vertrekken`,
+                  "success",
+                  2500,
+                );
+              }}
+            >
+              Toepassen op alle vertrekken
+            </Button>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-4 border-t border-[var(--oaec-border-subtle)] pt-4">
             <div>

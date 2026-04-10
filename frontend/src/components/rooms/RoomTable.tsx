@@ -28,6 +28,9 @@ const EMPTY_ROOM_CELLS = (
 
 export function RoomTable() {
   const rooms = useProjectStore((s) => s.project.rooms);
+  const defaultHeatingSystem = useProjectStore(
+    (s) => s.project.building.default_heating_system,
+  );
   const addRoom = useProjectStore((s) => s.addRoom);
   const updateRoom = useProjectStore((s) => s.updateRoom);
   const removeRoom = useProjectStore((s) => s.removeRoom);
@@ -36,8 +39,8 @@ export function RoomTable() {
   const removeConstruction = useProjectStore((s) => s.removeConstruction);
 
   const handleAddRoom = useCallback(() => {
-    addRoom(createRoom());
-  }, [addRoom]);
+    addRoom(createRoom(defaultHeatingSystem));
+  }, [addRoom, defaultHeatingSystem]);
 
   const handleAddConstruction = useCallback(
     (roomId: string, construction: ConstructionElement) => {
